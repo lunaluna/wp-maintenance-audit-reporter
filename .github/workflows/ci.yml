@@ -1,0 +1,32 @@
+name: CI
+
+on:
+	push:
+		branches: [ "**" ]
+	pull_request:
+		branches: [ "**" ]
+
+jobs:
+	phpcompat:
+		runs-on: ubuntu-latest
+		strategy:
+			matrix:
+				php-versions: ['8.0', '8.2', '8.3']
+
+		steps:
+			- uses: actions/checkout@v4
+
+			- name: Setup PHP
+				uses: shivammathur/setup-php@v2
+				with:
+					php-version: ${{ matrix.php-versions }}
+					tools: composer:v2
+
+			- name: Install Composer dependencies
+				run: composer install --prefer-dist --no-progress
+
+			- name: Run PHPCS
+				run: composer run phpcs
+
+			- name: Run PHPUnit
+				run: composer run phpunit

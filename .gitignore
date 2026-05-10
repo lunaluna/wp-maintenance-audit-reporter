@@ -1,0 +1,29 @@
+# Composer — third-party code (never push; CI and clones use `composer install`)
+/vendor/
+
+# Composer machine-specific credentials (never push)
+/auth.json
+
+# PHPUnit cache (local machine)
+/.phpunit.result.cache
+/.phpunit.cache/
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.sublime-*
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage / artefacts (optional local output)
+coverage/
+*.clover
+build/
