@@ -63,10 +63,10 @@ class WPMAR_Domain_Gate {
 		}
 
 		return array(
-			'detected'       => $detected,
-			'saved_display'    => $saved_raw,
-			'saved_norm'       => $saved_norm,
-			'state'            => $state,
+			'detected'      => $detected,
+			'saved_display' => $saved_raw,
+			'saved_norm'    => $saved_norm,
+			'state'         => $state,
 		);
 	}
 }

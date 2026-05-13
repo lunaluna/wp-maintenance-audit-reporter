@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums (later), mail, CLI.
- * Version:           0.1.0-dev
+ * Version:           0.2.0-dev
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            lunaluna
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '0.1.0-dev' );
+define( 'WPMAR_VERSION', '0.2.0-dev' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -28,6 +28,7 @@ define( 'WPMAR_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 define( 'WPMAR_HOOK_SCHEDULED', 'wpmar_run_audit' );
 define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
+define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 
 /**
  * Includes loaded for activation hooks and runtime.
@@ -38,6 +39,7 @@ function wpmar_get_include_manifest() {
 	return array(
 		'includes/class-wpmar-settings.php',
 		'includes/class-wpmar-domain-gate.php',
+		'includes/checks/class-wpmar-check-checksums.php',
 		'includes/api/class-wpmar-wporg-client.php',
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
@@ -49,6 +51,8 @@ function wpmar_get_include_manifest() {
 		'includes/class-wpmar-scheduler.php',
 		'includes/admin/class-wpmar-admin-menu.php',
 		'includes/admin/class-wpmar-settings-page.php',
+		'includes/admin/class-wpmar-reports-list-table.php',
+		'includes/admin/class-wpmar-reports-page.php',
 	);
 }
 

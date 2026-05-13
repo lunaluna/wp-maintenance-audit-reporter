@@ -137,7 +137,15 @@ class WPMAR_Report_Repository {
 	 * @return bool
 	 */
 	public function delete_row( $id ) {
-		// Uses wpdb::delete so SQL interpolation stays inside core APIs.
+		$row = $this->find( $id );
+		if ( null === $row ) {
+			return false;
+		}
+
+		if ( isset( $row['md_file_path'] ) && is_string( $row['md_file_path'] ) ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( $row['md_file_path'] );
+		}
+
 		$deleted = $this->db->delete(
 			$this->table,
 			array(
@@ -149,6 +157,94 @@ class WPMAR_Report_Repository {
 		);
 
 		return ( false !== $deleted && $deleted > 0 );
+	}
+
+	/**
+	 * Counts persisted reports.
+	 *
+	 * @return int
+	 */
+	public function count_all() {
+		$total = $this->db->get_var(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+			"SELECT COUNT(*) FROM `{$this->table}`"
+		);
+
+		return absint( $total );
+	}
+
+	/**
+	 * Returns rows ordered by newest PK with pagination metadata.
+	 *
+	 * @param int $per_page Rows per page (clamped).
+	 * @param int $page     One-based page index.
+	 * @return array{items:array<int,array<string,mixed>>,total:int}
+	 */
+	public function list_page( $per_page, $page ) {
+		$per_page = max( 1, min( 200, absint( $per_page ) ) );
+		$page     = max( 1, absint( $page ) );
+		$offset   = ( $page - 1 ) * $per_page;
+
+		$total = $this->count_all();
+
+		$items = $this->db->get_results(
+			$this->db->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+				'SELECT id,created_at,status,triggered_by,domain_matched,mail_sent,change_count,duration_sec,md_file_path '
+					. "FROM `{$this->table}` ORDER BY id DESC LIMIT %d OFFSET %d",
+				$per_page,
+				$offset
+			),
+			ARRAY_A
+		);
+
+		return array(
+			'items' => is_array( $items ) ? $items : array(),
+			'total' => absint( $total ),
+		);
+	}
+
+	/**
+	 * Deletes rows (and Markdown peers) older than the retention window.
+	 *
+	 * @param int $months Retention length; non-positive values disable purging.
+	 * @return int Number of rows removed.
+	 */
+	public function purge_older_than_months( $months ) {
+		$months = absint( $months );
+		if ( $months <= 0 ) {
+			return 0;
+		}
+
+		$cutoff_ts = strtotime( '-' . $months . ' months', time() );
+		if ( false === $cutoff_ts ) {
+			return 0;
+		}
+
+		$cutoff = gmdate( 'Y-m-d H:i:s', (int) $cutoff_ts );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+		$sql = "SELECT id FROM `{$this->table}` WHERE created_at < %s ORDER BY id ASC";
+
+		$ids = $this->db->get_col( $this->db->prepare( $sql, $cutoff ) );
+
+		if ( ! is_array( $ids ) || empty( $ids ) ) {
+			return 0;
+		}
+
+		$removed = 0;
+		foreach ( $ids as $maybe_id ) {
+			$rid = absint( $maybe_id );
+			if ( $rid <= 0 ) {
+				continue;
+			}
+
+			if ( $this->delete_row( $rid ) ) {
+				++$removed;
+			}
+		}
+
+		return $removed;
 	}
 
 	/**

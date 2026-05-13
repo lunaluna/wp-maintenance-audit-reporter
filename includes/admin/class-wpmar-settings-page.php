@@ -45,13 +45,18 @@ class WPMAR_Settings_Page {
 		$last_done = get_option( 'wpmar_last_audit_completed_at', '' );
 		$dry_note  = WPMAR_Admin_Menu::consume_dry_run_brevity();
 
-		// Notices from add_settings_error() are already output by core:
-		// wp-admin/admin-header.php loads options-head.php when $parent_file is options-general.php.
+		// Notices from add_settings_error(); call settings_errors() in this screen (not options.php).
 
 		// Core status readouts + optional dry-run <pre> on the POST response immediately after 「ドライラン」.
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<?php settings_errors( 'wpmar_messages' ); ?>
+			<p>
+				<a class="button button-secondary" href="<?php echo esc_url( WPMAR_Admin_Menu::admin_screen_url( WPMAR_REPORTS_PAGE_SLUG ) ); ?>">
+					<?php esc_html_e( 'レポート一覧を開く', 'wp-maintenance-audit-reporter' ); ?>
+				</a>
+			</p>
 			<p>
 				<?php esc_html_e( '月次の保守レポートを生成し、差分・Markdown・メール通知を制御します。', 'wp-maintenance-audit-reporter' ); ?>
 			</p>
@@ -91,7 +96,7 @@ class WPMAR_Settings_Page {
 			<?php
 			// All actions POST back here; nonce + capability enforced in Admin_Menu.
 			?>
-			<form id="wpmar-settings-form" class="wpmar-settings-form" method="post" action="<?php echo esc_url( admin_url( 'options-general.php?page=' . WPMAR_ADMIN_PAGE_SLUG ) ); ?>">
+			<form id="wpmar-settings-form" class="wpmar-settings-form" method="post" action="<?php echo esc_url( WPMAR_Admin_Menu::admin_screen_url( WPMAR_ADMIN_PAGE_SLUG ) ); ?>">
 				<?php wp_nonce_field( 'wpmar_settings_save', 'wpmar_settings_nonce' ); ?>
 
 				<h2><?php esc_html_e( 'スケジュール', 'wp-maintenance-audit-reporter' ); ?></h2>
@@ -167,6 +172,52 @@ class WPMAR_Settings_Page {
 					</tr>
 				</table>
 
+				<?php
+				$retention_months = isset( $settings['retention']['months'] ) ? absint( $settings['retention']['months'] ) : 12;
+				$core_excludes    = isset( $settings['checksums']['core_exclude_paths'] ) && is_array( $settings['checksums']['core_exclude_paths'] )
+					? $settings['checksums']['core_exclude_paths']
+					: array();
+				$plugin_rules     = isset( $settings['checksums']['plugin_exclude_rules'] ) && is_array( $settings['checksums']['plugin_exclude_rules'] )
+					? $settings['checksums']['plugin_exclude_rules']
+					: array();
+				?>
+				<h2><?php esc_html_e( 'チェックサム除外リスト', 'wp-maintenance-audit-reporter' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'コアは ABSPATH からの相対パス（例: wp-config.php）。プラグインは「スラッグ:相対パス」1 行に 1 エントリ（例: akismet:readme.txt）。# で始まる行はコメントとして無視されます。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="wpmar-core-excludes"><?php esc_html_e( 'コア除外パス', 'wp-maintenance-audit-reporter' ); ?></label></th>
+						<td>
+							<textarea class="large-text code" rows="6" name="wpmar_core_checksum_excludes" id="wpmar-core-excludes"><?php echo esc_textarea( implode( "\n", array_map( 'strval', $core_excludes ) ) ); ?></textarea>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wpmar-plugin-excludes"><?php esc_html_e( 'プラグイン除外', 'wp-maintenance-audit-reporter' ); ?></label></th>
+						<td>
+							<textarea class="large-text code" rows="6" name="wpmar_plugin_checksum_excludes" id="wpmar-plugin-excludes"><?php echo esc_textarea( self::stringify_plugin_exclude_textarea( $plugin_rules ) ); ?></textarea>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( '保持期間', 'wp-maintenance-audit-reporter' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="wpmar-retention"><?php esc_html_e( 'レポート保管期間', 'wp-maintenance-audit-reporter' ); ?></label></th>
+						<td>
+							<select name="wpmar_retention_months" id="wpmar-retention">
+								<option value="0" <?php selected( $retention_months, 0 ); ?>><?php esc_html_e( '無期限（自動削除しない）', 'wp-maintenance-audit-reporter' ); ?></option>
+								<option value="12" <?php selected( $retention_months, 12 ); ?>><?php esc_html_e( '12 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
+								<option value="24" <?php selected( $retention_months, 24 ); ?>><?php esc_html_e( '24 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
+							</select>
+							<p class="description"><?php esc_html_e( 'フル実行のたびに起算して古い行と Markdown ファイルを削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<?php
+				// Markdown + QA tools continue below.
+				?>
 				<h2><?php esc_html_e( 'Markdown 出力', 'wp-maintenance-audit-reporter' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
@@ -220,7 +271,7 @@ class WPMAR_Settings_Page {
 	 */
 	private static function render_domain_gate_callout( array $settings ) {
 		$ctx           = WPMAR_Domain_Gate::admin_gate_callout_context( $settings );
-		$detected_show = $ctx['detected'] !== '' ? $ctx['detected'] : '—';
+		$detected_show = '' !== $ctx['detected'] ? $ctx['detected'] : '—';
 
 		ob_start();
 		?>
@@ -264,5 +315,28 @@ class WPMAR_Settings_Page {
 		<?php
 
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Flattens structured plugin exclude map for textarea storage.
+	 *
+	 * @param array<string,array<int,string>> $rules Slug keyed bundle.
+	 * @return string
+	 */
+	private static function stringify_plugin_exclude_textarea( array $rules ) {
+		$lines = array();
+
+		foreach ( $rules as $slug => $paths ) {
+			$slug_safe = sanitize_key( (string) $slug );
+			if ( '' === $slug_safe ) {
+				continue;
+			}
+
+			foreach ( (array) $paths as $fragment ) {
+				$lines[] = $slug_safe . ':' . (string) $fragment;
+			}
+		}
+
+		return implode( "\n", $lines );
 	}
 }

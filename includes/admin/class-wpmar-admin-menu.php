@@ -1,6 +1,6 @@
 <?php
 /**
- * Registers Settings > Maintenance Audit UI and validates POST actions.
+ * Registers the Maintenance Audit admin menu (top-level + submenus) and validates POST actions.
  *
  * @package WPMAR
  */
@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Adds the options screen and nonce-protected submissions.
+ * Wires dashboard menu, assets, and nonce-protected form posts.
  */
 class WPMAR_Admin_Menu {
 
@@ -24,6 +24,8 @@ class WPMAR_Admin_Menu {
 	 */
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
+		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'handle_get_actions' ), 1 );
+		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'strip_legacy_notice_query_arg' ), 2 );
 		add_action( 'admin_init', array( __CLASS__, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 	}
@@ -52,13 +54,35 @@ class WPMAR_Admin_Menu {
 	}
 
 	/**
-	 * Loads scripts/styles on the Maintenance Audit settings screen only.
+	 * URL for a screen registered under admin.php?page=…
+	 *
+	 * @param string $page_slug {@see WPMAR_ADMIN_PAGE_SLUG} or {@see WPMAR_REPORTS_PAGE_SLUG}.
+	 * @return string
+	 */
+	public static function admin_screen_url( $page_slug ) {
+		return add_query_arg(
+			'page',
+			sanitize_key( (string) $page_slug ),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * Loads scripts/styles on Maintenance Audit screens only.
 	 *
 	 * @param string $hook_suffix Passed by admin_enqueue_scripts.
 	 * @return void
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
-		if ( 'settings_page_' . WPMAR_ADMIN_PAGE_SLUG !== $hook_suffix ) {
+		$main_hook    = WPMAR_ADMIN_PAGE_SLUG . '_page_' . WPMAR_ADMIN_PAGE_SLUG;
+		$reports_hook = WPMAR_ADMIN_PAGE_SLUG . '_page_' . WPMAR_REPORTS_PAGE_SLUG;
+		$allowed      = array(
+			'toplevel_page_' . WPMAR_ADMIN_PAGE_SLUG,
+			$main_hook,
+			$reports_hook,
+		);
+
+		if ( ! in_array( $hook_suffix, $allowed, true ) ) {
 			return;
 		}
 
@@ -79,29 +103,57 @@ class WPMAR_Admin_Menu {
 			true
 		);
 
+		$wpmar_admin_l10n = array(
+			'dryRun'   => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
+			'fullRun'  => __( 'フル監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'testMail' => __( 'テストメール付き監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+		);
+
+		if ( $reports_hook === $hook_suffix ) {
+			$wpmar_admin_l10n['confirmSingle'] = __( 'このレポートを削除しますか？元に戻せません。', 'wp-maintenance-audit-reporter' );
+			/* translators: %d: number of reports selected for bulk delete. */
+			$wpmar_admin_l10n['confirmBulk'] = __( '選択した %d 件のレポートを削除しますか？元に戻せません。', 'wp-maintenance-audit-reporter' );
+		}
+
 		wp_localize_script(
 			'wpmar-admin',
 			'wpmarAdminBusy',
-			array(
-				'dryRun'   => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-				'fullRun'  => __( 'フル監査を実行しています…', 'wp-maintenance-audit-reporter' ),
-				'testMail' => __( 'テストメール付き監査を実行しています…', 'wp-maintenance-audit-reporter' ),
-			)
+			$wpmar_admin_l10n
 		);
 	}
 
 	/**
-	 * Adds options page under Settings.
+	 * Top-level Maintenance Audit menu + Submenus (設定・実行 / レポート).
 	 *
 	 * @return void
 	 */
 	public static function register_page() {
-		add_options_page(
+		add_menu_page(
 			__( 'Maintenance Audit', 'wp-maintenance-audit-reporter' ),
 			__( 'Maintenance Audit', 'wp-maintenance-audit-reporter' ),
 			self::CAPABILITY,
 			WPMAR_ADMIN_PAGE_SLUG,
+			array( 'WPMAR_Settings_Page', 'render' ),
+			'dashicons-clipboard',
+			81
+		);
+
+		add_submenu_page(
+			WPMAR_ADMIN_PAGE_SLUG,
+			__( 'Maintenance Audit', 'wp-maintenance-audit-reporter' ),
+			__( '設定・実行', 'wp-maintenance-audit-reporter' ),
+			self::CAPABILITY,
+			WPMAR_ADMIN_PAGE_SLUG,
 			array( 'WPMAR_Settings_Page', 'render' )
+		);
+
+		add_submenu_page(
+			WPMAR_ADMIN_PAGE_SLUG,
+			__( 'Maintenance Audit — レポート一覧', 'wp-maintenance-audit-reporter' ),
+			__( 'レポート', 'wp-maintenance-audit-reporter' ),
+			self::CAPABILITY,
+			WPMAR_REPORTS_PAGE_SLUG,
+			array( 'WPMAR_Reports_Page', 'render' )
 		);
 	}
 

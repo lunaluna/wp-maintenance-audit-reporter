@@ -80,4 +80,34 @@ class WPMAR_MD_Writer {
 
 		return is_string( $relative ) ? $relative : '';
 	}
+
+	/**
+	 * Deletes a file previously stored as `wp_upload_dir()['basedir']`-relative.
+	 *
+	 * @param string $relative Path relative to the uploads base directory.
+	 * @return void
+	 */
+	public static function delete_if_upload_relative( $relative ) {
+		$relative = is_string( $relative ) ? trim( $relative ) : '';
+
+		if ( '' === $relative ) {
+			return;
+		}
+
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return;
+		}
+
+		$base = wp_normalize_path( trailingslashit( $uploads['basedir'] ) );
+		$full = wp_normalize_path( path_join( $uploads['basedir'], $relative ) );
+
+		if ( 0 !== strpos( $full, $base ) ) {
+			return;
+		}
+
+		if ( file_exists( $full ) && is_file( $full ) ) {
+			wp_delete_file( $full );
+		}
+	}
 }

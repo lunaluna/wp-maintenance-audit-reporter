@@ -143,6 +143,11 @@ class WPMAR_Runner {
 				)
 			);
 
+			$retention_months = isset( $settings['retention']['months'] ) ? absint( $settings['retention']['months'] ) : 12;
+			if ( $retention_months > 0 && null !== $row_id ) {
+				$report_repo->purge_older_than_months( $retention_months );
+			}
+
 			// Monthly single-event chaining is recalculated after every concrete run.
 			WPMAR_Scheduler::reschedule();
 
@@ -174,15 +179,15 @@ class WPMAR_Runner {
 		$collector = new WPMAR_Data_Collector();
 		$facts     = $collector->gather();
 
-		$tz = wp_timezone();
+		$tz             = wp_timezone();
 		$brevity_string = wp_json_encode(
 			array(
-				'site'            => sanitize_text_field( get_option( 'blogname' ) ),
-				'dry_run_at'      => wp_date( 'Y-m-d H:i:s T', time(), $tz ),
+				'site'           => sanitize_text_field( get_option( 'blogname' ) ),
+				'dry_run_at'     => wp_date( 'Y-m-d H:i:s T', time(), $tz ),
 				'dry_run_at_utc' => gmdate( 'c' ),
-				'core_version'    => sanitize_text_field( $facts['core']['version'] ?? '' ),
-				'theme_count'     => isset( $facts['themes']['inventory'] ) && is_array( $facts['themes']['inventory'] ) ? count( $facts['themes']['inventory'] ) : 0,
-				'plugins_count'   => isset( $facts['plugins']['inventory'] ) && is_array( $facts['plugins']['inventory'] ) ? count( $facts['plugins']['inventory'] ) : 0,
+				'core_version'   => sanitize_text_field( $facts['core']['version'] ?? '' ),
+				'theme_count'    => isset( $facts['themes']['inventory'] ) && is_array( $facts['themes']['inventory'] ) ? count( $facts['themes']['inventory'] ) : 0,
+				'plugins_count'  => isset( $facts['plugins']['inventory'] ) && is_array( $facts['plugins']['inventory'] ) ? count( $facts['plugins']['inventory'] ) : 0,
 			),
 			JSON_PRETTY_PRINT | JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE
 		);
@@ -421,6 +426,10 @@ class WPMAR_Runner {
 		$body .= '## ' . __( 'チェンジカウント', 'wp-maintenance-audit-reporter' ) . ': ' . absint( $changelog_size ) . "\n\n";
 		$body .= '## ' . __( '差分', 'wp-maintenance-audit-reporter' ) . "\n\n";
 		$body .= wp_strip_all_tags( (string) $changelog ) . "\n\n";
+		$body .= '## ' . __( 'チェックサム照合', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= self::render_checksum_client_section( isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array() );
+		$body .= "\n\n";
+
 		$body .= '## ' . __( '利用可能な WordPress アップデート（コアのみ）', 'wp-maintenance-audit-reporter' ) . "\n\n";
 
 		if ( empty( $facts['core']['available_updates'] ) ) {
@@ -432,6 +441,112 @@ class WPMAR_Runner {
 		}
 
 		return trim( $body );
+	}
+
+	/**
+	 * Human-readable checksum bullets for stakeholder mail.
+	 *
+	 * @param array<string,mixed> $checksum Envelope produced by {@see WPMAR_Check_Checksums::collect()}.
+	 * @return string
+	 */
+	protected static function render_checksum_client_section( array $checksum ) {
+		$core    = isset( $checksum['core'] ) && is_array( $checksum['core'] ) ? $checksum['core'] : array();
+		$plugins = isset( $checksum['plugins'] ) && is_array( $checksum['plugins'] ) ? $checksum['plugins'] : array();
+
+		$lines = array();
+
+		if ( ! empty( $core ) ) {
+			if ( ! empty( $core['error'] ) ) {
+				$lines[] = '* ' . sprintf(
+					/* translators: %s: error text */
+					__( 'コア: API エラー (%s)', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( (string) $core['error'] )
+				);
+			} elseif ( empty( $core['manifest_ok'] ) ) {
+				$lines[] = '* ' . __( 'コア: チェックサム一覧を取得できませんでした。', 'wp-maintenance-audit-reporter' );
+			} else {
+				$mismatch_n = isset( $core['mismatches'] ) && is_array( $core['mismatches'] ) ? count( $core['mismatches'] ) : 0;
+				if ( ! empty( $core['ok'] ) && 0 === $mismatch_n ) {
+					$lines[] = '* ' . __( 'コア: すべて一致しました。', 'wp-maintenance-audit-reporter' );
+				} else {
+					$lines[] = '* ' . sprintf(
+						/* translators: %d: mismatch count */
+						__( 'コア: 不一致または欠損 %d 件', 'wp-maintenance-audit-reporter' ),
+						absint( $mismatch_n )
+					);
+				}
+
+				$lines[] = '  * ' . sprintf(
+					/* translators: 1: files checked, 2: files skipped (excluded) */
+					__( '照合ファイル数: %1$d / 除外スキップ: %2$d', 'wp-maintenance-audit-reporter' ),
+					absint( $core['checked_files'] ?? 0 ),
+					absint( $core['skipped_files'] ?? 0 )
+				);
+
+				if ( ! empty( $core['manifest_locale_fallback'] ) && ! empty( $core['manifest_locale'] ) ) {
+					$lines[] = '  * ' . sprintf(
+						/* translators: 1: site locale (e.g. ja), 2: manifest locale used (typically en_US) */
+						__( 'api.wordpress.org にサイト言語 (%1$s) 用のコアチェックサムが無かったため、%2$s のマニフェストで照合しました。', 'wp-maintenance-audit-reporter' ),
+						sanitize_text_field( (string) ( $core['locale'] ?? '' ) ),
+						sanitize_text_field( (string) ( $core['manifest_locale'] ?? 'en_US' ) )
+					);
+				}
+			}
+		}
+
+		if ( ! empty( $plugins ) ) {
+			foreach ( $plugins as $slug => $row ) {
+				if ( ! is_array( $row ) ) {
+					continue;
+				}
+
+				$slug_safe = sanitize_key( (string) $slug );
+				$status    = isset( $row['status'] ) ? sanitize_key( (string) $row['status'] ) : '';
+
+				if ( 'no_checksums' === $status ) {
+					$lines[] = '* ' . sprintf(
+						/* translators: %s: plugin slug */
+						__( 'プラグイン %s: チェックサム未提供（公式ディレクトリ外の可能性）', 'wp-maintenance-audit-reporter' ),
+						$slug_safe
+					);
+
+					continue;
+				}
+
+				if ( 'error' === $status && ! empty( $row['error'] ) ) {
+					$lines[] = '* ' . sprintf(
+						/* translators: 1 slug, 2 error */
+						__( 'プラグイン %1$s: エラー (%2$s)', 'wp-maintenance-audit-reporter' ),
+						$slug_safe,
+						sanitize_text_field( (string) $row['error'] )
+					);
+
+					continue;
+				}
+
+				$mismatch_n = isset( $row['mismatches'] ) && is_array( $row['mismatches'] ) ? count( $row['mismatches'] ) : 0;
+				if ( 'ok' === $status && 0 === $mismatch_n ) {
+					$lines[] = '* ' . sprintf(
+						/* translators: %s slug */
+						__( 'プラグイン %s: OK', 'wp-maintenance-audit-reporter' ),
+						$slug_safe
+					);
+				} else {
+					$lines[] = '* ' . sprintf(
+						/* translators: 1 slug, 2 count */
+						__( 'プラグイン %1$s: 不一致 %2$d 件', 'wp-maintenance-audit-reporter' ),
+						$slug_safe,
+						absint( $mismatch_n )
+					);
+				}
+			}
+		}
+
+		if ( empty( $lines ) ) {
+			return __( 'チェックサム情報がありません。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return implode( "\n", $lines );
 	}
 
 	/**

@@ -23,24 +23,31 @@ class WPMAR_Settings {
 	 */
 	public static function defaults() {
 		return array(
-			'schedule' => array(
+			'schedule'  => array(
 				'day'    => 25,
 				'hour'   => 2,
 				'minute' => 0,
 				'tz'     => 'Asia/Tokyo',
 			),
-			'domain'   => array(
+			'domain'    => array(
 				'allowed_host' => '',
 			),
-			'mail'     => array(
+			'mail'      => array(
 				'enabled'      => false,
 				'client_to'    => array(),
 				'admin_to'     => array(),
 				'from_address' => '',
 				'from_name'    => '',
 			),
-			'output'   => array(
+			'output'    => array(
 				'md_enabled' => true,
+			),
+			'checksums' => array(
+				'core_exclude_paths'   => array(),
+				'plugin_exclude_rules' => array(),
+			),
+			'retention' => array(
+				'months' => 12,
 			),
 		);
 	}
@@ -166,6 +173,103 @@ class WPMAR_Settings {
 			$curr['output']['md_enabled'] = ! empty( $post['wpmar_md_enabled'] );
 		}
 
+		if ( isset( $post['wpmar_retention_months'] ) ) {
+			$allowed = array( 0, 12, 24 );
+			$months  = absint( $post['wpmar_retention_months'] );
+			if ( ! in_array( $months, $allowed, true ) ) {
+				$months = 12;
+			}
+			if ( ! isset( $curr['retention'] ) || ! is_array( $curr['retention'] ) ) {
+				$curr['retention'] = self::defaults()['retention'];
+			}
+			$curr['retention']['months'] = $months;
+		}
+
+		if ( isset( $post['wpmar_core_checksum_excludes'] ) ) {
+			if ( ! isset( $curr['checksums'] ) || ! is_array( $curr['checksums'] ) ) {
+				$curr['checksums'] = self::defaults()['checksums'];
+			}
+			$curr['checksums']['core_exclude_paths'] = self::parse_line_paths( wp_unslash( (string) $post['wpmar_core_checksum_excludes'] ) );
+		}
+
+		if ( isset( $post['wpmar_plugin_checksum_excludes'] ) ) {
+			if ( ! isset( $curr['checksums'] ) || ! is_array( $curr['checksums'] ) ) {
+				$curr['checksums'] = self::defaults()['checksums'];
+			}
+			$curr['checksums']['plugin_exclude_rules'] = self::parse_plugin_exclude_map( wp_unslash( (string) $post['wpmar_plugin_checksum_excludes'] ) );
+		}
+
 		return $curr;
+	}
+
+	/**
+	 * Splits textarea lines into trimmed relative paths.
+	 *
+	 * @param string $raw Multiline user input.
+	 * @return string[]
+	 */
+	public static function parse_line_paths( $raw ) {
+		$lines = preg_split( '/\r\n|\r|\n/', (string) $raw );
+
+		if ( ! is_array( $lines ) ) {
+			return array();
+		}
+
+		$out = array();
+		foreach ( $lines as $line ) {
+			$line = trim( $line );
+			if ( '' === $line || ( strlen( $line ) > 0 && '#' === $line[0] ) ) {
+				continue;
+			}
+			$out[] = $line;
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	/**
+	 * Parses `slug:relative/path` rows into a slug keyed map of fragments.
+	 *
+	 * @param string $raw Multiline user input.
+	 * @return array<string,array<int,string>>
+	 */
+	public static function parse_plugin_exclude_map( $raw ) {
+		$lines = preg_split( '/\r\n|\r|\n/', (string) $raw );
+
+		if ( ! is_array( $lines ) ) {
+			return array();
+		}
+
+		$out = array();
+		foreach ( $lines as $line ) {
+			$line = trim( $line );
+			if ( '' === $line || ( strlen( $line ) > 0 && '#' === $line[0] ) ) {
+				continue;
+			}
+
+			$pos = strpos( $line, ':' );
+			if ( false === $pos || $pos < 1 ) {
+				continue;
+			}
+
+			$slug = sanitize_key( substr( $line, 0, $pos ) );
+			$rel  = ltrim( substr( $line, $pos + 1 ) );
+
+			if ( '' === $slug || '' === $rel ) {
+				continue;
+			}
+
+			if ( ! isset( $out[ $slug ] ) ) {
+				$out[ $slug ] = array();
+			}
+
+			$out[ $slug ][] = $rel;
+		}
+
+		foreach ( $out as $slug => $paths ) {
+			$out[ $slug ] = array_values( array_unique( array_map( 'strval', $paths ) ) );
+		}
+
+		return $out;
 	}
 }

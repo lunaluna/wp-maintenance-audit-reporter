@@ -51,7 +51,7 @@ class WPMAR_Data_Collector {
 		wp_update_plugins();
 		wp_update_themes();
 
-		return array(
+		$dataset = array(
 			'meta'    => array(
 				'blogname' => get_option( 'blogname' ),
 				'home_url' => home_url(),
@@ -68,6 +68,13 @@ class WPMAR_Data_Collector {
 			'users'   => $this->gather_publishers(),
 			'server'  => $this->gather_server_intel(),
 		);
+
+		$settings = WPMAR_Settings::get_all();
+		$checksum = new WPMAR_Check_Checksums();
+
+		$dataset['checksums'] = $checksum->collect( $settings, $dataset );
+
+		return $dataset;
 	}
 
 	/**
