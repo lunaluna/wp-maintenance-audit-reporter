@@ -22,6 +22,7 @@ class WPMAR_Activator {
 	public static function activate() {
 		self::maybe_create_tables();
 		self::maybe_seed_defaults();
+		self::ensure_site_defaults_and_schedule();
 
 		update_option(
 			'wpmar_db_version',
@@ -90,6 +91,7 @@ class WPMAR_Activator {
 				'day'    => 25,
 				'hour'   => 2,
 				'minute' => 0,
+				'tz'     => 'Asia/Tokyo',
 			),
 			'domain'   => array(
 				'allowed_host' => '',
@@ -112,5 +114,42 @@ class WPMAR_Activator {
 			'',
 			true
 		);
+	}
+
+	/**
+	 * Ensures timezone + hostname defaults once tables exist (requires Settings / Scheduler stubs).
+	 *
+	 * @return void
+	 */
+	protected static function ensure_site_defaults_and_schedule() {
+		if ( ! defined( 'WPMAR_PLUGIN_DIR' ) ) {
+			return;
+		}
+
+		$settings = WPMAR_Settings::get_all();
+
+		if ( isset( $settings['schedule']['tz'] ) && '' === trim( (string) $settings['schedule']['tz'] ) ) {
+			$settings['schedule']['tz'] = 'Asia/Tokyo';
+		}
+
+		$parsed = wp_parse_url( home_url(), PHP_URL_HOST );
+		if ( is_string( $parsed ) ) {
+			$parsed = strtolower( $parsed );
+		} else {
+			$parsed = '';
+		}
+
+		if (
+			is_string( $parsed )
+			&& '' !== $parsed
+			&& isset( $settings['domain']['allowed_host'] )
+			&& '' === trim( (string) $settings['domain']['allowed_host'] )
+		) {
+			$settings['domain']['allowed_host'] = sanitize_text_field( $parsed );
+		}
+
+		WPMAR_Settings::update_all( $settings );
+
+		WPMAR_Scheduler::reschedule();
 	}
 }

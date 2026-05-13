@@ -27,22 +27,94 @@ define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'WPMAR_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 define( 'WPMAR_HOOK_SCHEDULED', 'wpmar_run_audit' );
-
-require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-activator.php';
-require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-deactivator.php';
-
-register_activation_hook( __FILE__, array( 'WPMAR_Activator', 'activate' ) );
-register_deactivation_hook( __FILE__, array( 'WPMAR_Deactivator', 'deactivate' ) );
-
-require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-plugin.php';
+define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
 
 /**
- * Loads the plugin main instance.
+ * Includes loaded for activation hooks and runtime.
+ *
+ * @return array<int, string>
+ */
+function wpmar_get_include_manifest() {
+	return array(
+		'includes/class-wpmar-settings.php',
+		'includes/class-wpmar-domain-gate.php',
+		'includes/api/class-wpmar-wporg-client.php',
+		'includes/storage/class-wpmar-snapshot-repository.php',
+		'includes/storage/class-wpmar-report-repository.php',
+		'includes/storage/class-wpmar-md-writer.php',
+		'includes/class-wpmar-data-collector.php',
+		'includes/notify/class-wpmar-notifier-mail.php',
+		'includes/class-wpmar-cli-environment.php',
+		'includes/class-wpmar-runner.php',
+		'includes/class-wpmar-scheduler.php',
+		'includes/admin/class-wpmar-admin-menu.php',
+		'includes/admin/class-wpmar-settings-page.php',
+	);
+}
+
+/**
+ * Loads feature modules once (Activator, runtime bootstrap, WP-CLI, etc.).
+ *
+ * @return void
+ */
+function wpmar_require_includes_once() {
+	static $loaded = false;
+	if ( $loaded ) {
+		return;
+	}
+
+	foreach ( wpmar_get_include_manifest() as $relative_path ) {
+		require_once WPMAR_PLUGIN_DIR . $relative_path;
+	}
+
+	$loaded = true;
+}
+
+/**
+ * Plugin activation hook: schema + defaults + cron anchor.
+ *
+ * WordPress forwards a multisite flag; unused until network-wide branching exists.
+ *
+ * @return void
+ */
+function wpmar_activate_plugin() {
+	wpmar_require_includes_once();
+	require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-activator.php';
+	WPMAR_Activator::activate();
+}
+
+/**
+ * Removes scheduled Cron hook only (minimal scrape footprint).
+ *
+ * @return void
+ */
+function wpmar_deactivate_plugin() {
+	require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-deactivator.php';
+	WPMAR_Deactivator::deactivate();
+}
+
+register_activation_hook( __FILE__, 'wpmar_activate_plugin' );
+register_deactivation_hook( __FILE__, 'wpmar_deactivate_plugin' );
+
+/**
+ * Normal runtime bootstrap after WordPress completes `plugins_loaded`.
+ *
+ * @return void
+ */
+function wpmar_bootstrap_on_plugins_loaded() {
+	wpmar_require_includes_once();
+	wpmar()->init();
+}
+
+add_action( 'plugins_loaded', 'wpmar_bootstrap_on_plugins_loaded', 5 );
+
+/**
+ * Returns the singleton; loads the main class file on first use.
  *
  * @return \WPMAR_Plugin
  */
 function wpmar() {
+	require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-plugin.php';
+
 	return \WPMAR_Plugin::instance();
 }
-
-wpmar()->init();

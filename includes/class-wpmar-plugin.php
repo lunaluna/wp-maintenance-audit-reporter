@@ -40,31 +40,22 @@ class WPMAR_Plugin {
 	 * @return void
 	 */
 	public function init() {
-		add_action(
-			'plugins_loaded',
-			function () {
-				load_plugin_textdomain(
-					'wp-maintenance-audit-reporter',
-					false,
-					dirname( WPMAR_PLUGIN_BASENAME ) . '/languages/'
-				);
-			},
-			1
+		load_plugin_textdomain(
+			'wp-maintenance-audit-reporter',
+			false,
+			dirname( WPMAR_PLUGIN_BASENAME ) . '/languages/'
 		);
 
-		add_action(
-			'plugins_loaded',
-			array( $this, 'later_init' ),
-			5
-		);
-	}
+		WPMAR_Scheduler::init();
 
-	/**
-	 * Placeholder for admin, cron, CLI, runner (later v0.1 tasks).
-	 *
-	 * @return void
-	 */
-	public function later_init() {
+		if ( is_admin() ) {
+			WPMAR_Admin_Menu::init();
+		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-command.php';
+		}
+
 		/**
 		 * Fires after WP Maintenance Audit Reporter bootstrap.
 		 *
