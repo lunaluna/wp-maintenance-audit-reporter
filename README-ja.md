@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.2.0-dev**（開発中）。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.3.0-dev**（開発中）。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.3 で追加されること
+
+- **運用・セキュリティ診断** — HTTPS サイト向け TLS 証明書期限（設定で無効化可）、PHP 系列ごとの EOL 参照マップ（PHP.net の公表に合わせコード更新）、WordPress/PHP/MySQL の簡易ヒント、管理者の最終セッション時刻、`wp-config.php` のパーミッション、本番環境タイプでの `WP_DEBUG` / `SCRIPT_DEBUG` 警告。
 
 ## v0.2 で追加されること（0.1 のスキャフォールドに対して）
 

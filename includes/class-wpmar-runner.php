@@ -105,11 +105,18 @@ class WPMAR_Runner {
 
 			$payload_summary = wp_json_encode(
 				array(
-					'changes'         => absint( $changelog_counts ),
-					'domain_ok'       => $domain_gate_ok,
-					'dataset_version' => isset( $dataset['core']['version'] ) ? (string) $dataset['core']['version'] : '',
+					'changes'                => absint( $changelog_counts ),
+					'domain_ok'              => $domain_gate_ok,
+					'dataset_version'        => isset( $dataset['core']['version'] ) ? (string) $dataset['core']['version'] : '',
+					'security_warning_count' => isset( $dataset['security']['warning_count'] ) ? absint( $dataset['security']['warning_count'] ) : 0,
+					'security_summary'       => self::build_security_summary_line(
+						isset( $dataset['security'] ) && is_array( $dataset['security'] ) ? $dataset['security'] : array()
+					),
+					'security_codes'         => isset( $dataset['security']['summary_codes'] ) && is_array( $dataset['security']['summary_codes'] )
+						? array_values( array_map( 'strval', $dataset['security']['summary_codes'] ) )
+						: array(),
 				),
-				JSON_PRETTY_PRINT
+				JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
 			);
 
 			if ( false === $payload_summary ) {
@@ -179,16 +186,22 @@ class WPMAR_Runner {
 		$collector = new WPMAR_Data_Collector();
 		$facts     = $collector->gather();
 
-		$tz             = wp_timezone();
-		$brevity_string = wp_json_encode(
-			array(
-				'site'           => sanitize_text_field( get_option( 'blogname' ) ),
-				'dry_run_at'     => wp_date( 'Y-m-d H:i:s T', time(), $tz ),
-				'dry_run_at_utc' => gmdate( 'c' ),
-				'core_version'   => sanitize_text_field( $facts['core']['version'] ?? '' ),
-				'theme_count'    => isset( $facts['themes']['inventory'] ) && is_array( $facts['themes']['inventory'] ) ? count( $facts['themes']['inventory'] ) : 0,
-				'plugins_count'  => isset( $facts['plugins']['inventory'] ) && is_array( $facts['plugins']['inventory'] ) ? count( $facts['plugins']['inventory'] ) : 0,
+		$tz           = wp_timezone();
+		$brevity_data = array(
+			'site'                   => sanitize_text_field( get_option( 'blogname' ) ),
+			'dry_run_at'             => wp_date( 'Y-m-d H:i:s T', time(), $tz ),
+			'dry_run_at_utc'         => gmdate( 'c' ),
+			'core_version'           => sanitize_text_field( $facts['core']['version'] ?? '' ),
+			'theme_count'            => isset( $facts['themes']['inventory'] ) && is_array( $facts['themes']['inventory'] ) ? count( $facts['themes']['inventory'] ) : 0,
+			'plugins_count'          => isset( $facts['plugins']['inventory'] ) && is_array( $facts['plugins']['inventory'] ) ? count( $facts['plugins']['inventory'] ) : 0,
+			'security_warning_count' => isset( $facts['security']['warning_count'] ) ? absint( $facts['security']['warning_count'] ) : 0,
+			'security_summary'       => self::build_security_summary_line(
+				isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array()
 			),
+		);
+
+		$brevity_string = wp_json_encode(
+			$brevity_data,
 			JSON_PRETTY_PRINT | JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_UNESCAPED_UNICODE
 		);
 
@@ -430,6 +443,12 @@ class WPMAR_Runner {
 		$body .= self::render_checksum_client_section( isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array() );
 		$body .= "\n\n";
 
+		$body .= '## ' . __( '運用・セキュリティ', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= self::render_security_client_section(
+			isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array()
+		);
+		$body .= "\n\n";
+
 		$body .= '## ' . __( '利用可能な WordPress アップデート（コアのみ）', 'wp-maintenance-audit-reporter' ) . "\n\n";
 
 		if ( empty( $facts['core']['available_updates'] ) ) {
@@ -441,6 +460,64 @@ class WPMAR_Runner {
 		}
 
 		return trim( $body );
+	}
+
+	/**
+	 * One-line summary for JSON payloads and dry-run brevity.
+	 *
+	 * @param array<string,mixed> $security Security envelope.
+	 * @return string
+	 */
+	public static function build_security_summary_line( array $security ) {
+		$n = isset( $security['warning_count'] ) ? absint( $security['warning_count'] ) : 0;
+		if ( $n <= 0 ) {
+			return __( '運用セキュリティ上の追加警告は検出されませんでした（または対象外）。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return sprintf(
+			/* translators: %d: aggregate warning categories */
+			__( '運用セキュリティ: %d 件の注意カテゴリがあります。詳細は管理者向けログを参照してください。', 'wp-maintenance-audit-reporter' ),
+			$n
+		);
+	}
+
+	/**
+	 * Human bullets for stakeholder mail.
+	 *
+	 * @param array<string,mixed> $sec Security envelope.
+	 * @return string
+	 */
+	protected static function render_security_client_section( array $sec ) {
+		$lines   = array();
+		$lines[] = self::build_security_summary_line( $sec );
+
+		if ( ! empty( $sec['ssl'] ) && is_array( $sec['ssl'] ) ) {
+			$st = isset( $sec['ssl']['status'] ) ? sanitize_key( (string) $sec['ssl']['status'] ) : '';
+			if ( 'ok' === $st || 'not_applicable' === $st || 'skipped' === $st ) {
+				$lines[] = '* ' . __( 'TLS 証明書: 追加の期限警告なし（または対象外）。', 'wp-maintenance-audit-reporter' );
+			} else {
+				$lines[] = '* ' . __( 'TLS 証明書: 要確認（詳細は管理者ログ）。', 'wp-maintenance-audit-reporter' );
+			}
+		}
+
+		if ( ! empty( $sec['php_eol']['status'] ) && in_array( $sec['php_eol']['status'], array( 'warn', 'past_eol', 'unknown' ), true ) ) {
+			$lines[] = '* ' . __( 'PHP バージョン/サポート: 要確認。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$stack = isset( $sec['recommended_versions'] ) && is_array( $sec['recommended_versions'] ) ? $sec['recommended_versions'] : array();
+		if ( ! empty( $stack['wordpress']['update_available'] ) || ! empty( $stack['php']['below_8_1'] ) || ! empty( $stack['mysql']['legacy'] ) ) {
+			$lines[] = '* ' . __( 'コア/PHP/MySQL の推奨バージョン: 改善の余地あり。', 'wp-maintenance-audit-reporter' );
+		}
+
+		if ( ! empty( $sec['admin_activity']['stale_user_ids'] ) ) {
+			$lines[] = '* ' . __( '管理者アカウント: 長期未ログインの可能性があります。', 'wp-maintenance-audit-reporter' );
+		}
+
+		if ( ! empty( $sec['debug']['production_debug_warn'] ) ) {
+			$lines[] = '* ' . __( '本番環境でデバッグ定数が有効です。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return implode( "\n", $lines );
 	}
 
 	/**

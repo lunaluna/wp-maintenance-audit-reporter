@@ -139,6 +139,29 @@ class WPMAR_Settings_Page {
 					</tr>
 				</table>
 
+				<h2><?php esc_html_e( 'セキュリティ診断（レポート）', 'wp-maintenance-audit-reporter' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'フル実行・ドライランの監査データに含めます。SSL 検査はサイトが https のときのみサーバーへ短時間接続します。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'SSL 証明書の期限確認', 'wp-maintenance-audit-reporter' ); ?></th>
+						<td>
+							<label>
+								<input name="wpmar_security_ssl_enabled" type="checkbox" <?php checked( ! empty( $settings['security']['ssl_check_enabled'] ) ); ?> />
+								<?php esc_html_e( '有効（推奨）', 'wp-maintenance-audit-reporter' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wpmar-admin-stale-days"><?php esc_html_e( '管理者「長期未ログイン」の日数', 'wp-maintenance-audit-reporter' ); ?></label></th>
+						<td>
+							<input name="wpmar_admin_stale_days" id="wpmar-admin-stale-days" type="number" min="30" max="730" step="1" value="<?php echo esc_attr( (string) ( $settings['security']['admin_stale_days'] ?? 90 ) ); ?>" />
+							<p class="description"><?php esc_html_e( 'この日数より古い最終セッションを「注意」として数えます（30〜730）。', 'wp-maintenance-audit-reporter' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
 				<h2><?php esc_html_e( 'メール通知', 'wp-maintenance-audit-reporter' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>

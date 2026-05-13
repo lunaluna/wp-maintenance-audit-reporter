@@ -49,6 +49,10 @@ class WPMAR_Settings {
 			'retention' => array(
 				'months' => 12,
 			),
+			'security'  => array(
+				'ssl_check_enabled' => true,
+				'admin_stale_days'  => 90,
+			),
 		);
 	}
 
@@ -197,6 +201,19 @@ class WPMAR_Settings {
 				$curr['checksums'] = self::defaults()['checksums'];
 			}
 			$curr['checksums']['plugin_exclude_rules'] = self::parse_plugin_exclude_map( wp_unslash( (string) $post['wpmar_plugin_checksum_excludes'] ) );
+		}
+
+		if ( ! isset( $curr['security'] ) || ! is_array( $curr['security'] ) ) {
+			$curr['security'] = self::defaults()['security'];
+		}
+		$curr['security']['ssl_check_enabled'] = ! empty( $post['wpmar_security_ssl_enabled'] );
+
+		if ( isset( $post['wpmar_admin_stale_days'] ) ) {
+			$days = self::clamp_int( $post['wpmar_admin_stale_days'], 30, 730 );
+			if ( ! isset( $curr['security'] ) || ! is_array( $curr['security'] ) ) {
+				$curr['security'] = self::defaults()['security'];
+			}
+			$curr['security']['admin_stale_days'] = $days;
 		}
 
 		return $curr;

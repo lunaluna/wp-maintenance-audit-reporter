@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.2.0-dev** (active development).
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.3.0-dev** (active development).
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
-## What v0.2 adds (vs 0.1 scaffolding)
+## What v0.3 adds
+
+- **Operational security block** — TLS certificate expiry (when the site uses HTTPS and the SSL check is enabled), static PHP EOL calendar (update dates in `includes/checks/class-wpmar-check-security-ops.php` when PHP.net changes), WordPress/PHP/MySQL “best effort” hints, administrator session recency against a configurable day threshold, `wp-config.php` permission scan for group/world-writable bits, and warnings when `WP_DEBUG` / `SCRIPT_DEBUG` are on in a `production` environment type.
+
+## What v0.2 added (vs 0.1 scaffolding)
 
 - **Checksums** — Core and plugin verification with WordPress.org APIs; exclude lists in settings; fallback when the site locale has no usable checksum manifest.
 - **Retention** — Optional automatic removal of reports older than 12 or 24 months (or “keep forever”); runs after successful audits; removes DB rows and uploaded Markdown peers where applicable.

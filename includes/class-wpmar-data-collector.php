@@ -74,6 +74,9 @@ class WPMAR_Data_Collector {
 
 		$dataset['checksums'] = $checksum->collect( $settings, $dataset );
 
+		$security            = new WPMAR_Check_Security_Ops();
+		$dataset['security'] = $security->collect( $settings );
+
 		return $dataset;
 	}
 
@@ -243,11 +246,12 @@ class WPMAR_Data_Collector {
 		}
 
 		return array(
-			'php'         => sanitize_text_field( PHP_VERSION ),
-			'mysql'       => sanitize_text_field( $mysql ),
-			'wp_memory'   => defined( 'WP_MEMORY_LIMIT' ) ? sanitize_text_field( WP_MEMORY_LIMIT ) : '',
-			'wp_debug'    => ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? 'true' : 'false',
-			'environment' => function_exists( 'wp_get_environment_type' ) ? sanitize_text_field( wp_get_environment_type() ) : 'unknown',
+			'php'          => sanitize_text_field( PHP_VERSION ),
+			'mysql'        => sanitize_text_field( $mysql ),
+			'wp_memory'    => defined( 'WP_MEMORY_LIMIT' ) ? sanitize_text_field( WP_MEMORY_LIMIT ) : '',
+			'wp_debug'     => ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? 'true' : 'false',
+			'script_debug' => ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? 'true' : 'false',
+			'environment'  => function_exists( 'wp_get_environment_type' ) ? sanitize_text_field( wp_get_environment_type() ) : 'unknown',
 		);
 	}
 }
