@@ -162,7 +162,10 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	 * : Report primary key.
 	 *
 	 * [--format=<fmt>]
-	 * : markdown|json (defaults to markdown bodies).
+	 * : markdown|json|pdf (defaults to markdown bodies).
+	 *
+	 * [--file=<path>]
+	 * : Write output to this path instead of STDOUT (recommended for PDF when other plugins emit PHP notices during bootstrap).
 	 *
 	 * @param array<int,string>             $positional  Positional arguments.
 	 * @param array<string,string|bool|int> $assoc_flags Flags.
@@ -180,6 +183,19 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 			$format = 'markdown';
 		}
 
+		$file_out = isset( $assoc_flags['file'] ) ? trim( (string) $assoc_flags['file'] ) : '';
+		if ( '' !== $file_out ) {
+			$file_out = wp_normalize_path( $file_out );
+			$parent   = dirname( $file_out );
+			if ( ! is_dir( $parent ) ) {
+				WP_CLI::error( sprintf( 'Directory does not exist: %s', $parent ) );
+			}
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- WP-CLI export writes to arbitrary operator paths outside wp-admin filesystem UI.
+			if ( ! is_writable( $parent ) ) {
+				WP_CLI::error( sprintf( 'Directory is not writable: %s', $parent ) );
+			}
+		}
+
 		$repository = new WPMAR_Report_Repository();
 		$row        = $repository->find( $id );
 		if ( null === $row ) {
@@ -188,22 +204,89 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 
 		// markdown streams `body_md` only; json dumps entire SQL row (inc. summaries).
 		if ( 'markdown' === $format ) {
+			$body = (string) ( $row['body_md'] ?? '' );
+			if ( '' !== $file_out ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WP-CLI binary/text export to operator-chosen path.
+				if ( false === file_put_contents( $file_out, $body ) ) {
+					WP_CLI::error( 'Failed to write Markdown file.' );
+				}
+				WP_CLI::success( sprintf( 'Wrote Markdown to %s', $file_out ) );
+
+				return;
+			}
+
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Direct STDOUT piping for CLI export.
-			fwrite( STDOUT, (string) ( $row['body_md'] ?? '' ) );
+			fwrite( STDOUT, $body );
 
 			return;
 		}
 
 		if ( 'json' === $format ) {
 			$encoded = wp_json_encode( $row, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+			$payload = false === $encoded ? '{}' : $encoded;
+
+			if ( '' !== $file_out ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WP-CLI binary/text export to operator-chosen path.
+				if ( false === file_put_contents( $file_out, $payload ) ) {
+					WP_CLI::error( 'Failed to write JSON file.' );
+				}
+				WP_CLI::success( sprintf( 'Wrote JSON to %s', $file_out ) );
+
+				return;
+			}
 
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- Direct STDOUT piping for CLI export.
-			fwrite( STDOUT, false === $encoded ? '{}' : $encoded );
+			fwrite( STDOUT, $payload );
 
 			return;
 		}
 
-		WP_CLI::error( 'Unsupported format. Use markdown|json.' );
+		if ( 'pdf' === $format ) {
+			if ( ! WPMAR_PDF_Writer::is_available() ) {
+				WP_CLI::error( 'PDF export requires Composer dependencies (mPDF + Parsedown).' );
+			}
+
+			$rel = isset( $row['pdf_file_path'] ) ? (string) $row['pdf_file_path'] : '';
+			if ( '' === $rel ) {
+				$pdf_md = WPMAR_PDF_Writer::markdown_body_for_client_pdf( $row );
+				if ( '' === $pdf_md ) {
+					WP_CLI::error( 'No client-facing Markdown stored for this report (upgrade plugin and run a full audit), or PDF deps missing.' );
+				}
+				$written = WPMAR_PDF_Writer::write_pdf_from_markdown(
+					$pdf_md,
+					'wpmar-report-' . $id
+				);
+				if ( is_wp_error( $written ) ) {
+					WP_CLI::error( $written->get_error_message() );
+				}
+				if ( is_string( $written ) && '' !== $written ) {
+					$repository->update_pdf_file_path( $id, $written );
+					$rel = $written;
+				}
+			}
+
+			$abs = WPMAR_MD_Writer::absolute_path_from_upload_relative( $rel );
+			if ( '' === $rel || '' === $abs || ! is_readable( $abs ) ) {
+				WP_CLI::error( 'Unable to read PDF artefact for this report.' );
+			}
+
+			if ( '' !== $file_out ) {
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_copy -- WP-CLI streams PDF artefact to operator-chosen path.
+				if ( ! copy( $abs, $file_out ) ) {
+					WP_CLI::error( 'Failed to write PDF file.' );
+				}
+				WP_CLI::success( sprintf( 'Wrote PDF to %s', $file_out ) );
+
+				return;
+			}
+
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streaming binary to STDOUT for operators.
+			readfile( $abs );
+
+			return;
+		}
+
+		WP_CLI::error( 'Unsupported format. Use markdown|json|pdf.' );
 	}
 }
 

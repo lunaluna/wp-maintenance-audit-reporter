@@ -133,14 +133,48 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 			'wpmar_delete_report_' . $id
 		);
 
+		$md_dl_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'           => WPMAR_REPORTS_PAGE_SLUG,
+					'report_id'      => $id,
+					'wpmar_download' => 'md',
+				),
+				admin_url( 'admin.php' )
+			),
+			'wpmar_dl_md_' . $id
+		);
+
+		$pdf_dl_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'           => WPMAR_REPORTS_PAGE_SLUG,
+					'report_id'      => $id,
+					'wpmar_download' => 'pdf',
+				),
+				admin_url( 'admin.php' )
+			),
+			'wpmar_dl_pdf_' . $id
+		);
+
 		$actions = array(
 			'view'   => sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $view_url ),
 				esc_html__( '表示', 'wp-maintenance-audit-reporter' )
 			),
+			'md'     => sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $md_dl_url ),
+				esc_html__( 'Markdown', 'wp-maintenance-audit-reporter' )
+			),
+			'pdf'    => sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_dl_url ),
+				esc_html__( 'PDF', 'wp-maintenance-audit-reporter' )
+			),
 			'delete' => sprintf(
-				'<a href="%s" class="wpmar-report-delete">%s</a>',
+				'<a href="%s">%s</a>',
 				esc_url( $delete_url ),
 				esc_html__( '削除', 'wp-maintenance-audit-reporter' )
 			),
@@ -199,7 +233,8 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 	 */
 	protected function get_bulk_actions() {
 		return array(
-			'delete' => __( '一括削除', 'wp-maintenance-audit-reporter' ),
+			'wpmar_zip' => __( 'ZIP 一括ダウンロード', 'wp-maintenance-audit-reporter' ),
+			'delete'    => __( '一括削除', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 

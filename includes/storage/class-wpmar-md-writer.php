@@ -82,6 +82,33 @@ class WPMAR_MD_Writer {
 	}
 
 	/**
+	 * Maps an uploads-relative fragment to an absolute path inside the uploads base directory.
+	 *
+	 * @param string $relative Path relative to `wp_upload_dir()['basedir']`.
+	 * @return string Empty string when the path escapes the uploads root or cannot be resolved.
+	 */
+	public static function absolute_path_from_upload_relative( $relative ) {
+		$relative = is_string( $relative ) ? trim( $relative ) : '';
+		if ( '' === $relative ) {
+			return '';
+		}
+
+		$uploads = wp_upload_dir();
+		if ( ! empty( $uploads['error'] ) ) {
+			return '';
+		}
+
+		$base = wp_normalize_path( trailingslashit( $uploads['basedir'] ) );
+		$full = wp_normalize_path( path_join( $uploads['basedir'], $relative ) );
+
+		if ( 0 !== strpos( $full, $base ) ) {
+			return '';
+		}
+
+		return $full;
+	}
+
+	/**
 	 * Deletes a file previously stored as `wp_upload_dir()['basedir']`-relative.
 	 *
 	 * @param string $relative Path relative to the uploads base directory.

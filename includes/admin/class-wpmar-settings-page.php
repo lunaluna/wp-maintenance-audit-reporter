@@ -52,6 +52,7 @@ class WPMAR_Settings_Page {
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<?php settings_errors( 'wpmar_messages' ); ?>
+			<?php WPMAR_Admin_Menu::maybe_render_audit_storage_empty_notice(); ?>
 			<p>
 				<a class="button button-secondary" href="<?php echo esc_url( WPMAR_Admin_Menu::admin_screen_url( WPMAR_REPORTS_PAGE_SLUG ) ); ?>">
 					<?php esc_html_e( 'レポート一覧を開く', 'wp-maintenance-audit-reporter' ); ?>
@@ -233,7 +234,7 @@ class WPMAR_Settings_Page {
 								<option value="12" <?php selected( $retention_months, 12 ); ?>><?php esc_html_e( '12 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
 								<option value="24" <?php selected( $retention_months, 24 ); ?>><?php esc_html_e( '24 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
 							</select>
-							<p class="description"><?php esc_html_e( 'フル実行のたびに起算して古い行と Markdown ファイルを削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
+							<p class="description"><?php esc_html_e( '最新のフル実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -241,14 +242,23 @@ class WPMAR_Settings_Page {
 				<?php
 				// Markdown + QA tools continue below.
 				?>
-				<h2><?php esc_html_e( 'Markdown 出力', 'wp-maintenance-audit-reporter' ); ?></h2>
+				<h2><?php esc_html_e( 'レポートをファイルとして自動保存', 'wp-maintenance-audit-reporter' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Markdown を uploads に保存', 'wp-maintenance-audit-reporter' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Markdown を uploads に書き出して保存', 'wp-maintenance-audit-reporter' ); ?></th>
 						<td>
 							<label>
 								<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
-								<?php esc_html_e( '`wp-content/uploads/wpmar/*.md` を生成する', 'wp-maintenance-audit-reporter' ); ?>
+								<?php esc_html_e( 'フル実行の際に自動で`wp-content/uploads/wpmar/` に管理者向け md ファイルを保存', 'wp-maintenance-audit-reporter' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存', 'wp-maintenance-audit-reporter' ); ?></th>
+						<td>
+							<label>
+								<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
+								<?php esc_html_e( 'フル実行の際に自動で `uploads/wpmar/pdf/` にクライアント向け PDF レポートを保存', 'wp-maintenance-audit-reporter' ); ?>
 							</label>
 						</td>
 					</tr>

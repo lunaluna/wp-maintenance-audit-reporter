@@ -40,7 +40,8 @@ class WPMAR_Settings {
 				'from_name'    => '',
 			),
 			'output'    => array(
-				'md_enabled' => true,
+				'md_enabled'  => true,
+				'pdf_enabled' => true,
 			),
 			'checksums' => array(
 				'core_exclude_paths'   => array(),
@@ -173,9 +174,12 @@ class WPMAR_Settings {
 			$curr['mail']['from_name'] = sanitize_text_field( wp_unslash( $post['wpmar_from_name'] ) );
 		}
 
-		if ( isset( $post['wpmar_md_enabled'] ) ) {
-			$curr['output']['md_enabled'] = ! empty( $post['wpmar_md_enabled'] );
+		if ( ! isset( $curr['output'] ) || ! is_array( $curr['output'] ) ) {
+			$curr['output'] = self::defaults()['output'];
 		}
+		// Unchecked HTML checkboxes are omitted from POST — absent means false (same pattern as mail.enabled).
+		$curr['output']['md_enabled']  = ! empty( $post['wpmar_md_enabled'] );
+		$curr['output']['pdf_enabled'] = ! empty( $post['wpmar_pdf_enabled'] );
 
 		if ( isset( $post['wpmar_retention_months'] ) ) {
 			$allowed = array( 0, 12, 24 );

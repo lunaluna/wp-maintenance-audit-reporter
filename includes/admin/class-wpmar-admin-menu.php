@@ -24,6 +24,8 @@ class WPMAR_Admin_Menu {
 	 */
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
+		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_report_download' ), 0 );
+		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_bulk_zip' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'handle_get_actions' ), 1 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'strip_legacy_notice_query_arg' ), 2 );
 		add_action( 'admin_init', array( __CLASS__, 'handle_post' ) );
@@ -68,6 +70,41 @@ class WPMAR_Admin_Menu {
 	}
 
 	/**
+	 * Whether both report rows and snapshot rows are absent (fresh or fully cleared DB).
+	 *
+	 * @return bool
+	 */
+	public static function audit_storage_is_empty() {
+		static $memo = null;
+
+		if ( null !== $memo ) {
+			return $memo;
+		}
+
+		$reports_count   = ( new WPMAR_Report_Repository() )->count_all();
+		$snapshots_count = ( new WPMAR_Snapshot_Repository() )->count_all();
+		$memo            = ( 0 === $reports_count && 0 === $snapshots_count );
+
+		return $memo;
+	}
+
+	/**
+	 * Prints an informational notice when no persisted audit data exists yet.
+	 *
+	 * @return void
+	 */
+	public static function maybe_render_audit_storage_empty_notice() {
+		if ( ! self::audit_storage_is_empty() ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-info"><p>%s</p></div>',
+			esc_html__( '現在はレポートのためのデータが未取得か、またはデータがすべて削除されています', 'wp-maintenance-audit-reporter' )
+		);
+	}
+
+	/**
 	 * Loads scripts/styles on Maintenance Audit screens only.
 	 *
 	 * @param string $hook_suffix Passed by admin_enqueue_scripts.
@@ -86,20 +123,25 @@ class WPMAR_Admin_Menu {
 			return;
 		}
 
-		$ver = defined( 'WPMAR_VERSION' ) ? WPMAR_VERSION : '0';
+		$base_ver      = defined( 'WPMAR_VERSION' ) ? WPMAR_VERSION : '0';
+		$admin_js_path = WPMAR_PLUGIN_DIR . 'assets/js/admin.js';
+		$admin_js_ver  = $base_ver;
+		if ( is_readable( $admin_js_path ) ) {
+			$admin_js_ver .= '-' . (string) filemtime( $admin_js_path );
+		}
 
 		wp_enqueue_style(
 			'wpmar-admin',
 			WPMAR_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			$ver
+			$base_ver
 		);
 
 		wp_enqueue_script(
 			'wpmar-admin',
 			WPMAR_PLUGIN_URL . 'assets/js/admin.js',
 			array(),
-			$ver,
+			$admin_js_ver,
 			true
 		);
 
@@ -108,12 +150,6 @@ class WPMAR_Admin_Menu {
 			'fullRun'  => __( 'フル監査を実行しています…', 'wp-maintenance-audit-reporter' ),
 			'testMail' => __( 'テストメール付き監査を実行しています…', 'wp-maintenance-audit-reporter' ),
 		);
-
-		if ( $reports_hook === $hook_suffix ) {
-			$wpmar_admin_l10n['confirmSingle'] = __( 'このレポートを削除しますか？元に戻せません。', 'wp-maintenance-audit-reporter' );
-			/* translators: %d: number of reports selected for bulk delete. */
-			$wpmar_admin_l10n['confirmBulk'] = __( '選択した %d 件のレポートを削除しますか？元に戻せません。', 'wp-maintenance-audit-reporter' );
-		}
 
 		wp_localize_script(
 			'wpmar-admin',

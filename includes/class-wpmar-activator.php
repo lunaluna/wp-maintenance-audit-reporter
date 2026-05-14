@@ -32,6 +32,25 @@ class WPMAR_Activator {
 	}
 
 	/**
+	 * Runs dbDelta when {@see WPMAR_VERSION} advances so schema changes apply without re-activation.
+	 *
+	 * @return void
+	 */
+	public static function upgrade_database_if_needed() {
+		$stored = get_option( 'wpmar_db_version', '0' );
+		if ( version_compare( (string) $stored, WPMAR_VERSION, '>=' ) ) {
+			return;
+		}
+
+		self::maybe_create_tables();
+		update_option(
+			'wpmar_db_version',
+			WPMAR_VERSION,
+			true
+		);
+	}
+
+	/**
 	 * Ensures schema via dbDelta.
 	 *
 	 * @return void
@@ -56,6 +75,7 @@ class WPMAR_Activator {
 	duration_sec int unsigned NOT NULL default 0,
 	summary_json longtext NULL,
 	body_md longtext NULL,
+	body_client_md longtext NULL,
 	md_file_path varchar(255) NULL,
 	pdf_file_path varchar(255) NULL,
 	PRIMARY KEY (id),
@@ -104,7 +124,8 @@ class WPMAR_Activator {
 				'from_name'    => '',
 			),
 			'output'   => array(
-				'md_enabled' => true,
+				'md_enabled'  => true,
+				'pdf_enabled' => true,
 			),
 		);
 

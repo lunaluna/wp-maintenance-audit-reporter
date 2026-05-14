@@ -146,9 +146,24 @@ class WPMAR_Runner {
 					'duration_sec'   => (int) max( round( microtime( true ) - $t0, 0 ), 0 ),
 					'summary_json'   => $payload_summary,
 					'body_md'        => $admin_body,
+					'body_client_md' => $client_body,
 					'md_file_path'   => $md_relative,
 				)
 			);
+
+			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
+				$pdf_rel = WPMAR_PDF_Writer::write_pdf_from_markdown(
+					WPMAR_PDF_Writer::markdown_body_for_client_pdf(
+						array(
+							'body_client_md' => $client_body,
+						)
+					),
+					'wpmar-report-' . (int) $row_id
+				);
+				if ( ! is_wp_error( $pdf_rel ) && is_string( $pdf_rel ) && '' !== $pdf_rel ) {
+					$report_repo->update_pdf_file_path( (int) $row_id, $pdf_rel );
+				}
+			}
 
 			$retention_months = isset( $settings['retention']['months'] ) ? absint( $settings['retention']['months'] ) : 12;
 			if ( $retention_months > 0 && null !== $row_id ) {

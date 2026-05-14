@@ -40,6 +40,8 @@ class WPMAR_Plugin {
 	 * @return void
 	 */
 	public function init() {
+		WPMAR_Activator::upgrade_database_if_needed();
+
 		load_plugin_textdomain(
 			'wp-maintenance-audit-reporter',
 			false,

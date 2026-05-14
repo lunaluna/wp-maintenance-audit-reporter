@@ -41,6 +41,20 @@ class WPMAR_Snapshot_Repository {
 	}
 
 	/**
+	 * Counts all snapshot rows (all types).
+	 *
+	 * @return int
+	 */
+	public function count_all() {
+		$total = $this->db->get_var(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+			"SELECT COUNT(*) FROM `{$this->table}`"
+		);
+
+		return absint( $total );
+	}
+
+	/**
 	 * Persists JSON payload for a snapshot type.
 	 *
 	 * @param string              $type    core|themes|plugins|users.

@@ -2,7 +2,7 @@
 /**
  * Persisted audit rows rendered by Runner + CLI (`{$wpdb->prefix}wpmar_reports`).
  *
- * Long columns (`body_md`, `summary_json`) stay raw - callers decide escaping at output time.
+ * Long columns (`body_md`, `body_client_md`, `summary_json`) stay raw - callers decide escaping at output time.
  *
  * @package WPMAR
  */
@@ -57,6 +57,7 @@ class WPMAR_Report_Repository {
 			'duration_sec'   => 0,
 			'summary_json'   => '{}',
 			'body_md'        => '',
+			'body_client_md' => '',
 			'md_file_path'   => '',
 			'pdf_file_path'  => '',
 		);
@@ -84,6 +85,7 @@ class WPMAR_Report_Repository {
 				'duration_sec'   => absint( $row['duration_sec'] ),
 				'summary_json'   => $summary,
 				'body_md'        => $row['body_md'],
+				'body_client_md' => $row['body_client_md'],
 				'md_file_path'   => sanitize_text_field( $row['md_file_path'] ),
 				'pdf_file_path'  => sanitize_text_field( $row['pdf_file_path'] ),
 			),
@@ -95,6 +97,7 @@ class WPMAR_Report_Repository {
 				'%d',
 				'%d',
 				'%d',
+				'%s',
 				'%s',
 				'%s',
 				'%s',
@@ -131,6 +134,40 @@ class WPMAR_Report_Repository {
 	}
 
 	/**
+	 * Persists the uploads-relative PDF path after the artefact is rendered.
+	 *
+	 * @param int    $id                Report primary key.
+	 * @param string $pdf_relative_path Fragment relative to the uploads base directory.
+	 * @return bool
+	 */
+	public function update_pdf_file_path( $id, $pdf_relative_path ) {
+		$id = absint( $id );
+		if ( $id <= 0 ) {
+			return false;
+		}
+
+		$path = sanitize_text_field( (string) $pdf_relative_path );
+
+		$ok = $this->db->update(
+			$this->table,
+			array(
+				'pdf_file_path' => $path,
+			),
+			array(
+				'id' => $id,
+			),
+			array(
+				'%s',
+			),
+			array(
+				'%d',
+			)
+		);
+
+		return false !== $ok;
+	}
+
+	/**
 	 * Deletes a single report row.
 	 *
 	 * @param int $id Report PK.
@@ -144,6 +181,10 @@ class WPMAR_Report_Repository {
 
 		if ( isset( $row['md_file_path'] ) && is_string( $row['md_file_path'] ) ) {
 			WPMAR_MD_Writer::delete_if_upload_relative( $row['md_file_path'] );
+		}
+
+		if ( isset( $row['pdf_file_path'] ) && is_string( $row['pdf_file_path'] ) ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( $row['pdf_file_path'] );
 		}
 
 		$deleted = $this->db->delete(

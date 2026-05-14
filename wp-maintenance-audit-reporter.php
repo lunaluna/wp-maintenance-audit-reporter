@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           0.3.0-dev
+ * Version:           0.4.1-dev
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            lunaluna
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '0.3.0-dev' );
+define( 'WPMAR_VERSION', '0.4.1-dev' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -38,6 +38,7 @@ define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 function wpmar_get_include_manifest() {
 	return array(
 		'includes/class-wpmar-settings.php',
+		'includes/class-wpmar-activator.php',
 		'includes/class-wpmar-domain-gate.php',
 		'includes/checks/class-wpmar-check-checksums.php',
 		'includes/checks/class-wpmar-check-security-ops.php',
@@ -45,6 +46,8 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
+		'includes/storage/class-wpmar-pdf-writer.php',
+		'includes/storage/class-wpmar-report-zip-export.php',
 		'includes/class-wpmar-data-collector.php',
 		'includes/notify/class-wpmar-notifier-mail.php',
 		'includes/class-wpmar-cli-environment.php',
@@ -68,6 +71,11 @@ function wpmar_require_includes_once() {
 		return;
 	}
 
+	$autoload = WPMAR_PLUGIN_DIR . 'vendor/autoload.php';
+	if ( is_readable( $autoload ) ) {
+		require_once $autoload;
+	}
+
 	foreach ( wpmar_get_include_manifest() as $relative_path ) {
 		require_once WPMAR_PLUGIN_DIR . $relative_path;
 	}
@@ -84,7 +92,6 @@ function wpmar_require_includes_once() {
  */
 function wpmar_activate_plugin() {
 	wpmar_require_includes_once();
-	require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-activator.php';
 	WPMAR_Activator::activate();
 }
 
