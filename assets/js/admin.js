@@ -86,7 +86,105 @@
 		});
 	}
 
-	document.addEventListener('DOMContentLoaded', function () {
+	/**
+	 * Report list row delete → confirm overlay (jQuery delegated: avoids native click target quirks).
+	 */
+	function initReportsDeleteModal() {
+		if (typeof window.jQuery !== 'function') {
+			return;
+		}
+
+		const $ = window.jQuery;
+		const modal = document.getElementById('wpmar-delete-report-modal');
+		const form = document.getElementById('wpmar-reports-form');
+
+		if (!modal || !form) {
+			return;
+		}
+
+		const bodyEl = modal.querySelector('[data-wpmar-delete-modal-body]');
+		const btnCancel = modal.querySelector('[data-wpmar-delete-cancel]');
+		const btnConfirm = modal.querySelector('[data-wpmar-delete-confirm]');
+
+		let pendingRowUrl = '';
+		let trapHandler = null;
+
+		function removeTrap() {
+			if (trapHandler) {
+				document.removeEventListener('keydown', trapHandler, true);
+				trapHandler = null;
+			}
+		}
+
+		function closeModal() {
+			removeTrap();
+			pendingRowUrl = '';
+			modal.hidden = true;
+			modal.setAttribute('aria-hidden', 'true');
+			if (bodyEl) {
+				bodyEl.textContent = '';
+			}
+		}
+
+		function openRowModal(url, message) {
+			removeTrap();
+			pendingRowUrl = url;
+			if (bodyEl && message) {
+				bodyEl.textContent = message;
+			}
+
+			modal.hidden = false;
+			modal.setAttribute('aria-hidden', 'false');
+
+			trapHandler = function (ke) {
+				if (ke.key === 'Escape') {
+					ke.preventDefault();
+					closeModal();
+				}
+			};
+			document.addEventListener('keydown', trapHandler, true);
+
+			if (btnCancel) {
+				btnCancel.focus();
+			}
+		}
+
+		$(form).on('click', 'a.wpmar-report-delete-trigger', function (e) {
+			e.preventDefault();
+
+			const href = this.getAttribute('href');
+			const msg =
+				this.getAttribute('data-wpmar-delete-message') || '';
+
+			if (href) {
+				openRowModal(href, msg);
+			}
+		});
+
+		if (btnCancel) {
+			btnCancel.addEventListener('click', closeModal);
+		}
+
+		if (btnConfirm) {
+			btnConfirm.addEventListener('click', function () {
+				if (!pendingRowUrl) {
+					closeModal();
+
+					return;
+				}
+
+				window.location.href = pendingRowUrl;
+			});
+		}
+
+		modal.addEventListener('click', function (evt) {
+			if (evt.target === modal) {
+				closeModal();
+			}
+		});
+	}
+
+	function bootAdminUi() {
 		document.addEventListener(
 			'submit',
 			function (e) {
@@ -94,5 +192,13 @@
 			},
 			true
 		);
-	});
+
+		initReportsDeleteModal();
+	}
+
+	if ( document.readyState === 'loading' ) {
+		document.addEventListener('DOMContentLoaded', bootAdminUi);
+	} else {
+		bootAdminUi();
+	}
 })();

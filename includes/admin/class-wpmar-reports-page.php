@@ -368,6 +368,29 @@ class WPMAR_Reports_Page {
 				<input type="hidden" name="page" value="<?php echo esc_attr( WPMAR_REPORTS_PAGE_SLUG ); ?>" />
 				<?php $table->display(); ?>
 			</form>
+
+			<div id="wpmar-delete-report-modal" class="wpmar-modal-overlay" hidden aria-hidden="true">
+				<div
+					class="wpmar-modal-panel"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="wpmar-delete-report-modal-title"
+					aria-describedby="wpmar-delete-report-modal-body"
+				>
+					<h2 id="wpmar-delete-report-modal-title" class="wpmar-modal-title">
+						<?php esc_html_e( '削除の確認', 'wp-maintenance-audit-reporter' ); ?>
+					</h2>
+					<p id="wpmar-delete-report-modal-body" class="wpmar-modal-body" data-wpmar-delete-modal-body></p>
+					<div class="wpmar-modal-actions">
+						<button type="button" class="button" data-wpmar-delete-cancel>
+							<?php esc_html_e( 'キャンセル', 'wp-maintenance-audit-reporter' ); ?>
+						</button>
+						<button type="button" class="button button-primary" data-wpmar-delete-confirm>
+							<?php esc_html_e( 'OK', 'wp-maintenance-audit-reporter' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
 		</div>
 		<?php
 	}

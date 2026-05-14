@@ -111,12 +111,24 @@ class WPMAR_Admin_Menu {
 	 * @return void
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
-		$main_hook    = WPMAR_ADMIN_PAGE_SLUG . '_page_' . WPMAR_ADMIN_PAGE_SLUG;
-		$reports_hook = WPMAR_ADMIN_PAGE_SLUG . '_page_' . WPMAR_REPORTS_PAGE_SLUG;
-		$allowed      = array(
-			'toplevel_page_' . WPMAR_ADMIN_PAGE_SLUG,
-			$main_hook,
-			$reports_hook,
+		/*
+		 * WordPress builds $hook_suffix via get_plugin_page_hookname(); it is NOT always
+		 * "{$parent_slug}_page_{$menu_slug}". Top-level menus store sanitize_title( $menu_title )
+		 * in $GLOBALS['admin_page_hooks'], so submenu hooks look like "{sanitized-menu-title}_page_{slug}"
+		 * (e.g. maintenance-audit_page_wpmar-reports), not "wpmar-maintenance-report_page_…".
+		 */
+		if ( ! function_exists( 'get_plugin_page_hookname' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		$allowed = array_unique(
+			array_filter(
+				array(
+					get_plugin_page_hookname( WPMAR_ADMIN_PAGE_SLUG, '' ),
+					get_plugin_page_hookname( WPMAR_ADMIN_PAGE_SLUG, WPMAR_ADMIN_PAGE_SLUG ),
+					get_plugin_page_hookname( WPMAR_REPORTS_PAGE_SLUG, WPMAR_ADMIN_PAGE_SLUG ),
+				)
+			)
 		);
 
 		if ( ! in_array( $hook_suffix, $allowed, true ) ) {
@@ -125,22 +137,27 @@ class WPMAR_Admin_Menu {
 
 		$base_ver      = defined( 'WPMAR_VERSION' ) ? WPMAR_VERSION : '0';
 		$admin_js_path = WPMAR_PLUGIN_DIR . 'assets/js/admin.js';
+		$admin_css_path = WPMAR_PLUGIN_DIR . 'assets/css/admin.css';
 		$admin_js_ver  = $base_ver;
+		$admin_css_ver = $base_ver;
 		if ( is_readable( $admin_js_path ) ) {
 			$admin_js_ver .= '-' . (string) filemtime( $admin_js_path );
+		}
+		if ( is_readable( $admin_css_path ) ) {
+			$admin_css_ver .= '-' . (string) filemtime( $admin_css_path );
 		}
 
 		wp_enqueue_style(
 			'wpmar-admin',
 			WPMAR_PLUGIN_URL . 'assets/css/admin.css',
 			array(),
-			$base_ver
+			$admin_css_ver
 		);
 
 		wp_enqueue_script(
 			'wpmar-admin',
 			WPMAR_PLUGIN_URL . 'assets/js/admin.js',
-			array(),
+			array( 'jquery' ),
 			$admin_js_ver,
 			true
 		);

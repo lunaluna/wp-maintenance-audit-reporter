@@ -133,6 +133,12 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 			'wpmar_delete_report_' . $id
 		);
 
+		$delete_confirm_text = sprintf(
+			/* translators: %d: numeric report identifier */
+			__( 'レポート #%d を完全に削除します。この操作は取り消せず、復元することもできません。よろしいですか？', 'wp-maintenance-audit-reporter' ),
+			$id
+		);
+
 		$md_dl_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -174,8 +180,9 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 				esc_html__( 'PDF', 'wp-maintenance-audit-reporter' )
 			),
 			'delete' => sprintf(
-				'<a href="%s">%s</a>',
+				'<a href="%1$s" class="wpmar-report-delete-trigger" data-wpmar-delete-message="%2$s">%3$s</a>',
 				esc_url( $delete_url ),
+				esc_attr( $delete_confirm_text ),
 				esc_html__( '削除', 'wp-maintenance-audit-reporter' )
 			),
 		);

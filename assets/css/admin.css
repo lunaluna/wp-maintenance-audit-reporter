@@ -106,3 +106,50 @@
 	background: rgba(255, 255, 255, 0.85);
 	padding: 1px 5px;
 }
+
+/* Report list — delete confirmation modal (above WP admin chrome) */
+
+.wpmar-modal-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 500000;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+}
+
+.wpmar-modal-overlay[hidden],
+.wpmar-modal-overlay[hidden="hidden"] {
+	display: none !important;
+}
+
+.wpmar-modal-panel {
+	background: #fff;
+	border-radius: 4px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+	max-width: min(480px, 100%);
+	width: 100%;
+	padding: 20px 24px;
+}
+
+.wpmar-modal-title {
+	margin: 0 0 12px;
+	font-size: 1.15em;
+	line-height: 1.35;
+}
+
+.wpmar-modal-body {
+	margin: 0 0 20px;
+	line-height: 1.55;
+	font-size: 14px;
+}
+
+.wpmar-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0;
+}
