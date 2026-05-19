@@ -77,6 +77,24 @@ class WPMAR_Data_Collector {
 		$security            = new WPMAR_Check_Security_Ops();
 		$dataset['security'] = $security->collect( $settings );
 
+		$dataset['backup'] = $this->gather_backup_providers( $settings );
+
+		$perf_defaults = WPMAR_Settings::defaults()['performance'];
+
+		$performance_settings = wp_parse_args(
+			isset( $settings['performance'] ) && is_array( $settings['performance'] )
+				? $settings['performance']
+				: array(),
+			(array) $perf_defaults
+		);
+
+		if ( self::performance_db_size_enabled( $performance_settings ) ) {
+			$probe                  = new WPMAR_Check_Performance();
+			$dataset['performance'] = $probe->collect( $performance_settings );
+		} else {
+			$dataset['performance'] = array();
+		}
+
 		return $dataset;
 	}
 
@@ -253,5 +271,71 @@ class WPMAR_Data_Collector {
 			'script_debug' => ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? 'true' : 'false',
 			'environment'  => function_exists( 'wp_get_environment_type' ) ? sanitize_text_field( wp_get_environment_type() ) : 'unknown',
 		);
+	}
+
+	/**
+	 * Normalises hooked backup provider descriptors emitted by extensions.
+	 *
+	 * Filter hook `wpmar_backup_providers` passes `(array $providers, array $settings)`.
+	 *
+	 * @param array<string,mixed> $settings Plugin settings envelope.
+	 * @return array<string,mixed>
+	 */
+	protected function gather_backup_providers( array $settings ) {
+		$raw = apply_filters( 'wpmar_backup_providers', array(), $settings );
+
+		if ( empty( $raw ) || ! is_array( $raw ) ) {
+			return array(
+				'providers' => array(),
+			);
+		}
+
+		$providers = array();
+		foreach ( $raw as $entry ) {
+			if ( ! is_array( $entry ) ) {
+				continue;
+			}
+			$id = isset( $entry['id'] ) ? sanitize_key( (string) $entry['id'] ) : '';
+			if ( '' === $id ) {
+				continue;
+			}
+
+			$markdown = '';
+			if ( isset( $entry['markdown'] ) && is_string( $entry['markdown'] ) ) {
+				$markdown = $entry['markdown'];
+			} elseif ( isset( $entry['collect'] ) && is_callable( $entry['collect'] ) ) {
+				$snippet = call_user_func( $entry['collect'], $settings );
+				if ( is_string( $snippet ) ) {
+					$markdown = $snippet;
+				} elseif ( is_array( $snippet ) ) {
+					$snippet_json = wp_json_encode( $snippet, JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR );
+					if ( false !== $snippet_json ) {
+						$markdown = $snippet_json;
+					}
+				}
+			}
+
+			$label = isset( $entry['label'] ) ? sanitize_text_field( (string) $entry['label'] ) : $id;
+
+			$providers[] = array(
+				'id'       => $id,
+				'label'    => $label,
+				'markdown' => $markdown,
+			);
+		}
+
+		return array(
+			'providers' => $providers,
+		);
+	}
+
+	/**
+	 * Whether optional information_schema table-size sampling is enabled.
+	 *
+	 * @param array<string,mixed> $cfg Merged performance settings slice.
+	 * @return bool
+	 */
+	protected static function performance_db_size_enabled( array $cfg ) {
+		return ! empty( $cfg['db_size_enabled'] );
 	}
 }

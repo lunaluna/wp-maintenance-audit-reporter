@@ -151,6 +151,20 @@ class WPMAR_Runner {
 				)
 			);
 
+			if ( $domain_gate_ok && null !== $row_id ) {
+				WPMAR_Notification_Dispatcher::dispatch(
+					$settings,
+					array(
+						'report_id'      => (int) $row_id,
+						'body_client_md' => $client_body,
+						'body_admin_md'  => $admin_body,
+						'mail_sent'      => (bool) $mail_sent_flag,
+						'triggered_by'   => sanitize_key( $exec['triggered_by'] ),
+						'home_url'       => home_url(),
+					)
+				);
+			}
+
 			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
 				$pdf_rel = WPMAR_PDF_Writer::write_pdf_from_markdown(
 					WPMAR_PDF_Writer::markdown_body_for_client_pdf(
@@ -464,6 +478,28 @@ class WPMAR_Runner {
 		);
 		$body .= "\n\n";
 
+		$body .= '## ' . __( 'バックアップ連携（拡張）', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= self::render_backup_client_section(
+			isset( $facts['backup'] ) && is_array( $facts['backup'] ) ? $facts['backup'] : array()
+		);
+		$body .= "\n\n";
+
+		$body .= '## ' . __( 'オプション：データベースサイズチェック', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= self::render_performance_client_section(
+			isset( $facts['performance'] ) && is_array( $facts['performance'] ) ? $facts['performance'] : array()
+		);
+		$body .= "\n\n";
+
+		$body .= self::filtered_report_sections_markdown(
+			array(
+				'audience'       => 'client',
+				'facts'          => $facts,
+				'changelog'      => $changelog,
+				'changelog_size' => $changelog_size,
+				'domain_gate_ok' => $gate,
+			)
+		);
+
 		$body .= '## ' . __( '利用可能な WordPress アップデート（コアのみ）', 'wp-maintenance-audit-reporter' ) . "\n\n";
 
 		if ( empty( $facts['core']['available_updates'] ) ) {
@@ -661,8 +697,8 @@ class WPMAR_Runner {
 			? __( 'Domain gate authorised run.', 'wp-maintenance-audit-reporter' )
 			: __( 'Domain gate blocked this invocation — snapshots were not mutated.', 'wp-maintenance-audit-reporter' );
 
-		$header = sprintf(
-			"# %s\n\n%s\n\n## %s: %d\n%s\n\n## RAW JSON snapshot\n",
+		$pre_json_intro = sprintf(
+			"# %s\n\n%s\n\n## %s: %d\n%s\n\n",
 			__( 'サイト保守レポート — 詳細ログ', 'wp-maintenance-audit-reporter' ),
 			$intro,
 			__( 'Diff items counted', 'wp-maintenance-audit-reporter' ),
@@ -670,6 +706,123 @@ class WPMAR_Runner {
 			wp_strip_all_tags( (string) $changelog )
 		);
 
-		return $header . $json_block . "\n";
+		$extras_block = self::filtered_report_sections_markdown(
+			array(
+				'audience'       => 'operator',
+				'facts'          => $facts,
+				'changelog'      => $changelog,
+				'changelog_size' => $changelog_size,
+				'domain_gate_ok' => $gate,
+			)
+		);
+
+		return $pre_json_intro . $extras_block . "## RAW JSON snapshot\n\n" . $json_block . "\n";
+	}
+
+	/**
+	 * Markdown snippets added by third-parties via {@see 'wpmar_report_sections'}.
+	 *
+	 * @param array<string,mixed> $context Audience + harvested facts envelope.
+	 * @return string
+	 */
+	protected static function filtered_report_sections_markdown( array $context ) {
+		$extras = apply_filters( 'wpmar_report_sections', array(), $context );
+		if ( empty( $extras ) || ! is_array( $extras ) ) {
+			return '';
+		}
+
+		return WPMAR_Check_Performance::stringify_section_extras( $extras );
+	}
+
+	/**
+	 * Short bullets explaining hooked backup adapters.
+	 *
+	 * @param array<string,mixed> $backup Backup bundle keyed by collector output.
+	 * @return string
+	 */
+	protected static function render_backup_client_section( array $backup ) {
+		$providers = isset( $backup['providers'] ) && is_array( $backup['providers'] ) ? $backup['providers'] : array();
+		if ( empty( $providers ) ) {
+			return __( '登録済みのバックアッププロバイダはありません（フィルター `wpmar_backup_providers` で追加できます）。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$lines = array();
+		foreach ( $providers as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$id      = isset( $row['id'] ) ? sanitize_key( (string) $row['id'] ) : '';
+			$label   = isset( $row['label'] ) ? sanitize_text_field( (string) $row['label'] ) : $id;
+			$snippet = isset( $row['markdown'] ) && is_string( $row['markdown'] ) ? trim( $row['markdown'] ) : '';
+
+			if ( '' === $snippet ) {
+				$lines[] = '* ' . sprintf(
+					/* translators: %s provider label */
+					__( '%s — （出力なし）', 'wp-maintenance-audit-reporter' ),
+					$label
+				);
+
+				continue;
+			}
+
+			if ( strlen( $snippet ) > 500 ) {
+				$snippet = substr( $snippet, 0, 500 ) . '…';
+			}
+
+			$lead = '*' . $label;
+			if ( '' !== $id ) {
+				$lead .= ' `' . $id . '`';
+			}
+			$lines[] = $lead . "\n  ```text\n  " . str_replace( "\n", "\n  ", $snippet ) . "\n  ```";
+		}
+
+		return implode( "\n\n", $lines );
+	}
+
+	/**
+	 * Summarises optional DB table-size sampling for stakeholder mail bodies.
+	 *
+	 * @param array<string,mixed> $perf Optional probe results (`db_tables` when the option ran).
+	 * @return string
+	 */
+	protected static function render_performance_client_section( array $perf ) {
+		if ( empty( $perf ) || ! isset( $perf['db_tables'] ) || ! is_array( $perf['db_tables'] ) ) {
+			return __( 'データベースサイズチェックはオフです（設定でオンにすると上位テーブルを集計します）。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$lines = array();
+		$db    = $perf['db_tables'];
+		if ( empty( $db['ok'] ) ) {
+			$lines[] = sprintf(
+				/* translators: %s reason */
+				__( 'データベース容量: information_schema が利用できません（%s）。', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( (string) ( $db['error'] ?? '' ) )
+			);
+		} else {
+			if ( isset( $db['total_mb'] ) ) {
+				$approx_mb = round( (float) $db['total_mb'], 2 );
+			} elseif ( isset( $db['total_bytes'] ) ) {
+				// Legacy snapshots stored raw byte totals.
+				$approx_mb = round( absint( $db['total_bytes'] ) / 1048576, 2 );
+			} else {
+				$approx_mb = 0.0;
+			}
+			$lines[] = sprintf(
+				/* translators: 1 total megabytes rounded, 2 sampled table count */
+				__( 'データベース容量（上位サンプルの合計目安）: 約 %1$s MiB / %2$d テーブル行（JSON で上位一覧）。', 'wp-maintenance-audit-reporter' ),
+				number_format_i18n( $approx_mb, 2 ),
+				absint( $db['table_count'] ?? 0 )
+			);
+		}
+
+		return implode(
+			"\n",
+			array_map(
+				static function ( $line ) {
+					return '* ' . $line;
+				},
+				$lines
+			)
+		);
 	}
 }

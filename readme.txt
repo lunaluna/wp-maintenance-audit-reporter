@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.4.1-dev
+Stable tag: 0.5.0-dev
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,20 +12,20 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-Development build **v0.4.1-dev** adds PDF exports, ZIP download of historical Markdown/PDF artefacts, and CLI export improvements on top of v0.3 security signals.
+Development build **v0.5.0-dev** layers extensibility hooks (`wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`), an optional information_schema DB table-size sampler (defaults off), and supplementary notification dispatch on top of v0.4 features.
 
-* **PDF (optional)** — Persists `uploads/wpmar/pdf/*.pdf` on full runs when enabled; uses stored client-facing Markdown for generation; requires `composer install` for mPDF/Parsedown at runtime.
-* **ZIP bulk download** — From the report list, export selected rows as a ZIP of `.md` / `.pdf` peers.
-* **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
+* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on full runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
+* **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
+* **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
 * **Empty storage notice** — On **設定・実行** and **レポート**, an info notice when there are no report rows and no snapshot rows yet.
 
 * **Scheduling** — Monthly WP-Cron anchor plus optional server cron via WP-CLI.
 * **Inventory & deltas** — Core, themes, and plugins; change detection between snapshots.
 * **Checksums** — Core and plugin verification against WordPress.org manifests; configurable exclude lists; locale fallback when the API returns no checksum map for the site language.
 * **Domain gate** — Skip snapshot/report side effects when the host does not match the configured allowlist (e.g. staging).
-* **Outputs** — Verbose Markdown file (uploads) and optional paired HTML emails (client + operator).
+* **Outputs** — Verbose **administrator-facing** Markdown (saved under uploads) and optional paired HTML emails (**client-facing** + **administrator-facing**).
 * **Report storage** — Database table plus companion Markdown paths; **retention** (no auto-delete / 12 / 24 months) purges older rows and files after successful runs.
-* **Admin UI** — Top-level **Maintenance Audit** menu (`admin.php` screens) with **設定・実行** (schedule, mail, exclusions, retention, runs) and **レポート** (list table, 20 items per page, detail view, Markdown/PDF download, ZIP bulk export, row + bulk delete without confirmation dialog; success notices use one-shot transients, not sticky query arguments).
+* **Admin UI** — Top-level **Maintenance Audit** menu (`admin.php` screens) with **設定・実行** (schedule, mail, exclusions, retention, runs) and **レポート** (list table, 20 items per page, detail view, Markdown **(administrator-facing)** / PDF **(client-facing)** download, ZIP bulk export, row + bulk delete without confirmation dialog; success notices use one-shot transients, not sticky query arguments).
 
 Use WP-CLI for unattended runs and CI-style checks where available.
 
@@ -47,13 +47,18 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 == Changelog ==
 
+= 0.5.0-dev =
+* Hooks: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`.
+* Optional DB table-size sampling (defaults off): top tables via `information_schema` when enabled in settings.
+* `examples/` snippets for Slack, generic JSON webhook, and backup Markdown lines.
+
 = 0.4.1-dev =
 * CLI: `maintenance-audit export` accepts `--file=<path>` for markdown, json, and pdf (recommended for pdf when another plugin prints bootstrap notices before our command runs).
 
 = 0.4.0-dev =
-* PDF: optional mPDF/Parsedown render to uploads/wpmar/pdf on full runs; settings toggle.
-* ZIP: bulk download selected reports (Markdown + PDF files).
-* Admin/CLI: per-report Markdown and PDF download endpoints; CLI `export --format=pdf`.
+* PDF (client-facing): optional mPDF/Parsedown render to uploads/wpmar/pdf on full runs; settings toggle.
+* ZIP: bulk download selected reports (administrator-facing Markdown + client-facing PDF files).
+* Admin/CLI: per-report Markdown **(administrator-facing)** and PDF **(client-facing)** download endpoints; CLI `export --format=pdf`.
 
 = 0.3.0-dev =
 * Security ops: TLS cert probe (optional), PHP EOL map, WP/PHP/MySQL hints, administrator last-activity (session tokens), wp-config permission check, production debug warnings.
@@ -63,7 +68,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 = 0.2.0-dev =
 * Checksums: core + plugin verification, admin exclusions, locale fallback for empty manifest maps.
 * Settings: retention months (0 / 12 / 24), core/plugin checksum exclude fields.
-* Runner: retention purge after persisting a report; Markdown/checksum context in client/admin bodies as implemented.
+* Runner: retention purge after persisting a report; administrator-facing / client-facing Markdown and checksum context in bodies as implemented.
 * Admin: top-level Maintenance Audit menu; report list table (pagination, delete + bulk delete, transient flash notices); legacy `wpmar_msg` URL cleanup.
 * Quality: PHPCS (WPCS) and PHPUnit scaffolding via Composer.
 

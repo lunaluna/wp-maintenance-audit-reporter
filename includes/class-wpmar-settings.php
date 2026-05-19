@@ -23,36 +23,39 @@ class WPMAR_Settings {
 	 */
 	public static function defaults() {
 		return array(
-			'schedule'  => array(
+			'schedule'    => array(
 				'day'    => 25,
 				'hour'   => 2,
 				'minute' => 0,
 				'tz'     => 'Asia/Tokyo',
 			),
-			'domain'    => array(
+			'domain'      => array(
 				'allowed_host' => '',
 			),
-			'mail'      => array(
+			'mail'        => array(
 				'enabled'      => false,
 				'client_to'    => array(),
 				'admin_to'     => array(),
 				'from_address' => '',
 				'from_name'    => '',
 			),
-			'output'    => array(
+			'output'      => array(
 				'md_enabled'  => true,
 				'pdf_enabled' => true,
 			),
-			'checksums' => array(
+			'checksums'   => array(
 				'core_exclude_paths'   => array(),
 				'plugin_exclude_rules' => array(),
 			),
-			'retention' => array(
+			'retention'   => array(
 				'months' => 12,
 			),
-			'security'  => array(
+			'security'    => array(
 				'ssl_check_enabled' => true,
 				'admin_stale_days'  => 90,
+			),
+			'performance' => array(
+				'db_size_enabled' => false,
 			),
 		);
 	}
@@ -65,7 +68,15 @@ class WPMAR_Settings {
 	public static function get_all() {
 		$stored = get_option( self::OPTION_NAME, array() );
 
-		return wp_parse_args( is_array( $stored ) ? $stored : array(), self::defaults() );
+		$merged = wp_parse_args( is_array( $stored ) ? $stored : array(), self::defaults() );
+
+		if ( isset( $merged['performance'] ) && is_array( $merged['performance'] ) ) {
+			$merged['performance'] = array(
+				'db_size_enabled' => ! empty( $merged['performance']['db_size_enabled'] ),
+			);
+		}
+
+		return $merged;
 	}
 
 	/**
@@ -219,6 +230,13 @@ class WPMAR_Settings {
 			}
 			$curr['security']['admin_stale_days'] = $days;
 		}
+
+		if ( ! isset( $curr['performance'] ) || ! is_array( $curr['performance'] ) ) {
+			$curr['performance'] = self::defaults()['performance'];
+		}
+		$curr['performance'] = array(
+			'db_size_enabled' => ! empty( $post['wpmar_db_size_check_enabled'] ),
+		);
 
 		return $curr;
 	}

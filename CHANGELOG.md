@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+_No pending notes._
 
-- Plugin bootstrap, activator/deactivator, custom tables, full uninstall script.
-- Repository tooling: PHPCS (WPCS), PHPUnit, GitHub Actions skeleton.
+
+## [0.5.0-dev] - 2026-05-14
+- **Hooks**: `wpmar_report_sections` (Markdown extras for client/admin bodies), `wpmar_notification_channels` (callable channels after mail), `wpmar_backup_providers` (Markdown/callable summaries merged into audits).
+- **Performance probes** (defaults OFF via settings): home URL timing, capped external HEAD checks seeded from homepage HTML, optional `information_schema` table-size snapshot (surfaced client summary + RAW JSON payload).
+- **Dispatcher** `WPMAR_Notifier_Dispatcher` wiring post-report deliveries for extra channels while keeping core `wp_mail` pair intact.
+- **Examples**: `examples/wpmar-v05-slack-webhook-sample.php`, `examples/wpmar-v05-generic-json-webhook-sample.php`, `examples/wpmar-v05-backup-provider-sample.php` (manual copy instructions in headers).
+- **Tests**: PHPUnit coverage for Markdown extra helper stitch + defaults shape.
 
 ## [0.4.1-dev] - 2026-05-13
 

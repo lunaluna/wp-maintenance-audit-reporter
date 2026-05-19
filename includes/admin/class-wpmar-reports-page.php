@@ -203,7 +203,7 @@ class WPMAR_Reports_Page {
 		}
 
 		if ( '' === $rel ) {
-			wp_die( esc_html__( 'PDF を出力できません。クライアント向けレポート本文がないレポートです（プラグイン更新前のデータなど）、または mPDF が利用できません。フル実行で記録した後に試すか、composer install を確認してください。', 'wp-maintenance-audit-reporter' ) );
+			wp_die( esc_html__( 'PDF を出力できません。クライアント向けのレポート本文がないため PDF を生成できません（プラグイン更新前のデータなど）、または mPDF が利用できません。フル実行で記録した後に試すか、composer install を確認してください。', 'wp-maintenance-audit-reporter' ) );
 		}
 
 		$abs = WPMAR_MD_Writer::absolute_path_from_upload_relative( $rel );
@@ -461,8 +461,8 @@ class WPMAR_Reports_Page {
 			<h1><?php echo esc_html( $title ); ?></h1>
 			<p>
 				<a class="button" href="<?php echo esc_url( $list_url ); ?>"><?php esc_html_e( '一覧へ戻る', 'wp-maintenance-audit-reporter' ); ?></a>
-				<a class="button" href="<?php echo esc_url( $md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード', 'wp-maintenance-audit-reporter' ); ?></a>
-				<a class="button" href="<?php echo esc_url( $pdf_dl_url ); ?>"><?php esc_html_e( 'PDF をダウンロード', 'wp-maintenance-audit-reporter' ); ?></a>
+				<a class="button" href="<?php echo esc_url( $md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></a>
+				<a class="button" href="<?php echo esc_url( $pdf_dl_url ); ?>"><?php esc_html_e( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
 			</p>
 			<table class="form-table" role="presentation">
 				<tr>
@@ -475,7 +475,7 @@ class WPMAR_Reports_Page {
 				</tr>
 			</table>
 
-			<h2><?php esc_html_e( '本文 (Markdown)', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<h2><?php esc_html_e( '本文（管理者向け・Markdown）', 'wp-maintenance-audit-reporter' ); ?></h2>
 			<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:640px;overflow:auto;"><?php echo esc_html( (string) ( $row['body_md'] ?? '' ) ); ?></pre>
 		</div>
 		<?php

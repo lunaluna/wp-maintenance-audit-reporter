@@ -23,6 +23,8 @@ class WPMAR_Admin_Menu {
 	 * @return void
 	 */
 	public static function init() {
+		add_filter( 'plugin_action_links_' . WPMAR_PLUGIN_BASENAME, array( __CLASS__, 'plugin_action_links' ), 10, 2 );
+
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_report_download' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_bulk_zip' ), 0 );
@@ -67,6 +69,28 @@ class WPMAR_Admin_Menu {
 			sanitize_key( (string) $page_slug ),
 			admin_url( 'admin.php' )
 		);
+	}
+
+	/**
+	 * Prepends 「設定」 to the Plugins row (before Deactivate).
+	 *
+	 * @param array<int,string> $links Existing plugin action links (typically Deactivate).
+	 * @param string            $file  Plugin basename as passed by WordPress.
+	 * @return array<int,string>
+	 */
+	public static function plugin_action_links( $links, $file ) {
+		if ( WPMAR_PLUGIN_BASENAME !== $file ) {
+			return $links;
+		}
+
+		$url             = esc_url( self::admin_screen_url( WPMAR_ADMIN_PAGE_SLUG ) );
+		$settings_anchor = sprintf(
+			'<a href="%s">%s</a>',
+			$url,
+			esc_html__( '設定', 'wp-maintenance-audit-reporter' )
+		);
+
+		return array_merge( array( $settings_anchor ), $links );
 	}
 
 	/**
@@ -135,11 +159,11 @@ class WPMAR_Admin_Menu {
 			return;
 		}
 
-		$base_ver      = defined( 'WPMAR_VERSION' ) ? WPMAR_VERSION : '0';
-		$admin_js_path = WPMAR_PLUGIN_DIR . 'assets/js/admin.js';
+		$base_ver       = defined( 'WPMAR_VERSION' ) ? WPMAR_VERSION : '0';
+		$admin_js_path  = WPMAR_PLUGIN_DIR . 'assets/js/admin.js';
 		$admin_css_path = WPMAR_PLUGIN_DIR . 'assets/css/admin.css';
-		$admin_js_ver  = $base_ver;
-		$admin_css_ver = $base_ver;
+		$admin_js_ver   = $base_ver;
+		$admin_css_ver  = $base_ver;
 		if ( is_readable( $admin_js_path ) ) {
 			$admin_js_ver .= '-' . (string) filemtime( $admin_js_path );
 		}

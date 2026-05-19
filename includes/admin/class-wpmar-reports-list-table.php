@@ -172,12 +172,12 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 			'md'     => sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $md_dl_url ),
-				esc_html__( 'Markdown', 'wp-maintenance-audit-reporter' )
+				esc_html__( 'Markdown（管理者向け）', 'wp-maintenance-audit-reporter' )
 			),
 			'pdf'    => sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $pdf_dl_url ),
-				esc_html__( 'PDF', 'wp-maintenance-audit-reporter' )
+				esc_html__( 'PDF（クライアント向け）', 'wp-maintenance-audit-reporter' )
 			),
 			'delete' => sprintf(
 				'<a href="%1$s" class="wpmar-report-delete-trigger" data-wpmar-delete-message="%2$s">%3$s</a>',

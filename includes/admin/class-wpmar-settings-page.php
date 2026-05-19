@@ -49,7 +49,7 @@ class WPMAR_Settings_Page {
 
 		// Core status readouts + optional dry-run <pre> on the POST response immediately after 「ドライラン」.
 		?>
-		<div class="wrap">
+		<div class="wrap wpmar-maintenance-settings">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<?php settings_errors( 'wpmar_messages' ); ?>
 			<?php WPMAR_Admin_Menu::maybe_render_audit_storage_empty_notice(); ?>
@@ -59,39 +59,43 @@ class WPMAR_Settings_Page {
 				</a>
 			</p>
 			<p>
-				<?php esc_html_e( '月次の保守レポートを生成し、差分・Markdown・メール通知を制御します。', 'wp-maintenance-audit-reporter' ); ?>
+				<?php esc_html_e( '月次の保守レポートを生成し、差分・Markdown（管理者向け）・メール通知を制御します。', 'wp-maintenance-audit-reporter' ); ?>
 			</p>
 
-			<h2><?php esc_html_e( 'ステータス', 'wp-maintenance-audit-reporter' ); ?></h2>
-			<ul>
-				<li>
-					<strong><?php esc_html_e( '次回 WP-Cron', 'wp-maintenance-audit-reporter' ); ?>:</strong>
-					<?php echo esc_html( $next_lbl ); ?>
-				</li>
-				<li>
-					<strong><?php esc_html_e( '直近の完了時刻 (UTC 保存)', 'wp-maintenance-audit-reporter' ); ?>:</strong>
-					<?php echo esc_html( is_string( $last_done ) ? $last_done : '' ); ?>
-				</li>
-				<li>
-					<strong><?php esc_html_e( 'WP-CLI', 'wp-maintenance-audit-reporter' ); ?>:</strong>
-					<?php
-					if ( ! empty( $cli['is_available'] ) ) {
-						printf(
-							/* translators: 1 CLI version, 2 last seen ISO time */
-							esc_html__( '検出済み (version %1$s, last %2$s)', 'wp-maintenance-audit-reporter' ),
-							esc_html( (string) ( $cli['wp_cli_version'] ?? '' ) ),
-							esc_html( (string) ( $cli['last_seen_at'] ?? '' ) )
-						);
-					} else {
-						esc_html_e( '未取得（CLI でコマンドを一度実行すると記録されます）', 'wp-maintenance-audit-reporter' );
-					}
-					?>
-				</li>
-			</ul>
+			<div class="wpmar-section-panel">
+				<h2><?php esc_html_e( 'ステータス', 'wp-maintenance-audit-reporter' ); ?></h2>
+				<ul class="wpmar-section-panel-body">
+					<li>
+						<strong><?php esc_html_e( '次回 WP-Cron', 'wp-maintenance-audit-reporter' ); ?>:</strong>
+						<?php echo esc_html( $next_lbl ); ?>
+					</li>
+					<li>
+						<strong><?php esc_html_e( '直近の完了時刻 (UTC 保存)', 'wp-maintenance-audit-reporter' ); ?>:</strong>
+						<?php echo esc_html( is_string( $last_done ) ? $last_done : '' ); ?>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'WP-CLI', 'wp-maintenance-audit-reporter' ); ?>:</strong>
+						<?php
+						if ( ! empty( $cli['is_available'] ) ) {
+							printf(
+								/* translators: 1 CLI version, 2 last seen ISO time */
+								esc_html__( '検出済み (version %1$s, last %2$s)', 'wp-maintenance-audit-reporter' ),
+								esc_html( (string) ( $cli['wp_cli_version'] ?? '' ) ),
+								esc_html( (string) ( $cli['last_seen_at'] ?? '' ) )
+							);
+						} else {
+							esc_html_e( '未取得（CLI でコマンドを一度実行すると記録されます）', 'wp-maintenance-audit-reporter' );
+						}
+						?>
+					</li>
+				</ul>
+			</div>
 
 			<?php if ( is_string( $dry_note ) && '' !== trim( $dry_note ) ) : ?>
-				<h2><?php esc_html_e( 'ドライラン要約', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<pre style="background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:240px;overflow:auto;"><?php echo esc_html( $dry_note ); ?></pre>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'ドライラン要約', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<pre class="wpmar-dry-run-summary"><?php echo esc_html( $dry_note ); ?></pre>
+				</div>
 			<?php endif; ?>
 
 			<?php
@@ -100,101 +104,125 @@ class WPMAR_Settings_Page {
 			<form id="wpmar-settings-form" class="wpmar-settings-form" method="post" action="<?php echo esc_url( WPMAR_Admin_Menu::admin_screen_url( WPMAR_ADMIN_PAGE_SLUG ) ); ?>">
 				<?php wp_nonce_field( 'wpmar_settings_save', 'wpmar_settings_nonce' ); ?>
 
-				<h2><?php esc_html_e( 'スケジュール', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wpmar-schedule-day"><?php esc_html_e( '実行日 (1〜31)', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<input name="wpmar_schedule_day" id="wpmar-schedule-day" type="number" min="1" max="31" value="<?php echo esc_attr( (string) ( $settings['schedule']['day'] ?? 25 ) ); ?>" />
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( '時刻', 'wp-maintenance-audit-reporter' ); ?></th>
-						<td>
-							<label>
-								<?php esc_html_e( '時', 'wp-maintenance-audit-reporter' ); ?>
-								<input name="wpmar_schedule_hour" type="number" min="0" max="23" value="<?php echo esc_attr( (string) ( $settings['schedule']['hour'] ?? 2 ) ); ?>" />
-							</label>
-							<label>
-								<?php esc_html_e( '分', 'wp-maintenance-audit-reporter' ); ?>
-								<input name="wpmar_schedule_minute" type="number" min="0" max="59" value="<?php echo esc_attr( (string) ( $settings['schedule']['minute'] ?? 0 ) ); ?>" />
-							</label>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-schedule-tz"><?php esc_html_e( 'タイムゾーン', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<input class="regular-text" name="wpmar_schedule_tz" id="wpmar-schedule-tz" type="text" value="<?php echo esc_attr( (string) ( $settings['schedule']['tz'] ?? 'Asia/Tokyo' ) ); ?>" />
-							<p class="description"><?php esc_html_e( '例: Asia/Tokyo。PHP が解釈できる識別子を指定してください。', 'wp-maintenance-audit-reporter' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'スケジュール', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="wpmar-schedule-day"><?php esc_html_e( '実行日 (1〜31)', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<input name="wpmar_schedule_day" id="wpmar-schedule-day" type="number" min="1" max="31" value="<?php echo esc_attr( (string) ( $settings['schedule']['day'] ?? 25 ) ); ?>" />
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( '時刻', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<?php esc_html_e( '時', 'wp-maintenance-audit-reporter' ); ?>
+									<input name="wpmar_schedule_hour" type="number" min="0" max="23" value="<?php echo esc_attr( (string) ( $settings['schedule']['hour'] ?? 2 ) ); ?>" />
+								</label>
+								<label>
+									<?php esc_html_e( '分', 'wp-maintenance-audit-reporter' ); ?>
+									<input name="wpmar_schedule_minute" type="number" min="0" max="59" value="<?php echo esc_attr( (string) ( $settings['schedule']['minute'] ?? 0 ) ); ?>" />
+								</label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-schedule-tz"><?php esc_html_e( 'タイムゾーン', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<input class="regular-text" name="wpmar_schedule_tz" id="wpmar-schedule-tz" type="text" value="<?php echo esc_attr( (string) ( $settings['schedule']['tz'] ?? 'Asia/Tokyo' ) ); ?>" />
+								<p class="description"><?php esc_html_e( '例: Asia/Tokyo。PHP が解釈できる識別子を指定してください。', 'wp-maintenance-audit-reporter' ); ?></p>
+							</td>
+						</tr>
+					</table>
+				</div>
 
-				<h2><?php esc_html_e( 'ドメインゲート', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wpmar-allowed-host"><?php esc_html_e( '許可ホスト', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<?php echo self::render_domain_gate_callout( $settings ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'ドメインゲート', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="wpmar-allowed-host"><?php esc_html_e( '許可ホスト', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<?php echo self::render_domain_gate_callout( $settings ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							</td>
+						</tr>
+					</table>
+				</div>
 
-				<h2><?php esc_html_e( 'セキュリティ診断（レポート）', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<p class="description">
-					<?php esc_html_e( 'フル実行・ドライランの監査データに含めます。SSL 検査はサイトが https のときのみサーバーへ短時間接続します。', 'wp-maintenance-audit-reporter' ); ?>
-				</p>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'SSL 証明書の期限確認', 'wp-maintenance-audit-reporter' ); ?></th>
-						<td>
-							<label>
-								<input name="wpmar_security_ssl_enabled" type="checkbox" <?php checked( ! empty( $settings['security']['ssl_check_enabled'] ) ); ?> />
-								<?php esc_html_e( '有効（推奨）', 'wp-maintenance-audit-reporter' ); ?>
-							</label>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-admin-stale-days"><?php esc_html_e( '管理者「長期未ログイン」の日数', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<input name="wpmar_admin_stale_days" id="wpmar-admin-stale-days" type="number" min="30" max="730" step="1" value="<?php echo esc_attr( (string) ( $settings['security']['admin_stale_days'] ?? 90 ) ); ?>" />
-							<p class="description"><?php esc_html_e( 'この日数より古い最終セッションを「注意」として数えます（30〜730）。', 'wp-maintenance-audit-reporter' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'セキュリティ診断（レポート）', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<p class="description">
+						<?php esc_html_e( 'フル実行・ドライランの監査データに含めます。SSL 検査はサイトが https のときのみサーバーへ短時間接続します。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'SSL 証明書の期限確認', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_security_ssl_enabled" type="checkbox" <?php checked( ! empty( $settings['security']['ssl_check_enabled'] ) ); ?> />
+									<?php esc_html_e( '有効（推奨）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-admin-stale-days"><?php esc_html_e( '管理者「長期未ログイン」の日数', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<input name="wpmar_admin_stale_days" id="wpmar-admin-stale-days" type="number" min="30" max="730" step="1" value="<?php echo esc_attr( (string) ( $settings['security']['admin_stale_days'] ?? 90 ) ); ?>" />
+								<p class="description"><?php esc_html_e( 'この日数より古い最終セッションを「注意」として数えます（30〜730）。', 'wp-maintenance-audit-reporter' ); ?></p>
+							</td>
+						</tr>
+					</table>
+				</div>
 
-				<h2><?php esc_html_e( 'メール通知', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( '有効化', 'wp-maintenance-audit-reporter' ); ?></th>
-						<td>
-							<label>
-								<input name="wpmar_mail_enabled" type="checkbox" <?php checked( ! empty( $settings['mail']['enabled'] ) ); ?> />
-								<?php esc_html_e( 'レポート送信を有効化', 'wp-maintenance-audit-reporter' ); ?>
-							</label>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-client-mail"><?php esc_html_e( 'クライアント向け宛先（改行区切り）', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<textarea class="large-text" rows="4" name="wpmar_client_mail" id="wpmar-client-mail"><?php echo esc_textarea( implode( "\n", array_map( 'sanitize_text_field', (array) ( $settings['mail']['client_to'] ?? array() ) ) ) ); ?></textarea>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-admin-mail"><?php esc_html_e( '運用宛先（改行区切り）', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<textarea class="large-text" rows="4" name="wpmar_admin_mail" id="wpmar-admin-mail"><?php echo esc_textarea( implode( "\n", array_map( 'sanitize_text_field', (array) ( $settings['mail']['admin_to'] ?? array() ) ) ) ); ?></textarea>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-from-email"><?php esc_html_e( '送信元メールアドレス', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td><input class="regular-text" name="wpmar_from_email" id="wpmar-from-email" type="email" value="<?php echo esc_attr( (string) ( $settings['mail']['from_address'] ?? '' ) ); ?>" /></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-from-name"><?php esc_html_e( '送信元表示名', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td><input class="regular-text" name="wpmar_from_name" id="wpmar-from-name" type="text" value="<?php echo esc_attr( (string) ( $settings['mail']['from_name'] ?? '' ) ); ?>" /></td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'オプション：データベースサイズチェック', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<p class="description"><?php esc_html_e( 'チェックを入れたときのみ、監査収集中に information_schema を参照してテーブルごとのサイズの上位サンプルを集計します（ホスティングにより失敗することがあります）。', 'wp-maintenance-audit-reporter' ); ?></p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( '上位テーブルサイズを集計', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_db_size_check_enabled" id="wpmar-db-size-check-enabled" type="checkbox" <?php checked( ! empty( $settings['performance']['db_size_enabled'] ) ); ?> />
+									<?php esc_html_e( '有効（既定 OFF）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+					</table>
+				</div>
+
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'メール通知', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( '有効化', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_mail_enabled" type="checkbox" <?php checked( ! empty( $settings['mail']['enabled'] ) ); ?> />
+									<?php esc_html_e( 'レポート送信を有効化', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-client-mail"><?php esc_html_e( 'クライアント向け宛先（改行区切り）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<textarea class="large-text" rows="4" name="wpmar_client_mail" id="wpmar-client-mail"><?php echo esc_textarea( implode( "\n", array_map( 'sanitize_text_field', (array) ( $settings['mail']['client_to'] ?? array() ) ) ) ); ?></textarea>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-admin-mail"><?php esc_html_e( '管理者向け宛先（改行区切り）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<textarea class="large-text" rows="4" name="wpmar_admin_mail" id="wpmar-admin-mail"><?php echo esc_textarea( implode( "\n", array_map( 'sanitize_text_field', (array) ( $settings['mail']['admin_to'] ?? array() ) ) ) ); ?></textarea>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-from-email"><?php esc_html_e( '送信元メールアドレス（オプション）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td><input class="regular-text" name="wpmar_from_email" id="wpmar-from-email" type="email" value="<?php echo esc_attr( (string) ( $settings['mail']['from_address'] ?? '' ) ); ?>" /></td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-from-name"><?php esc_html_e( '送信元表示名（オプション）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td><input class="regular-text" name="wpmar_from_name" id="wpmar-from-name" type="text" value="<?php echo esc_attr( (string) ( $settings['mail']['from_name'] ?? '' ) ); ?>" /></td>
+						</tr>
+					</table>
+				</div>
 
 				<?php
 				$retention_months = isset( $settings['retention']['months'] ) ? absint( $settings['retention']['months'] ) : 12;
@@ -205,72 +233,80 @@ class WPMAR_Settings_Page {
 					? $settings['checksums']['plugin_exclude_rules']
 					: array();
 				?>
-				<h2><?php esc_html_e( 'チェックサム除外リスト', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<p class="description">
-					<?php esc_html_e( 'コアは ABSPATH からの相対パス（例: wp-config.php）。プラグインは「スラッグ:相対パス」1 行に 1 エントリ（例: akismet:readme.txt）。# で始まる行はコメントとして無視されます。', 'wp-maintenance-audit-reporter' ); ?>
-				</p>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wpmar-core-excludes"><?php esc_html_e( 'コア除外パス', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<textarea class="large-text code" rows="6" name="wpmar_core_checksum_excludes" id="wpmar-core-excludes"><?php echo esc_textarea( implode( "\n", array_map( 'strval', $core_excludes ) ) ); ?></textarea>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="wpmar-plugin-excludes"><?php esc_html_e( 'プラグイン除外', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<textarea class="large-text code" rows="6" name="wpmar_plugin_checksum_excludes" id="wpmar-plugin-excludes"><?php echo esc_textarea( self::stringify_plugin_exclude_textarea( $plugin_rules ) ); ?></textarea>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'チェックサム除外リスト', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<p class="description">
+						<?php esc_html_e( 'コアは ABSPATH からの相対パス（例: wp-config.php）。プラグインは「スラッグ:相対パス」1 行に 1 エントリ（例: akismet:readme.txt）。# で始まる行はコメントとして無視されます。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="wpmar-core-excludes"><?php esc_html_e( 'コア除外パス', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<textarea class="large-text code" rows="6" name="wpmar_core_checksum_excludes" id="wpmar-core-excludes"><?php echo esc_textarea( implode( "\n", array_map( 'strval', $core_excludes ) ) ); ?></textarea>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-plugin-excludes"><?php esc_html_e( 'プラグイン除外', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<textarea class="large-text code" rows="6" name="wpmar_plugin_checksum_excludes" id="wpmar-plugin-excludes"><?php echo esc_textarea( self::stringify_plugin_exclude_textarea( $plugin_rules ) ); ?></textarea>
+							</td>
+						</tr>
+					</table>
+				</div>
 
-				<h2><?php esc_html_e( '保持期間', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="wpmar-retention"><?php esc_html_e( 'レポート保管期間', 'wp-maintenance-audit-reporter' ); ?></label></th>
-						<td>
-							<select name="wpmar_retention_months" id="wpmar-retention">
-								<option value="0" <?php selected( $retention_months, 0 ); ?>><?php esc_html_e( '無期限（自動削除しない）', 'wp-maintenance-audit-reporter' ); ?></option>
-								<option value="12" <?php selected( $retention_months, 12 ); ?>><?php esc_html_e( '12 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
-								<option value="24" <?php selected( $retention_months, 24 ); ?>><?php esc_html_e( '24 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
-							</select>
-							<p class="description"><?php esc_html_e( '最新のフル実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( '保持期間', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="wpmar-retention"><?php esc_html_e( 'レポート保管期間', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td>
+								<select name="wpmar_retention_months" id="wpmar-retention">
+									<option value="0" <?php selected( $retention_months, 0 ); ?>><?php esc_html_e( '無期限（自動削除しない）', 'wp-maintenance-audit-reporter' ); ?></option>
+									<option value="12" <?php selected( $retention_months, 12 ); ?>><?php esc_html_e( '12 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
+									<option value="24" <?php selected( $retention_months, 24 ); ?>><?php esc_html_e( '24 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
+								</select>
+								<p class="description"><?php esc_html_e( '最新のフル実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
+							</td>
+						</tr>
+					</table>
+				</div>
 
 				<?php
 				// Markdown + QA tools continue below.
 				?>
-				<h2><?php esc_html_e( 'レポートをファイルとして自動保存', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Markdown を uploads に書き出して保存', 'wp-maintenance-audit-reporter' ); ?></th>
-						<td>
-							<label>
-								<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
-								<?php esc_html_e( 'フル実行の際に自動で`wp-content/uploads/wpmar/` に管理者向け md ファイルを保存', 'wp-maintenance-audit-reporter' ); ?>
-							</label>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存', 'wp-maintenance-audit-reporter' ); ?></th>
-						<td>
-							<label>
-								<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
-								<?php esc_html_e( 'フル実行の際に自動で `uploads/wpmar/pdf/` にクライアント向け PDF レポートを保存', 'wp-maintenance-audit-reporter' ); ?>
-							</label>
-						</td>
-					</tr>
-				</table>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'レポートをファイルとして自動保存', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Markdown を uploads に書き出して保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
+									<?php esc_html_e( 'フル実行時に自動で `wp-content/uploads/wpmar/` に md ファイルを保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
+									<?php esc_html_e( 'フル実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+					</table>
+				</div>
 
-				<h2><?php esc_html_e( '検証ツール', 'wp-maintenance-audit-reporter' ); ?></h2>
-				<p>
-					<label for="wpmar-qa-mail"><?php esc_html_e( 'テストメール上書き先（単一のアドレス）', 'wp-maintenance-audit-reporter' ); ?></label><br />
-					<input class="regular-text" name="wpmar_qa_mail" id="wpmar-qa-mail" type="email" placeholder="qa@example.com" />
-				</p>
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( '検証ツール', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<p>
+						<label for="wpmar-qa-mail"><?php esc_html_e( 'テストメール上書き先（単一のアドレス）', 'wp-maintenance-audit-reporter' ); ?></label><br />
+						<input class="regular-text" name="wpmar_qa_mail" id="wpmar-qa-mail" type="email" placeholder="qa@example.com" />
+					</p>
+				</div>
 
-				<p>
+				<p class="wpmar-section-panel-actions">
 					<button class="button button-primary" name="wpmar_admin_action" type="submit" value="save"><?php esc_html_e( '変更を保存', 'wp-maintenance-audit-reporter' ); ?></button>
 					<button class="button" name="wpmar_admin_action" type="submit" value="dry_run"><?php esc_html_e( 'ドライラン', 'wp-maintenance-audit-reporter' ); ?></button>
 					<button class="button" name="wpmar_admin_action" type="submit" value="full_run"><?php esc_html_e( '今すぐフル実行', 'wp-maintenance-audit-reporter' ); ?></button>
@@ -330,7 +366,7 @@ class WPMAR_Settings_Page {
 			<?php else : ?>
 				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--bad">
 					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#10007;</span>
-					<?php esc_html_e( '保存済みの許可ホストと一致しません。フル実行は開始できますが、ゲートによりスナップショット・メール・Markdown などが抑止されます。', 'wp-maintenance-audit-reporter' ); ?>
+					<?php esc_html_e( '保存済みの許可ホストと一致しません。フル実行は開始できますが、ゲートによりスナップショット・メール・管理者向け Markdown などが抑止されます。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
 				<p class="wpmar-domain-gate-compare">
 					<?php
