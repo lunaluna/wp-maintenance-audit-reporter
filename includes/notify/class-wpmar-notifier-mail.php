@@ -117,19 +117,20 @@ class WPMAR_Notifier_Mail {
 		$headers_admin  = array( 'Content-Type: text/plain; charset=UTF-8' );
 
 		$site_label = sanitize_text_field( wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) );
+		$date_local = wp_date( 'Y-m-d' );
 
 		$results = array();
 		if ( ! empty( $filtered_client ) ) {
-			/* translators: 1: site title, 2: UTC formatted datetime */
-			$subject_text = __( '[Maintenance] %1$s — stakeholder copy (%2$s UTC)', 'wp-maintenance-audit-reporter' );
-			$subject      = sprintf( $subject_text, $site_label, gmdate( 'Y-m-d H:i' ) );
+			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+			$subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+			$subject      = sprintf( $subject_text, $site_label, $date_local );
 			$results[]    = wp_mail( $filtered_client, $subject, wp_strip_all_tags( $body_client ), $headers_client );
 		}
 
 		if ( ! empty( $filtered_admin ) ) {
-			/* translators: 1: site title, 2: UTC formatted datetime */
-			$subject_text = __( '[Maintenance admin] %1$s diagnostics (%2$s UTC)', 'wp-maintenance-audit-reporter' );
-			$subject      = sprintf( $subject_text, $site_label, gmdate( 'Y-m-d H:i' ) );
+			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+			$subject_text = __( '[%1$s] 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+			$subject      = sprintf( $subject_text, $site_label, $date_local );
 			$results[]    = wp_mail( $filtered_admin, $subject, wp_strip_all_tags( $body_admin ), $headers_admin );
 		}
 

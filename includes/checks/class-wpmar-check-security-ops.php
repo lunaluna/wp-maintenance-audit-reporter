@@ -268,7 +268,8 @@ class WPMAR_Check_Security_Ops {
 			$core_updates = get_core_updates( array( 'dismissed' => false ) );
 		}
 
-		$wp_warn = is_array( $core_updates ) && ! empty( $core_updates );
+		$pending_versions = WPMAR_Data_Collector::pending_core_upgrade_versions( $core_updates );
+		$wp_warn          = ! empty( $pending_versions );
 
 		$php_recommend = version_compare( PHP_VERSION, '8.1.0', '<' );
 

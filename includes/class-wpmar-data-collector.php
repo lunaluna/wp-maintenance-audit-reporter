@@ -69,6 +69,8 @@ class WPMAR_Data_Collector {
 			'server'  => $this->gather_server_intel(),
 		);
 
+		$dataset['plugins_outdated'] = $this->build_plugins_outdated_alerts( $dataset['plugins'] );
+
 		$settings = WPMAR_Settings::get_all();
 		$checksum = new WPMAR_Check_Checksums();
 
@@ -99,7 +101,53 @@ class WPMAR_Data_Collector {
 	}
 
 	/**
-	 * Lists pending core semver strings advertised by wp.org.
+	 * Returns target version strings for core offers that represent a real version change.
+	 *
+	 * `get_core_updates()` also lists “reinstall this same version” rows (`response` `latest`),
+	 * which mirror dashboard noise and must not be treated as pending upgrades.
+	 *
+	 * @param array<int,object>|false $raw_updates Return value of {@see get_core_updates()}.
+	 * @return string[]
+	 */
+	public static function pending_core_upgrade_versions( $raw_updates ) {
+		if ( empty( $raw_updates ) || ! is_array( $raw_updates ) ) {
+			return array();
+		}
+
+		$lines = array();
+		foreach ( $raw_updates as $u ) {
+			if ( ! is_object( $u ) ) {
+				continue;
+			}
+
+			$response = isset( $u->response ) ? sanitize_key( (string) $u->response ) : '';
+			// `latest` (or empty) rows are reinstall offers for the same line, not pending upgrades
+			// (see wp-admin/update-core.php:list_core_update).
+			if ( '' === $response || 'latest' === $response ) {
+				continue;
+			}
+
+			// `upgrade` = newer package; `development` = move to nightly / dev build offer (not a reinstall prompt).
+			if ( 'upgrade' !== $response && 'development' !== $response ) {
+				continue;
+			}
+
+			$ver = '';
+			if ( isset( $u->current ) && is_string( $u->current ) ) {
+				$ver = (string) $u->current;
+			} elseif ( isset( $u->version ) && is_string( $u->version ) ) {
+				$ver = (string) $u->version;
+			}
+			if ( '' !== $ver ) {
+				$lines[] = sanitize_text_field( $ver );
+			}
+		}
+
+		return array_values( array_unique( $lines ) );
+	}
+
+	/**
+	 * Lists pending core semver strings advertised by wp.org (upgrade / development offers only).
 	 *
 	 * @return string[]
 	 */
@@ -108,21 +156,9 @@ class WPMAR_Data_Collector {
 			return array();
 		}
 
-		// Objects mirror Core_Upgrader rows; we only need human-readable target versions.
 		$updates = get_core_updates( array( 'dismissed' => false ) );
 
-		if ( empty( $updates ) || ! is_array( $updates ) ) {
-			return array();
-		}
-
-		$lines = array();
-		foreach ( $updates as $u ) {
-			if ( isset( $u->version ) && is_string( $u->version ) ) {
-				$lines[] = sanitize_text_field( $u->version );
-			}
-		}
-
-		return array_values( array_unique( $lines ) );
+		return self::pending_core_upgrade_versions( $updates );
 	}
 
 	/**
@@ -204,6 +240,75 @@ class WPMAR_Data_Collector {
 		return array(
 			'inventory' => $list,
 			'org'       => $org,
+		);
+	}
+
+	/**
+	 * Flags plugins whose WordPress.org `last_updated` is stale (180+ / 365+ days), matching maintenance-scripts heuristics.
+	 *
+	 * @param array<string,mixed> $plugins_bundle Output of {@see gather_plugins_bundle()}.
+	 * @return array{tier_365: array<int, array<string, string|int>>, tier_180: array<int, array<string, string|int>>}
+	 */
+	protected function build_plugins_outdated_alerts( array $plugins_bundle ) {
+		$tier_365 = array();
+		$tier_180 = array();
+
+		$inventory = isset( $plugins_bundle['inventory'] ) && is_array( $plugins_bundle['inventory'] )
+			? $plugins_bundle['inventory']
+			: array();
+		$org       = isset( $plugins_bundle['org'] ) && is_array( $plugins_bundle['org'] )
+			? $plugins_bundle['org']
+			: array();
+
+		$tz  = wp_timezone();
+		$now = new DateTimeImmutable( 'now', $tz );
+
+		foreach ( $inventory as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$slug = isset( $row['slug'] ) ? sanitize_key( (string) $row['slug'] ) : '';
+			if ( '' === $slug || empty( $org[ $slug ]['last_updated'] ) ) {
+				continue;
+			}
+
+			$last_raw = trim( (string) $org[ $slug ]['last_updated'] );
+			if ( '' === $last_raw ) {
+				continue;
+			}
+
+			$last_dt = date_create_immutable( $last_raw, $tz );
+			if ( ! ( $last_dt instanceof DateTimeImmutable ) ) {
+				continue;
+			}
+
+			$seconds = $now->getTimestamp() - $last_dt->getTimestamp();
+			$days    = (int) floor( $seconds / DAY_IN_SECONDS );
+			if ( $days < 180 ) {
+				continue;
+			}
+
+			$title = isset( $row['title'] ) ? sanitize_text_field( (string) $row['title'] ) : '';
+			if ( '' === $title ) {
+				$title = $slug;
+			}
+
+			$item = array(
+				'slug'  => $slug,
+				'title' => $title,
+				'days'  => $days,
+			);
+
+			if ( $days >= 365 ) {
+				$tier_365[] = $item;
+			} else {
+				$tier_180[] = $item;
+			}
+		}
+
+		return array(
+			'tier_365' => $tier_365,
+			'tier_180' => $tier_180,
 		);
 	}
 
