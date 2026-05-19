@@ -86,8 +86,10 @@ class WPMAR_Runner {
 				}
 			}
 
+			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
+
 			$client_body = self::render_client_markup( $dataset, $changelog_md, $changelog_counts, $domain_gate_ok );
-			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts );
+			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
 				// Uploaded Markdown mirrors the verbose admin-facing email payload.
@@ -458,8 +460,7 @@ class WPMAR_Runner {
 	 */
 	public static function render_client_markup( array $facts, $changelog, $changelog_size, $gate ) {
 		// Mirror `maintenance-scripts` client mail: intro, # 【変更履歴】, pending updates, outdated plugins, # 【ユーザー情報】, then plugin extras.
-		$body  = __( '※こちらは定期メンテナンスのご報告です。ご確認ください。', 'wp-maintenance-audit-reporter' ) . "\n\n";
-		$body .= __( '自動生成された読みやすい要約です。詳細ログはサイト管理者のみに送付されています。', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body = __( '※こちらは定期メンテナンスのご報告です。ご確認ください。', 'wp-maintenance-audit-reporter' ) . "\n\n";
 
 		if ( ! $gate ) {
 			$body .= __( 'ドメインチェックで停止したため、スナップショット更新とメール送信は行われませんでした。', 'wp-maintenance-audit-reporter' ) . "\n\n";
@@ -1013,35 +1014,38 @@ class WPMAR_Runner {
 	}
 
 	/**
-	 * Exhaustive plaintext export for admins + Markdown disk persistence.
+	 * Operator-facing plaintext shaped like `/.maintenance/inc/mainte.sh` `ADMIN_MAIL_BODY` (not a raw JSON dump).
 	 *
 	 * @param array<string,mixed> $facts          Fresh envelope.
 	 * @param string              $changelog      Diff body.
 	 * @param bool                $gate           Domain gate acknowledgement.
 	 * @param int                 $changelog_size Counter.
+	 * @param int                 $duration_sec  Wall time spent in this run (seconds).
 	 * @return string
 	 */
-	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size ) {
-		// Mirrors the transient payload produced during gather(); can be sizable on large multisites.
-		$json_block = wp_json_encode( $facts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR );
-		if ( false === $json_block ) {
-			$json_block = '{}';
+	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size, $duration_sec = 0 ) {
+		$duration_sec = max( 0, (int) $duration_sec );
+
+		$chunks             = array();
+		$changelog_stripped = trim( wp_strip_all_tags( (string) $changelog ) );
+
+		if ( ! $gate ) {
+			$chunks[] = __( '※ ドメインゲートにより、この実行ではスナップショットは更新されていません。', 'wp-maintenance-audit-reporter' );
 		}
 
-		$intro = $gate
-			? __( 'Domain gate authorised run.', 'wp-maintenance-audit-reporter' )
-			: __( 'Domain gate blocked this invocation — snapshots were not mutated.', 'wp-maintenance-audit-reporter' );
-
-		$pre_json_intro = sprintf(
-			"# %s\n\n%s\n\n## %s: %d\n%s\n\n",
-			__( 'サイト保守レポート — 詳細ログ', 'wp-maintenance-audit-reporter' ),
-			$intro,
-			__( 'Diff items counted', 'wp-maintenance-audit-reporter' ),
-			absint( $changelog_size ),
-			wp_strip_all_tags( (string) $changelog )
+		$chunks[] = self::render_operator_wordpress_section( $facts );
+		$chunks[] = self::render_operator_themes_section( $facts );
+		$chunks[] = self::render_operator_plugins_section( $facts );
+		$chunks[] = self::render_operator_server_section( $facts );
+		$chunks[] = self::render_operator_backup_section( $facts );
+		$chunks[] = self::render_operator_users_section( $facts );
+		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ) );
+		$chunks[] = self::render_operator_security_section_verbose( isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array() );
+		$chunks[] = self::render_operator_performance_section_verbose(
+			isset( $facts['performance'] ) && is_array( $facts['performance'] ) ? $facts['performance'] : array()
 		);
 
-		$extras_block = self::filtered_report_sections_markdown(
+		$chunks[] = self::filtered_report_sections_markdown(
 			array(
 				'audience'       => 'operator',
 				'facts'          => $facts,
@@ -1051,7 +1055,710 @@ class WPMAR_Runner {
 			)
 		);
 
-		return $pre_json_intro . $extras_block . "## RAW JSON snapshot\n\n" . $json_block . "\n";
+		$chunks[] = self::render_operator_execution_section( $duration_sec );
+		$chunks[] = self::render_operator_runtime_section();
+
+		$chunks = array_values(
+			array_filter(
+				array_map( 'trim', $chunks ),
+				static function ( $block ) {
+					return '' !== $block;
+				}
+			)
+		);
+
+		return trim( implode( "\n\n", $chunks ) ) . "\n";
+	}
+
+	/**
+	 * WordPress 本体（更新状況＋コア・チェックサム） — mainte.sh 相当.
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_wordpress_section( array $facts ) {
+		$core    = isset( $facts['core'] ) && is_array( $facts['core'] ) ? $facts['core'] : array();
+		$version = isset( $core['version'] ) ? sanitize_text_field( (string) $core['version'] ) : '';
+		$pending = isset( $core['available_updates'] ) && is_array( $core['available_updates'] ) ? $core['available_updates'] : array();
+		$pending = array_values( array_filter( array_map( 'sanitize_text_field', array_map( 'strval', $pending ) ) ) );
+
+		$checksums = isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array();
+		$core_cs   = isset( $checksums['core'] ) && is_array( $checksums['core'] ) ? $checksums['core'] : array();
+
+		$update_line = '';
+		if ( ! empty( $pending ) ) {
+			$target      = sanitize_text_field( (string) $pending[0] );
+			$update_line = sprintf(
+				/* translators: 1: current version, 2: newest offered version */
+				__( 'WordPress のコアファイルは最新ではありません。現在のバージョン: %1$s -> 最新バージョン: %2$s', 'wp-maintenance-audit-reporter' ),
+				$version,
+				$target
+			) . "\n　　" . __( 'コアファイルに最新バージョンがリリースされています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' );
+		} elseif ( '' !== $version ) {
+			$update_line = sprintf(
+				/* translators: %s: installed WordPress version */
+				__( 'WordPress のコアファイルは最新バージョンを利用中です（バージョン: %s）。', 'wp-maintenance-audit-reporter' ),
+				$version
+			);
+		} else {
+			$update_line = __( 'WordPress バージョンを取得できませんでした。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$checksum_block = self::render_operator_core_checksum_paragraph( $core_cs );
+
+		return '# 【WordPress 本体】' . "\n"
+			. __( '※ WordPress のコアファイルが最新版か・改ざんされていないかのチェック', 'wp-maintenance-audit-reporter' ) . "\n\n"
+			. sprintf(
+				/* translators: %s: current WordPress version string */
+				__( '## 現在の WordPressのバージョン: %s', 'wp-maintenance-audit-reporter' ),
+				'' !== $version ? $version : __( '不明', 'wp-maintenance-audit-reporter' )
+			) . "\n"
+			. __( 'アップデート：', 'wp-maintenance-audit-reporter' ) . $update_line . "\n"
+			. $checksum_block;
+	}
+
+	/**
+	 * Narrates core checksum output in prose similar to WP-CLI-style admin mail.
+	 *
+	 * @param array<string,mixed> $core_cs `checksums.core` slice.
+	 * @return string
+	 */
+	protected static function render_operator_core_checksum_paragraph( array $core_cs ) {
+		if ( empty( $core_cs ) ) {
+			return __( 'コアのチェックサム検証結果がありません。', 'wp-maintenance-audit-reporter' );
+		}
+
+		if ( ! empty( $core_cs['error'] ) ) {
+			return sprintf(
+				/* translators: %s: error text */
+				__( 'コアのチェックサム: エラー（%s）', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( (string) $core_cs['error'] )
+			);
+		}
+
+		if ( empty( $core_cs['manifest_ok'] ) ) {
+			return __( 'コアのチェックサム一覧を取得できませんでした。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$mismatches = isset( $core_cs['mismatches'] ) && is_array( $core_cs['mismatches'] ) ? $core_cs['mismatches'] : array();
+		$mismatch_n = count( $mismatches );
+
+		if ( ! empty( $core_cs['ok'] ) && 0 === $mismatch_n ) {
+			$skipped = absint( $core_cs['skipped_files'] ?? 0 );
+			if ( $skipped > 0 ) {
+				return __( 'コアファイルに改変は見つかりませんでした (※readme.html など一部ファイル差分は除外)。', 'wp-maintenance-audit-reporter' );
+			}
+
+			return __( 'コアファイルに改変は見つかりませんでした。WordPress のコアファイルは安全です。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$lines   = array();
+		$lines[] = __( 'WordPress のコアファイルの以下のファイルに変更が見つかりました:', 'wp-maintenance-audit-reporter' );
+		$slice   = array_slice( $mismatches, 0, 40 );
+		foreach ( $slice as $row ) {
+			if ( ! is_array( $row ) || empty( $row['file'] ) ) {
+				continue;
+			}
+			$lines[] = '　　' . sanitize_text_field( (string) $row['file'] );
+		}
+		if ( count( $mismatches ) > 40 ) {
+			$lines[] = '　　' . sprintf(
+				/* translators: %d: number of files omitted */
+				__( '…他 %d 件', 'wp-maintenance-audit-reporter' ),
+				count( $mismatches ) - 40
+			);
+		}
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Reads pending plugin upgrade target from the `update_plugins` site transient.
+	 *
+	 * @param string $basename Plugin basename (`dir/file.php`).
+	 * @return string New semver string, or empty when no pending update.
+	 */
+	protected static function pending_plugin_new_version( $basename ) {
+		$basename = (string) $basename;
+		if ( '' === $basename ) {
+			return '';
+		}
+		$transient = get_site_transient( 'update_plugins' );
+		if ( ! is_object( $transient ) || empty( $transient->response[ $basename ] ) || ! is_array( $transient->response[ $basename ] ) ) {
+			return '';
+		}
+		$data = $transient->response[ $basename ];
+		return ! empty( $data['new_version'] ) ? sanitize_text_field( (string) $data['new_version'] ) : '';
+	}
+
+	/**
+	 * Reads pending theme upgrade target from the `update_themes` site transient.
+	 *
+	 * @param string $stylesheet Theme stylesheet slug (directory name).
+	 * @return string New semver string, or empty when no pending update.
+	 */
+	protected static function pending_theme_new_version( $stylesheet ) {
+		$stylesheet = sanitize_text_field( (string) $stylesheet );
+		if ( '' === $stylesheet ) {
+			return '';
+		}
+		$transient = get_site_transient( 'update_themes' );
+		if ( ! is_object( $transient ) || empty( $transient->response[ $stylesheet ] ) || ! is_array( $transient->response[ $stylesheet ] ) ) {
+			return '';
+		}
+		$data = $transient->response[ $stylesheet ];
+		return ! empty( $data['new_version'] ) ? sanitize_text_field( (string) $data['new_version'] ) : '';
+	}
+
+	/**
+	 * # 【テーマファイル】 — active / inactive blocks.
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_themes_section( array $facts ) {
+		$bundle = isset( $facts['themes'] ) && is_array( $facts['themes'] ) ? $facts['themes'] : array();
+		$rows   = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
+		$org    = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
+
+		usort(
+			$rows,
+			static function ( $a, $b ) {
+				$na = is_array( $a ) && isset( $a['name'] ) ? (string) $a['name'] : '';
+				$nb = is_array( $b ) && isset( $b['name'] ) ? (string) $b['name'] : '';
+				return strnatcasecmp( $na, $nb );
+			}
+		);
+
+		$active_lines   = array();
+		$inactive_lines = array();
+
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$slug = isset( $row['slug'] ) ? sanitize_key( (string) $row['slug'] ) : '';
+			if ( '' === $slug ) {
+				continue;
+			}
+
+			$name    = isset( $row['name'] ) ? sanitize_text_field( (string) $row['name'] ) : $slug;
+			$ver     = isset( $row['version'] ) ? sanitize_text_field( (string) $row['version'] ) : '';
+			$is_act  = ! empty( $row['active'] );
+			$o       = isset( $org[ $slug ] ) && is_array( $org[ $slug ] ) ? $org[ $slug ] : array();
+			$last    = isset( $o['last_updated'] ) ? trim( (string) $o['last_updated'] ) : '';
+			$latest  = isset( $o['version'] ) ? trim( (string) $o['version'] ) : '';
+			$pending = self::pending_theme_new_version( $slug );
+
+			if ( '' === $last ) {
+				$last = __( '（未取得）', 'wp-maintenance-audit-reporter' );
+			}
+
+			$unavailable = ( '' === $latest );
+			if ( ! $unavailable && '' !== $ver && $latest !== $ver ) {
+				$version_info = sprintf(
+					/* translators: %s: latest theme version from directory API */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( $latest )
+				);
+				$msg = sprintf(
+					/* translators: %s: theme name */
+					__( '%s には新しいバージョンがあります。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$name
+				);
+			} elseif ( ! $unavailable ) {
+				$version_info = sprintf(
+					/* translators: %s: installed theme version */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					$ver
+				);
+				$msg = sprintf(
+					/* translators: %s: theme name */
+					__( '%s は最新のバージョンを利用中です。', 'wp-maintenance-audit-reporter' ),
+					$name
+				);
+			} else {
+				$version_info = '';
+				$msg          = __( 'このテーマは非公式か既に公開終了している可能性があります。', 'wp-maintenance-audit-reporter' );
+			}
+
+			if ( '' !== $version_info ) {
+				$version_line = sprintf(
+					/* translators: 1: last updated label/time, 2: version parenthetical */
+					__( '最終更新日: %1$s %2$s', 'wp-maintenance-audit-reporter' ),
+					$last,
+					$version_info
+				);
+			} else {
+				$version_line = sprintf(
+					/* translators: %s: last updated or unknown */
+					__( '最終更新日: %s', 'wp-maintenance-audit-reporter' ),
+					$last
+				);
+			}
+
+			if ( '' !== $pending ) {
+				$msg = sprintf(
+					/* translators: 1: theme name, 2: pending new version from updates transient */
+					__( '%1$s には新しいバージョン %2$s が通知されています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$name,
+					$pending
+				);
+			}
+
+			$block = sprintf(
+				/* translators: 1: theme name, 2: slug, 3: installed version */
+				__( '* %1$s（%2$s） (バージョン: %3$s)', 'wp-maintenance-audit-reporter' ),
+				$name,
+				$slug,
+				$ver
+			) . "\n";
+			$block .= '　' . $version_line . "\n";
+			$block .= '　　' . $msg;
+
+			if ( $is_act ) {
+				$active_lines[] = $block;
+			} else {
+				$inactive_lines[] = $block;
+			}
+		}
+
+		$out  = '# 【テーマファイル】' . "\n";
+		$out .= __( '## ※ 有効化されているテーマについての情報一覧', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$out .= implode( "\n\n", $active_lines );
+		if ( empty( $active_lines ) ) {
+			$out .= __( '（該当テーマがありません。）', 'wp-maintenance-audit-reporter' );
+		}
+		$out .= "\n\n" . __( '## ※ インストールされているが有効化されていないテーマについての情報一覧', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$out .= implode( "\n\n", $inactive_lines );
+		if ( empty( $inactive_lines ) ) {
+			$out .= __( '（該当テーマがありません。）', 'wp-maintenance-audit-reporter' );
+		}
+
+		return $out;
+	}
+
+	/**
+	 * # 【プラグインファイル】 — active / inactive blocks with checksum prose.
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_plugins_section( array $facts ) {
+		$bundle    = isset( $facts['plugins'] ) && is_array( $facts['plugins'] ) ? $facts['plugins'] : array();
+		$rows      = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
+		$org       = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
+		$checksums = isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array();
+		$plugs_cs  = isset( $checksums['plugins'] ) && is_array( $checksums['plugins'] ) ? $checksums['plugins'] : array();
+
+		usort(
+			$rows,
+			static function ( $a, $b ) {
+				$ta = is_array( $a ) && isset( $a['title'] ) ? (string) $a['title'] : '';
+				$tb = is_array( $b ) && isset( $b['title'] ) ? (string) $b['title'] : '';
+				return strnatcasecmp( $ta, $tb );
+			}
+		);
+
+		$active_lines   = array();
+		$inactive_lines = array();
+
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$slug = isset( $row['slug'] ) ? sanitize_key( (string) $row['slug'] ) : '';
+			$base = isset( $row['basename'] ) ? sanitize_text_field( (string) $row['basename'] ) : '';
+			if ( '' === $slug || '' === $base ) {
+				continue;
+			}
+
+			$title   = isset( $row['title'] ) ? sanitize_text_field( (string) $row['title'] ) : $slug;
+			$ver     = isset( $row['version'] ) ? sanitize_text_field( (string) $row['version'] ) : '';
+			$is_act  = ! empty( $row['active'] );
+			$o       = isset( $org[ $slug ] ) && is_array( $org[ $slug ] ) ? $org[ $slug ] : array();
+			$last    = isset( $o['last_updated'] ) ? trim( (string) $o['last_updated'] ) : '';
+			$latest  = isset( $o['version'] ) ? trim( (string) $o['version'] ) : '';
+			$pending = self::pending_plugin_new_version( $base );
+
+			if ( '' === $last ) {
+				$last = __( '（未取得）', 'wp-maintenance-audit-reporter' );
+			}
+
+			$unavailable = ( '' === $latest );
+			if ( ! $unavailable && '' !== $ver && $latest !== $ver ) {
+				$version_info = sprintf(
+					/* translators: %s: latest plugin version from directory API */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( $latest )
+				);
+				$msg = sprintf(
+					/* translators: %s: plugin title */
+					__( '%s には新しいバージョンがあります。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$title
+				);
+			} elseif ( ! $unavailable ) {
+				$version_info = sprintf(
+					/* translators: %s: installed plugin version */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					$ver
+				);
+				$msg = sprintf(
+					/* translators: %s: plugin title */
+					__( '%s は最新のバージョンを利用中です。', 'wp-maintenance-audit-reporter' ),
+					$title
+				);
+			} else {
+				$version_info = '';
+				$msg          = __( 'このプラグインは非公式か既に公開終了している可能性があります。', 'wp-maintenance-audit-reporter' );
+			}
+
+			if ( '' !== $version_info ) {
+				$version_line = sprintf(
+					/* translators: 1: last updated, 2: version parenthetical */
+					__( '最終更新日: %1$s %2$s', 'wp-maintenance-audit-reporter' ),
+					$last,
+					$version_info
+				);
+			} else {
+				$version_line = sprintf(
+					/* translators: %s: last updated */
+					__( '最終更新日: %s', 'wp-maintenance-audit-reporter' ),
+					$last
+				);
+			}
+
+			if ( '' !== $pending ) {
+				$msg = sprintf(
+					/* translators: 1: plugin title, 2: pending new version */
+					__( '%1$s には新しいバージョン %2$s が通知されています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$title,
+					$pending
+				);
+			}
+
+			$cs_row  = isset( $plugs_cs[ $slug ] ) && is_array( $plugs_cs[ $slug ] ) ? $plugs_cs[ $slug ] : array();
+			$cs_text = self::render_operator_plugin_checksum_prose( $title, $cs_row );
+
+			$block = sprintf(
+				/* translators: 1: plugin title, 2: slug, 3: installed version */
+				__( '* %1$s（%2$s） (バージョン: %3$s)', 'wp-maintenance-audit-reporter' ),
+				$title,
+				$slug,
+				$ver
+			) . "\n";
+			$block .= '　' . $version_line . "\n";
+			$block .= '　　' . $cs_text . "\n";
+			$block .= '　　' . $msg;
+
+			if ( $is_act ) {
+				$active_lines[] = $block;
+			} else {
+				$inactive_lines[] = $block;
+			}
+		}
+
+		$out  = '# 【プラグインファイル】' . "\n";
+		$out .= __( '## ※ 有効化されているプラグインについての情報一覧', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$out .= implode( "\n\n", $active_lines );
+		if ( empty( $active_lines ) ) {
+			$out .= __( '（該当プラグインがありません。）', 'wp-maintenance-audit-reporter' );
+		}
+		$out .= "\n\n" . __( '## ※ インストールされているが有効化されていないプラグインについての情報一覧', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$out .= implode( "\n\n", $inactive_lines );
+		if ( empty( $inactive_lines ) ) {
+			$out .= __( '（該当プラグインがありません。）', 'wp-maintenance-audit-reporter' );
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Single-plugin checksum narrative (aligned with shell wording where possible).
+	 *
+	 * @param string              $title    Plugin title.
+	 * @param array<string,mixed> $cs_row   Plugin checksum row.
+	 * @return string
+	 */
+	protected static function render_operator_plugin_checksum_prose( $title, array $cs_row ) {
+		$title = sanitize_text_field( (string) $title );
+		if ( '' === $title ) {
+			$title = __( '（無題）', 'wp-maintenance-audit-reporter' );
+		}
+		$status = isset( $cs_row['status'] ) ? sanitize_key( (string) $cs_row['status'] ) : '';
+
+		if ( 'no_checksums' === $status ) {
+			return sprintf(
+				/* translators: %s: plugin title */
+				__( '%s は非公式か、既に公開終了しているプラグインです。', 'wp-maintenance-audit-reporter' ),
+				$title
+			);
+		}
+
+		if ( 'error' === $status && ! empty( $cs_row['error'] ) ) {
+			return sprintf(
+				/* translators: 1: plugin title, 2: error */
+				__( '%1$s のチェックサム検証でエラーが発生しました（%2$s）。', 'wp-maintenance-audit-reporter' ),
+				$title,
+				sanitize_text_field( (string) $cs_row['error'] )
+			);
+		}
+
+		$mismatches = isset( $cs_row['mismatches'] ) && is_array( $cs_row['mismatches'] ) ? $cs_row['mismatches'] : array();
+		$mismatch_n = count( $mismatches );
+
+		if ( 'mismatch' === $status || $mismatch_n > 0 ) {
+			$lines   = array();
+			$lines[] = sprintf(
+				/* translators: %s: plugin title */
+				__( '%s の以下のファイルに変更が見つかりました:', 'wp-maintenance-audit-reporter' ),
+				$title
+			);
+			if ( 0 === $mismatch_n ) {
+				$lines[] = '　　' . __( '（詳細なし）', 'wp-maintenance-audit-reporter' );
+			}
+			$slice = array_slice( $mismatches, 0, 30 );
+			foreach ( $slice as $m ) {
+				if ( ! is_array( $m ) || empty( $m['file'] ) ) {
+					continue;
+				}
+				$lines[] = '　　' . sanitize_text_field( (string) $m['file'] );
+			}
+			if ( count( $mismatches ) > 30 ) {
+				$lines[] = '　　' . sprintf(
+					/* translators: %d: omitted file count */
+					__( '…他 %d 件', 'wp-maintenance-audit-reporter' ),
+					count( $mismatches ) - 30
+				);
+			}
+
+			return implode( "\n", $lines );
+		}
+
+		if ( 'ok' === $status && 0 === $mismatch_n ) {
+			return sprintf(
+				/* translators: %s: plugin title */
+				__( '%s のファイルに改変は見つかりませんでした。プラグインファイルは安全です。', 'wp-maintenance-audit-reporter' ),
+				$title
+			);
+		}
+
+		return sprintf(
+			/* translators: %s: plugin title */
+			__( '%s — チェックサム情報が取得できませんでした。', 'wp-maintenance-audit-reporter' ),
+			$title
+		);
+	}
+
+	/**
+	 * # 【サーバー関連情報】
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_server_section( array $facts ) {
+		$srv = isset( $facts['server'] ) && is_array( $facts['server'] ) ? $facts['server'] : array();
+
+		$lines   = array();
+		$lines[] = '# 【サーバー関連情報】';
+		if ( ! empty( $srv['php'] ) ) {
+			$lines[] = sprintf(
+				/* translators: %s: PHP version */
+				__( '* PHP バージョン: %s', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( (string) $srv['php'] )
+			);
+		}
+		if ( ! empty( $srv['mysql'] ) ) {
+			$lines[] = sprintf(
+				/* translators: %s: MySQL server version string */
+				__( '* MySQL サーバー報告バージョン: %s', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( (string) $srv['mysql'] )
+			);
+		}
+		if ( isset( $srv['wp_memory'] ) && '' !== (string) $srv['wp_memory'] ) {
+			$lines[] = sprintf(
+				'* WP_MEMORY_LIMIT: %s',
+				sanitize_text_field( (string) $srv['wp_memory'] )
+			);
+		}
+		if ( isset( $srv['environment'] ) ) {
+			$lines[] = sprintf(
+				/* translators: %s: environment type e.g. production */
+				__( '* wp_get_environment_type(): %s', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( (string) $srv['environment'] )
+			);
+		}
+		if ( isset( $srv['wp_debug'] ) ) {
+			$lines[] = sprintf(
+				'* WP_DEBUG: %s',
+				sanitize_text_field( (string) $srv['wp_debug'] )
+			);
+		}
+		if ( isset( $srv['script_debug'] ) ) {
+			$lines[] = sprintf(
+				'* SCRIPT_DEBUG: %s',
+				sanitize_text_field( (string) $srv['script_debug'] )
+			);
+		}
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * バックアップ状況（管理者向けは常に `gather_backup_providers` を出力）.
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_backup_section( array $facts ) {
+		$backup = isset( $facts['backup'] ) && is_array( $facts['backup'] ) ? $facts['backup'] : array();
+		$inner  = self::render_backup_client_section( $backup );
+		return '# 【バックアップ状況】' . "\n\n" . $inner;
+	}
+
+	/**
+	 * # 【ユーザー情報】 — TSV block（クライアント向けと同様）.
+	 *
+	 * @param array<string,mixed> $facts Dataset.
+	 * @return string
+	 */
+	protected static function render_operator_users_section( array $facts ) {
+		$users = isset( $facts['users'] ) && is_array( $facts['users'] ) ? $facts['users'] : array();
+
+		$body  = '# 【ユーザー情報】' . "\n";
+		$body .= __( '※ ハッキングなどによりユーザーが勝手に追加されていないかのチェック', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= __( '記事を公開できる権限を持つユーザー:', 'wp-maintenance-audit-reporter' ) . "\n\n";
+
+		if ( empty( $users ) ) {
+			return $body . __( '（該当ユーザーがいません。）', 'wp-maintenance-audit-reporter' );
+		}
+
+		foreach ( $users as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$body .= sprintf(
+				"%s\t%s\t%s\t%s\t%s\t%s\n",
+				sanitize_text_field( (string) ( $row['id'] ?? '' ) ),
+				sanitize_text_field( (string) ( $row['login'] ?? '' ) ),
+				sanitize_text_field( (string) ( $row['display_name'] ?? '' ) ),
+				sanitize_email( (string) ( $row['email'] ?? '' ) ),
+				sanitize_text_field( (string) ( $row['roles'] ?? '' ) ),
+				sanitize_text_field( (string) ( $row['registered'] ?? '' ) )
+			);
+		}
+
+		return rtrim( $body );
+	}
+
+	/**
+	 * ## 【前回スナップショットからの差分】（プラグイン独自の差分ログ）.
+	 *
+	 * @param string $changelog_stripped Plain diff body.
+	 * @param int    $changelog_size     Count.
+	 * @return string
+	 */
+	protected static function render_operator_changelog_section( $changelog_stripped, $changelog_size ) {
+		$changelog_stripped = trim( (string) $changelog_stripped );
+		$body               = __( '## 【前回スナップショットからの差分】', 'wp-maintenance-audit-reporter' ) . "\n";
+		$body              .= sprintf(
+			/* translators: %d: number of changes detected */
+			__( '件数: %d', 'wp-maintenance-audit-reporter' ),
+			absint( $changelog_size )
+		) . "\n";
+
+		if ( '' === $changelog_stripped ) {
+			$body .= __( '差分は検出されませんでした。', 'wp-maintenance-audit-reporter' );
+		} else {
+			$body .= "\n" . $changelog_stripped;
+		}
+
+		return $body;
+	}
+
+	/**
+	 * # 【運用・セキュリティ】 — admin-oriented detail.
+	 *
+	 * @param array<string,mixed> $sec Security envelope.
+	 * @return string
+	 */
+	protected static function render_operator_security_section_verbose( array $sec ) {
+		$body  = '# 【運用・セキュリティ】' . "\n\n";
+		$body .= self::render_security_client_section( $sec );
+
+		$codes = isset( $sec['summary_codes'] ) && is_array( $sec['summary_codes'] ) ? $sec['summary_codes'] : array();
+		if ( ! empty( $codes ) ) {
+			$body .= "\n" . sprintf(
+				/* translators: %s: comma-separated warning codes */
+				__( '内部コード: %s', 'wp-maintenance-audit-reporter' ),
+				sanitize_text_field( implode( ', ', array_map( 'strval', $codes ) ) )
+			);
+		}
+
+		return $body;
+	}
+
+	/**
+	 * Optional DB size section for operators.
+	 *
+	 * @param array<string,mixed> $perf Performance envelope.
+	 * @return string
+	 */
+	protected static function render_operator_performance_section_verbose( array $perf ) {
+		if ( empty( $perf ) ) {
+			return '';
+		}
+		$inner = self::render_performance_client_section( $perf );
+
+		return '# 【オプション：データベースサイズ】' . "\n\n" . $inner;
+	}
+
+	/**
+	 * ## 【実行時間】 footer.
+	 *
+	 * @param int $duration_sec Duration in seconds.
+	 * @return string
+	 */
+	protected static function render_operator_execution_section( $duration_sec ) {
+		$duration_sec = max( 0, (int) $duration_sec );
+		$minutes      = intdiv( $duration_sec, 60 );
+		$seconds      = $duration_sec % 60;
+
+		return sprintf(
+			/* translators: 1: minutes, 2: seconds */
+			__( "## 【実行時間】\nこの調査のためのスクリプトの動作に %1\$d 分 %2\$d 秒かかりました。", 'wp-maintenance-audit-reporter' ),
+			$minutes,
+			$seconds
+		);
+	}
+
+	/**
+	 * ## 【コマンドラインツール】 equivalent (runtime introspection; WP-CLI は Web 実行時は未取得).
+	 *
+	 * @return string
+	 */
+	protected static function render_operator_runtime_section() {
+		$sapi = function_exists( 'php_sapi_name' ) ? sanitize_text_field( (string) php_sapi_name() ) : '';
+
+		$lines   = array();
+		$lines[] = __( '## 【コマンドラインツール】', 'wp-maintenance-audit-reporter' );
+		if ( '' !== $sapi ) {
+			$lines[] = sprintf(
+				/* translators: %s: PHP SAPI name */
+				__( 'PHP SAPI: %s', 'wp-maintenance-audit-reporter' ),
+				$sapi
+			);
+		}
+		$lines[] = sprintf(
+			/* translators: %s: PHP_VERSION */
+			__( 'PHP バージョン（このリクエスト）: %s', 'wp-maintenance-audit-reporter' ),
+			sanitize_text_field( PHP_VERSION )
+		);
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			$lines[] = __( 'WP-CLI: 検出されました（CLI 実行中）。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return implode( "\n", $lines );
 	}
 
 	/**

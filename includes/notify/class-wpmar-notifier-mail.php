@@ -2,7 +2,8 @@
 /**
  * Dual-audience mail: stakeholder summary and operator diagnostic copy.
  *
- * All bodies are treated as plain text; wp_mail From can be overridden via settings.
+ * Client copy may be sent as `text/html` (Markdown→HTML via Parsedown) when Composer
+ * provides Parsedown; administrators still receive `text/plain`.
  *
  * @package WPMAR
  */
@@ -15,6 +16,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Lightweight helper that mirrors shell script twin-mail behaviour.
  */
 class WPMAR_Notifier_Mail {
+
+	/**
+	 * Plain-text part for multipart mail while sending HTML client body (PHPMailer AltBody).
+	 *
+	 * @var string|null
+	 */
+	protected static $client_mail_plain_alt = null;
 
 	/**
 	 * Sends two distinct mail batches (client + admin copies).
@@ -113,8 +121,7 @@ class WPMAR_Notifier_Mail {
 		add_filter( 'wp_mail_from_name', $mail_from_name_callback );
 
 		// Two separate sends keeps client copy lightweight while operators get the full blob.
-		$headers_client = array( 'Content-Type: text/plain; charset=UTF-8' );
-		$headers_admin  = array( 'Content-Type: text/plain; charset=UTF-8' );
+		$headers_admin = array( 'Content-Type: text/plain; charset=UTF-8' );
 
 		$site_label = sanitize_text_field( wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) );
 		$date_local = wp_date( 'Y-m-d' );
@@ -124,7 +131,26 @@ class WPMAR_Notifier_Mail {
 			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
 			$subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
 			$subject      = sprintf( $subject_text, $site_label, $date_local );
-			$results[]    = wp_mail( $filtered_client, $subject, wp_strip_all_tags( $body_client ), $headers_client );
+
+			$html_enabled = (bool) apply_filters( 'wpmar_client_mail_html_enabled', true, $settings, $body_client );
+			$html_body    = '';
+			if ( $html_enabled ) {
+				$html_body = self::build_client_html_email_body( $body_client );
+			}
+
+			if ( '' !== $html_body ) {
+				add_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10, 1 );
+				self::$client_mail_plain_alt = wp_strip_all_tags( (string) $body_client );
+
+				$headers_html = array( 'Content-Type: text/html; charset=UTF-8' );
+				$results[]    = wp_mail( $filtered_client, $subject, $html_body, $headers_html );
+
+				remove_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10 );
+				self::$client_mail_plain_alt = null;
+			} else {
+				$headers_txt = array( 'Content-Type: text/plain; charset=UTF-8' );
+				$results[]   = wp_mail( $filtered_client, $subject, wp_strip_all_tags( (string) $body_client ), $headers_txt );
+			}
 		}
 
 		if ( ! empty( $filtered_admin ) ) {
@@ -139,5 +165,41 @@ class WPMAR_Notifier_Mail {
 
 		// True only when every attempted batch returned truthy from wp_mail().
 		return count( array_filter( $results ) ) === count( $results ) && ! empty( $results );
+	}
+
+	/**
+	 * Adds a plain-text alternative so HTML clients get rich layout and plain clients stay readable.
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 */
+	public static function phpmailer_set_client_alt_body( $phpmailer ) {
+		if ( null === self::$client_mail_plain_alt ) {
+			return;
+		}
+		if ( is_object( $phpmailer ) && property_exists( $phpmailer, 'AltBody' ) ) {
+			// PHPMailer public API (not WordPress snake_case).
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName -- PHPMailer property.
+			$phpmailer->AltBody = self::$client_mail_plain_alt;
+		}
+	}
+
+	/**
+	 * Wraps Parsedown HTML (same source as PDF) for email clients.
+	 *
+	 * @param string $markdown Client Markdown body.
+	 * @return string Full HTML document fragment, or empty to fall back to plain text.
+	 */
+	protected static function build_client_html_email_body( $markdown ) {
+		$fragment = WPMAR_PDF_Writer::markdown_to_html_fragment( (string) $markdown );
+		if ( '' === trim( $fragment ) ) {
+			return '';
+		}
+
+		$inner = wp_kses_post( $fragment );
+
+		return '<div style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,\'Hiragino Sans\',\'Hiragino Kaku Gothic ProN\',Meiryo,sans-serif;font-size:15px;line-height:1.65;color:#1a1a1a;">'
+			. '<div style="max-width:640px;">'
+			. $inner
+			. '</div></div>';
 	}
 }

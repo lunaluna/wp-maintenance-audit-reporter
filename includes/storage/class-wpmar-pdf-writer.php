@@ -25,6 +25,26 @@ class WPMAR_PDF_Writer {
 	}
 
 	/**
+	 * Converts UTF-8 Markdown to an HTML fragment (for HTML email). Parsedown only; does not require mPDF.
+	 *
+	 * @param string $markdown Source Markdown (same family as PDF / client body).
+	 * @return string HTML fragment, or empty string when Parsedown is not available.
+	 */
+	public static function markdown_to_html_fragment( $markdown ) {
+		if ( ! class_exists( '\Parsedown' ) ) {
+			return '';
+		}
+
+		$markdown = (string) $markdown;
+		$pd       = new \Parsedown();
+		if ( method_exists( $pd, 'setSafeMode' ) ) {
+			$pd->setSafeMode( true );
+		}
+
+		return $pd->text( $markdown );
+	}
+
+	/**
 	 * Client-facing Markdown stored on the report row — sole source for PDF rendering (admin uses {@see WPMAR_Report_Repository} `body_md`).
 	 *
 	 * @param array<string,mixed> $row Row from {@see WPMAR_Report_Repository::find()}.

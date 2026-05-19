@@ -1,8 +1,15 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.5.0-dev** (active development).
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.6.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.6 adds
+
+- **Client HTML email** — Same **client-facing Markdown** as PDF/Parsedown; `Content-Type: text/html` when dependencies exist, with a **plaintext alternative** for MUAs that prefer it. Filter: `wpmar_client_mail_html_enabled`.
+- **Mail subjects** — Aligned with internal maintenance-scripts conventions (site title + local date).
+- **Stakeholder “stale plugin” section** — Flags plugins whose WordPress.org `last_updated` is 180+ / 365+ days old (mirrors shell report ordering).
+- **Administrator email** — Structured plaintext (core / themes / plugins / server / backup / users / diff / security / optional DB size / runtime) instead of dumping RAW JSON.
 
 ## What v0.4 adds
 
@@ -28,7 +35,7 @@ Scheduling, domain gate, Markdown/mail output, snapshots, and WP-CLI integration
 
 WordPress/runtime target: **PHP 7.4+**.
 
-Composer dev tooling and **runtime PDF libraries** (mPDF, Parsedown): **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP-only syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
+Composer dev tooling and **runtime libraries** (mPDF, Parsedown) for PDF and **client HTML mail**: **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP-only syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
 
 WordPress **6.0+**.
 

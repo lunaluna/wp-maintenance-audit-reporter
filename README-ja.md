@@ -1,10 +1,17 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.5.0-dev**（開発中）。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.6.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.6 で追加・変更されること
+
+- **クライアント向け HTML メール** — PDF と同じ **クライアント向け Markdown** を Parsedown で HTML 化。依存が揃うとき `text/html`、プレーンテキスト代替付き。`wpmar_client_mail_html_enabled` で HTML をオフに可能。
+- **件名** — 社内保守スクリプト相当の形式（サイト名＋サイトローカル日付）。
+- **更新停滞プラグイン** — WordPress.org の `last_updated` から 180 日 / 365 日の目安でクライアント向け本文に節を追加。
+- **管理者向けメール** — RAW JSON ではなく mainte.sh 風の **整形プレーンテキスト**。
 
 ## v0.4 で追加されること
 
@@ -30,7 +37,7 @@ English: [README.md](README.md).
 
 WordPress / 実行環境の目安: **PHP 7.4+**。
 
-Composer の開発ツールおよび **PDF 用ランタイム依存**（mPDF / Parsedown）: CI およびローカルで `composer install` には **PHP 8.0+**。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
+Composer の開発ツールおよび **ランタイム依存**（mPDF / Parsedown／PDF および **クライアント向け HTML メール**）: CI およびローカルで `composer install` には **PHP 8.0+**。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
 
 WordPress **6.0+**。
 

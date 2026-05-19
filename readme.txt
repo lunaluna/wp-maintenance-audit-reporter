@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.5.0-dev
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,8 +12,9 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-Development build **v0.5.0-dev** layers extensibility hooks (`wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`), an optional information_schema DB table-size sampler (defaults off), and supplementary notification dispatch on top of v0.4 features.
+**v0.6.0** improves stakeholder and operator mail: client copy can be sent as **HTML** (Markdown→HTML via Parsedown, same source as PDF), subjects align with maintenance-scripts style, a **stale plugin** section (wp.org last-updated thresholds) appears in the client summary, and the administrator copy is a **structured report** (no raw JSON dump). Extensibility from **v0.5** remains: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`, optional `information_schema` table-size sampling (defaults off), and supplementary notification dispatch.
 
+* **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
 * **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on full runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
 * **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
 * **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
@@ -23,7 +24,7 @@ Development build **v0.5.0-dev** layers extensibility hooks (`wpmar_report_secti
 * **Inventory & deltas** — Core, themes, and plugins; change detection between snapshots.
 * **Checksums** — Core and plugin verification against WordPress.org manifests; configurable exclude lists; locale fallback when the API returns no checksum map for the site language.
 * **Domain gate** — Skip snapshot/report side effects when the host does not match the configured allowlist (e.g. staging).
-* **Outputs** — Verbose **administrator-facing** Markdown (saved under uploads) and optional paired HTML emails (**client-facing** + **administrator-facing**).
+* **Outputs** — Verbose **administrator-facing** Markdown (saved under uploads) and optional paired emails (**client-facing** HTML or text + **administrator-facing** plaintext).
 * **Report storage** — Database table plus companion Markdown paths; **retention** (no auto-delete / 12 / 24 months) purges older rows and files after successful runs.
 * **Admin UI** — Top-level **Maintenance Audit** menu (`admin.php` screens) with **設定・実行** (schedule, mail, exclusions, retention, runs) and **レポート** (list table, 20 items per page, detail view, Markdown **(administrator-facing)** / PDF **(client-facing)** download, ZIP bulk export, row + bulk delete without confirmation dialog; success notices use one-shot transients, not sticky query arguments).
 
@@ -33,7 +34,7 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 1. Upload the plugin folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu in WordPress
-3. Optional: from the plugin directory, run `composer install` if you need PHPCS/PHPUnit tooling (see README.md).
+3. From the plugin directory, run **`composer install --no-dev`** before distribution so `vendor/` includes **Parsedown/mPDF** (required for PDF export and client HTML mail). Developers may use full `composer install` for PHPCS/PHPUnit (see README.md).
 
 == Frequently Asked Questions ==
 
@@ -46,6 +47,10 @@ Not yet. Treat as development until a stable release is tagged.
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 0.6.0 =
+* Mail: client **HTML** email from client Markdown (Parsedown); plaintext `AltBody`; maintenance-scripts-style subjects; administrator **structured plaintext** body (replacing raw JSON).
+* Report: **stale plugins** section from WordPress.org `last_updated` (180d/365d). Removed fixed “auto-generated summary…” line from client copy.
 
 = 0.5.0-dev =
 * Hooks: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`.
