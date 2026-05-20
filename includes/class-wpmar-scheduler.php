@@ -100,8 +100,8 @@ class WPMAR_Scheduler {
 					)
 				);
 			} catch ( Exception $exception ) {
-				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in noisy logging under WP_DEBUG.
+				if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
 					error_log( 'WPMAR network cron error: ' . $exception->getMessage() );
 				}
 			}
@@ -120,8 +120,8 @@ class WPMAR_Scheduler {
 				)
 			);
 		} catch ( Exception $exception ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in noisy logging under WP_DEBUG.
+			if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
 				error_log( 'WPMAR cron error: ' . $exception->getMessage() );
 			}
 		}

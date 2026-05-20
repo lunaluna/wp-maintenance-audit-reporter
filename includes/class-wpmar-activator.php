@@ -219,20 +219,13 @@ class WPMAR_Activator {
 			$settings['schedule']['tz'] = 'Asia/Tokyo';
 		}
 
-		$parsed = wp_parse_url( home_url(), PHP_URL_HOST );
-		if ( is_string( $parsed ) ) {
-			$parsed = strtolower( $parsed );
-		} else {
-			$parsed = '';
-		}
-
+		$current_host = WPMAR_Domain_Gate::current_host();
 		if (
-			is_string( $parsed )
-			&& '' !== $parsed
+			'' !== $current_host
 			&& isset( $settings['domain']['allowed_host'] )
 			&& '' === trim( (string) $settings['domain']['allowed_host'] )
 		) {
-			$settings['domain']['allowed_host'] = sanitize_text_field( $parsed );
+			$settings['domain']['allowed_host'] = sanitize_text_field( $current_host );
 		}
 
 		WPMAR_Settings::update_all( $settings );
