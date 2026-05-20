@@ -1,10 +1,21 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.8.0**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.9.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.9 で追加・修正されること（セキュリティ・信頼性）
+
+- **ノンス→権限の順序修正** — 管理画面の設定ハンドラで `check_admin_referer()` を `current_user_can()` より先に呼ぶよう修正（CSRF 対策の強化）。
+- **パストラバーサル防止** — `WPMAR_MD_Writer` が `..` を含む相対パスをアップロード相対パスの構築前に拒否。
+- **タイムゾーンのホワイトリスト検証** — `WPMAR_Settings` がフォーム入力のタイムゾーン文字列を PHP の `timezone_identifiers_list()` に照合して検証。無効・空の値は `Asia/Tokyo` にフォールバック。
+- **SSL 二段階チェック** — `WPMAR_Check_Security_Ops` がまず証明書検証あり（`verify_peer=true`）で接続を試み、失敗時（例：証明書期限切れ）のみ検証なしにフォールバック。結果にバイパスの有無を記録。
+- **コレクターエラーの隔離** — データコレクターが `call_user_func()` を `try/catch (Throwable)` でラップし、カスタムコレクターのエラーで監査全体が止まらないように。
+- **ノーティファイア: `is_email()` 検証** — QA メールアドレスの文字列分岐に `is_email()` チェックを追加。
+- **CI audit** — `.github/workflows/ci.yml` に `composer audit --no-dev` ステップを追加。
+- **ユニットテスト** — 新規 28 件：`SettingsTest`（設定ヘルパー、タイムゾーンホワイトリスト、保持期間、スケジュールクランプ）と `DomainGateTest`（ホスト・パス照合、ネットワークフォールバック）。
 
 ## v0.8 で追加されること（マルチサイト）
 

@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.8.0
+Stable tag: 0.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
+**v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
 * **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
@@ -49,6 +49,28 @@ Not yet. Treat as development until a stable release is tagged.
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 0.9.0 =
+* Security: nonce check now runs before capability check in both admin settings handlers (CSRF fix).
+* Security: `..` components in file paths are rejected before upload-relative path construction (path traversal fix).
+* Security: `is_email()` validation added to string branch of QA mail override in notifier.
+* Fixed: timezone input validated against `timezone_identifiers_list()`; invalid values fall back to `Asia/Tokyo`.
+* Fixed: SSL probe uses verified connection first, falls back to unverified only when the initial attempt fails (e.g. expired cert); result notes when verification was bypassed.
+* Fixed: `readfile()` return value checked; `wp_die()` on failure in PDF stream handler.
+* Fixed: network admin success notice validates `$_GET` value equals `'1'` (not just existence).
+* Changed: data collector wraps custom `call_user_func()` in `try/catch (Throwable)` to prevent one bad collector from aborting the run.
+* Changed: cron error logging also triggers on `WP_DEBUG_LOG` (not only `WP_DEBUG`).
+* Changed: activator delegates host detection to `WPMAR_Domain_Gate::current_host()`.
+* CI: `composer audit --no-dev` step added to detect known-vulnerable dependencies.
+* Tests: 28 new unit tests covering settings helpers, timezone whitelist, domain gate host/path matching, and network gate settings merge.
+
+= 0.8.0 =
+* Multisite network rollup: network-activate, enable rollup under Network Admin → Maintenance Audit; all target blogs audited via `switch_to_blog`; one merged report and one mail dispatch from the main site.
+* Network settings (`wpmar_network_settings` sitemeta): schedule, mail, output, retention, site filters, domain fallback / path prefix.
+* Domain gate: optional `allowed_path_prefix` for subdirectory multisite (network settings + per-site fallback).
+* WP-CLI: `wp maintenance-audit run --network`.
+* Network admin UI: settings, dry run, manual rollup, link to main-site reports.
+* Site UI: disables manual runs when network rollup is active; notice with link to network settings.
 
 = 0.7.0 =
 * Settings: **「スナップショットを保存する（差分比較用）」** for manual **今すぐ実行** — toggles persisting `wpmar_snapshots`; diff still uses latest stored vs current scan when off. WP-Cron / WP-CLI unchanged (always persist).

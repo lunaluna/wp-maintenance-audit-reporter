@@ -1,8 +1,19 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.8.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.9.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.9 adds (Security & reliability)
+
+- **Nonce-before-capability** — `check_admin_referer()` runs before `current_user_can()` in both admin settings handlers.
+- **Path traversal fix** — `WPMAR_MD_Writer` rejects relative paths containing `..` before constructing upload-relative file paths.
+- **Timezone whitelist** — `WPMAR_Settings` validates submitted timezone strings against PHP's `timezone_identifiers_list()`; invalid or empty values fall back to `Asia/Tokyo`.
+- **SSL two-pass** — `WPMAR_Check_Security_Ops` tries a verified TLS connection first; falls back to unverified only when the initial attempt fails (e.g. expired cert), and marks the result accordingly.
+- **Isolated collector errors** — Data collector wraps `call_user_func()` in `try/catch (Throwable)` so a fatal error in one custom collector does not abort the run.
+- **`is_email()` in notifier** — String QA-override branch now validates before adding the address.
+- **CI audit** — `composer audit --no-dev` added to CI to flag known-vulnerable dependencies.
+- **Unit tests** — 28 new tests: `SettingsTest` (settings helpers, timezone whitelist, retention, schedule clamping) and `DomainGateTest` (host/path matching, network fallback).
 
 ## What v0.8 adds (Multisite)
 
