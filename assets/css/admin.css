@@ -61,6 +61,12 @@
 	word-break: break-word;
 }
 
+/* Manual run: optional snapshot persistence (above action buttons). */
+.wpmar-maintenance-settings .wpmar-manual-run-options {
+	max-width: 920px;
+	margin: 10px 0 4px;
+}
+
 /* Action buttons: may sit inside a panel or directly under the form (e.g. 検証ツール). */
 .wpmar-maintenance-settings .wpmar-section-panel-actions {
 	max-width: 920px;

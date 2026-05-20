@@ -151,7 +151,7 @@ class WPMAR_Settings_Page {
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'セキュリティ診断（レポート）', 'wp-maintenance-audit-reporter' ); ?></h2>
 					<p class="description">
-						<?php esc_html_e( 'フル実行・ドライランの監査データに含めます。SSL 検査はサイトが https のときのみサーバーへ短時間接続します。', 'wp-maintenance-audit-reporter' ); ?>
+						<?php esc_html_e( '実行・ドライランのいずれの監査でもデータに含めます。SSL 検査はサイトが https のときのみサーバーへ短時間接続します。', 'wp-maintenance-audit-reporter' ); ?>
 					</p>
 					<table class="form-table" role="presentation">
 						<tr>
@@ -265,7 +265,7 @@ class WPMAR_Settings_Page {
 									<option value="12" <?php selected( $retention_months, 12 ); ?>><?php esc_html_e( '12 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
 									<option value="24" <?php selected( $retention_months, 24 ); ?>><?php esc_html_e( '24 ヶ月より古いレポートを削除', 'wp-maintenance-audit-reporter' ); ?></option>
 								</select>
-								<p class="description"><?php esc_html_e( '最新のフル実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
+								<p class="description"><?php esc_html_e( '最新の実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -282,7 +282,7 @@ class WPMAR_Settings_Page {
 							<td>
 								<label>
 									<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
-									<?php esc_html_e( 'フル実行時に自動で `wp-content/uploads/wpmar/` に md ファイルを保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?>
+									<?php esc_html_e( '実行時に自動で `wp-content/uploads/wpmar/` に md ファイルを保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
 							</td>
 						</tr>
@@ -291,7 +291,7 @@ class WPMAR_Settings_Page {
 							<td>
 								<label>
 									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
-									<?php esc_html_e( 'フル実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
+									<?php esc_html_e( '実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
 							</td>
 						</tr>
@@ -306,10 +306,23 @@ class WPMAR_Settings_Page {
 					</p>
 				</div>
 
+				<p class="wpmar-manual-run-options description">
+					<label for="wpmar-persist-snapshots">
+						<input name="wpmar_persist_snapshots" id="wpmar-persist-snapshots" type="checkbox" value="1" />
+						<?php esc_html_e( 'スナップショットを保存する（差分比較用）', 'wp-maintenance-audit-reporter' ); ?>
+					</label><br />
+					<span class="description">
+						<?php esc_html_e( '「今すぐ実行」「テストメール付き実行」でチェックを入れたときのみ、DB のスナップショット行を更新します。チェックなしの手動実行ではレポートのみ作成し、スナップショットは更新しません。WP-Cron の定期実行では常にスナップショットを保存します。', 'wp-maintenance-audit-reporter' ); ?>
+					</span>
+					<span class="description" style="display:block;margin-top:8px;">
+						<?php esc_html_e( '変更履歴の差分は、保存済みスナップショット（比較の基準）と、この実行で収集した現在のサイト状態を常に突き合わせて計算します。スナップショットを保存しなくても、レポート本文・一覧データは常に今回の収集結果（現在のファイル状態）に基づきます。', 'wp-maintenance-audit-reporter' ); ?>
+					</span>
+				</p>
+
 				<p class="wpmar-section-panel-actions">
 					<button class="button button-primary" name="wpmar_admin_action" type="submit" value="save"><?php esc_html_e( '変更を保存', 'wp-maintenance-audit-reporter' ); ?></button>
 					<button class="button" name="wpmar_admin_action" type="submit" value="dry_run"><?php esc_html_e( 'ドライラン', 'wp-maintenance-audit-reporter' ); ?></button>
-					<button class="button" name="wpmar_admin_action" type="submit" value="full_run"><?php esc_html_e( '今すぐフル実行', 'wp-maintenance-audit-reporter' ); ?></button>
+					<button class="button" name="wpmar_admin_action" type="submit" value="full_run"><?php esc_html_e( '今すぐ実行', 'wp-maintenance-audit-reporter' ); ?></button>
 					<button class="button" name="wpmar_admin_action" type="submit" value="test_mail"><?php esc_html_e( 'テストメール付き実行', 'wp-maintenance-audit-reporter' ); ?></button>
 				</p>
 			</form>
@@ -361,12 +374,12 @@ class WPMAR_Settings_Page {
 			<?php elseif ( 'match' === $ctx['state'] ) : ?>
 				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--ok">
 					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#10003;</span>
-					<?php esc_html_e( '保存済みの許可ホストと一致しています。ドメインゲートは通過し、フル実行でスナップショット等が保存されます。', 'wp-maintenance-audit-reporter' ); ?>
+					<?php esc_html_e( '保存済みの許可ホストと一致しています。ドメインゲートは通過し、実行でスナップショット等が保存されます。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
 			<?php else : ?>
 				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--bad">
 					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#10007;</span>
-					<?php esc_html_e( '保存済みの許可ホストと一致しません。フル実行は開始できますが、ゲートによりスナップショット・メール・管理者向け Markdown などが抑止されます。', 'wp-maintenance-audit-reporter' ); ?>
+					<?php esc_html_e( '保存済みの許可ホストと一致しません。実行は開始できますが、ゲートによりスナップショット・メール・管理者向け Markdown などが抑止されます。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
 				<p class="wpmar-domain-gate-compare">
 					<?php

@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.6.0
+Stable tag: 0.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,13 +12,14 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v0.6.0** improves stakeholder and operator mail: client copy can be sent as **HTML** (Markdown→HTML via Parsedown, same source as PDF), subjects align with maintenance-scripts style, a **stale plugin** section (wp.org last-updated thresholds) appears in the client summary, and the administrator copy is a **structured report** (no raw JSON dump). Extensibility from **v0.5** remains: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`, optional `information_schema` table-size sampling (defaults off), and supplementary notification dispatch.
+**v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** / **テストメール付き実行**: when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. **WP-Cron** and **WP-CLI** always persist snapshots. **v0.6** improved mail (client HTML, stale-plugin section, structured admin plaintext); **v0.5** hooks and extensions remain: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`, optional `information_schema` table-size sampling (defaults off), and supplementary notification dispatch.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
-* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on full runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
+* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
 * **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
 * **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
 * **Empty storage notice** — On **設定・実行** and **レポート**, an info notice when there are no report rows and no snapshot rows yet.
+* **Manual snapshot save (v0.7)** — Checkbox **「スナップショットを保存する（差分比較用）」** gates DB updates for **今すぐ実行** / **テストメール付き実行** only; changelog still compares latest stored snapshot to this run when unchecked. **WP-Cron** / **WP-CLI** always persist.
 
 * **Scheduling** — Monthly WP-Cron anchor plus optional server cron via WP-CLI.
 * **Inventory & deltas** — Core, themes, and plugins; change detection between snapshots.
@@ -48,6 +49,9 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 == Changelog ==
 
+= 0.7.0 =
+* Settings: **「スナップショットを保存する（差分比較用）」** for manual **今すぐ実行** / **テストメール付き実行** — toggles persisting `wpmar_snapshots`; diff still uses latest stored vs current scan when off. WP-Cron / WP-CLI unchanged (always persist).
+
 = 0.6.0 =
 * Mail: client **HTML** email from client Markdown (Parsedown); plaintext `AltBody`; maintenance-scripts-style subjects; administrator **structured plaintext** body (replacing raw JSON).
 * Report: **stale plugins** section from WordPress.org `last_updated` (180d/365d). Removed fixed “auto-generated summary…” line from client copy.
@@ -61,7 +65,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 * CLI: `maintenance-audit export` accepts `--file=<path>` for markdown, json, and pdf (recommended for pdf when another plugin prints bootstrap notices before our command runs).
 
 = 0.4.0-dev =
-* PDF (client-facing): optional mPDF/Parsedown render to uploads/wpmar/pdf on full runs; settings toggle.
+* PDF (client-facing): optional mPDF/Parsedown render to uploads/wpmar/pdf on audit runs; settings toggle.
 * ZIP: bulk download selected reports (administrator-facing Markdown + client-facing PDF files).
 * Admin/CLI: per-report Markdown **(administrator-facing)** and PDF **(client-facing)** download endpoints; CLI `export --format=pdf`.
 

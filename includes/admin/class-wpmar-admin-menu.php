@@ -188,7 +188,7 @@ class WPMAR_Admin_Menu {
 
 		$wpmar_admin_l10n = array(
 			'dryRun'   => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-			'fullRun'  => __( 'フル監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'fullRun'  => __( 'レポート生成を実行しています…', 'wp-maintenance-audit-reporter' ),
 			'testMail' => __( 'テストメール付き監査を実行しています…', 'wp-maintenance-audit-reporter' ),
 		);
 
@@ -287,18 +287,20 @@ class WPMAR_Admin_Menu {
 				);
 				break;
 			case 'full_run':
-				// Full audit on demand (same pathway as Cron once domain gate passes).
-				$runner = new WPMAR_Runner();
+				// On-demand audit (same pathway as WP-Cron once domain gate passes).
+				$persist = ! empty( $input['wpmar_persist_snapshots'] );
+				$runner  = new WPMAR_Runner();
 				$runner->run(
 					array(
-						'dry'          => false,
-						'triggered_by' => 'manual',
+						'dry'               => false,
+						'triggered_by'      => 'manual',
+						'persist_snapshots' => $persist,
 					)
 				);
 				add_settings_error(
 					'wpmar_messages',
 					'wpmar_full',
-					__( 'フル監査をキューイングして完了しました。', 'wp-maintenance-audit-reporter' ),
+					__( 'レポート生成を実行して完了しました。', 'wp-maintenance-audit-reporter' ),
 					'success'
 				);
 				break;
@@ -308,12 +310,14 @@ class WPMAR_Admin_Menu {
 				if ( isset( $input['wpmar_qa_mail'] ) ) {
 					$override = sanitize_email( $input['wpmar_qa_mail'] );
 				}
-				$runner = new WPMAR_Runner();
+				$persist = ! empty( $input['wpmar_persist_snapshots'] );
+				$runner  = new WPMAR_Runner();
 				$runner->run(
 					array(
-						'dry'           => false,
-						'triggered_by'  => 'manual_test',
-						'mail_override' => $override,
+						'dry'               => false,
+						'triggered_by'      => 'manual_test',
+						'mail_override'     => $override,
+						'persist_snapshots' => $persist,
 					)
 				);
 				add_settings_error(

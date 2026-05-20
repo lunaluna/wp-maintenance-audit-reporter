@@ -19,15 +19,16 @@ class WPMAR_Runner {
 	/**
 	 * Executes audits according to behavioural flags.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli|manual_test), mail_override.
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli|manual_test), mail_override, persist_snapshots (manual/manual_test only; cron always saves).
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
 		$defaults = array(
-			'dry'           => false,
-			'triggered_by'  => 'manual',
-			'mail_override' => '',
-			'capture_cli'   => defined( 'WP_CLI' ) && WP_CLI,
+			'dry'               => false,
+			'triggered_by'      => 'manual',
+			'mail_override'     => '',
+			'capture_cli'       => defined( 'WP_CLI' ) && WP_CLI,
+			'persist_snapshots' => false,
 		);
 
 		$exec = wp_parse_args( $options, $defaults );
@@ -62,6 +63,11 @@ class WPMAR_Runner {
 			$domain_gate_ok = WPMAR_Domain_Gate::is_allowed( $settings );
 			$pairs          = $this->canonical_snapshots_from_report( $dataset );
 
+			// Changelog compares TWO sides: (A) latest saved snapshot per dimension in DB, vs (B) this run's live
+			// inventory from `gather()`. The checkbox / cron flag only decides whether we persist (B) back into
+			// the snapshot table after the report — it does NOT change side (B), so each run always reflects
+			// current files/state in the mail/MD bodies and in the diff's "after" side.
+
 			// Pull previous JSON blobs prior to rewriting - drives diff headings in mail/MD.
 			$snapshot_repo = new WPMAR_Snapshot_Repository();
 			$prior_snap    = array();
@@ -75,10 +81,12 @@ class WPMAR_Runner {
 				$pairs = array(); // Prevent polluting snapshots from unauthorised hosts.
 			}
 
+			$persist_snapshots = self::should_persist_snapshots( $exec );
+
 			$report_repo = new WPMAR_Report_Repository();
 			$md_relative = '';
 
-			if ( $domain_gate_ok ) {
+			if ( $domain_gate_ok && $persist_snapshots ) {
 				// Persist newest snapshot per dimension, prune older than two rows each.
 				foreach ( $pairs as $type => $canonical ) {
 					$snapshot_repo->save( $type, $canonical );
@@ -201,6 +209,25 @@ class WPMAR_Runner {
 			// Release mutex even when exceptions bubble - guard is best-effort only.
 			delete_transient( 'wpmar_run_lock' );
 		}
+	}
+
+	/**
+	 * Whether to write snapshot rows: WP-Cron always; CLI always; manual paths only when opted in.
+	 *
+	 * @param array<string,mixed> $exec Normalised {@see self::run()} options.
+	 * @return bool
+	 */
+	protected static function should_persist_snapshots( array $exec ) {
+		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
+		if ( 'cron' === $triggered ) {
+			return true;
+		}
+		// Unattended CLI runs mirror legacy “always persist” behaviour.
+		if ( 'cli' === $triggered ) {
+			return true;
+		}
+
+		return ! empty( $exec['persist_snapshots'] );
 	}
 
 	/**
@@ -472,7 +499,7 @@ class WPMAR_Runner {
 
 		$body .= self::render_client_publishers_shell_style( $facts );
 
-		$body .= '## ' . __( 'チェックサム照合', 'wp-maintenance-audit-reporter' ) . "\n\n";
+		$body .= '## ' . __( 'ファイル改ざんチェック', 'wp-maintenance-audit-reporter' ) . "\n\n";
 		$body .= self::render_checksum_client_section( isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array() );
 		$body .= "\n\n";
 
@@ -801,8 +828,8 @@ class WPMAR_Runner {
 		}
 
 		return sprintf(
-			/* translators: %d: aggregate warning categories */
-			__( '運用セキュリティ: %d 件の注意カテゴリがあります。詳細は管理者向けログを参照してください。', 'wp-maintenance-audit-reporter' ),
+			/* translators: %d: number of operational security notice items */
+			__( '運用セキュリティ: %d 件の注意点があります。詳細は管理者向けログを参照してください。', 'wp-maintenance-audit-reporter' ),
 			$n
 		);
 	}
@@ -820,7 +847,7 @@ class WPMAR_Runner {
 		if ( ! empty( $sec['ssl'] ) && is_array( $sec['ssl'] ) ) {
 			$st = isset( $sec['ssl']['status'] ) ? sanitize_key( (string) $sec['ssl']['status'] ) : '';
 			if ( 'ok' === $st || 'not_applicable' === $st || 'skipped' === $st ) {
-				$lines[] = '* ' . __( 'TLS 証明書: 追加の期限警告なし（または対象外）。', 'wp-maintenance-audit-reporter' );
+				$lines[] = '* ' . __( 'TLS 証明書: 追加の期限警告なし。', 'wp-maintenance-audit-reporter' );
 			} else {
 				$lines[] = '* ' . __( 'TLS 証明書: 要確認（詳細は管理者ログ）。', 'wp-maintenance-audit-reporter' );
 			}
@@ -970,7 +997,7 @@ class WPMAR_Runner {
 				if ( 'no_checksums' === $status ) {
 					$lines[] = '* ' . sprintf(
 						/* translators: %s: plugin slug */
-						__( 'プラグイン %s: チェックサム未提供（公式ディレクトリ外の可能性）', 'wp-maintenance-audit-reporter' ),
+						__( 'プラグイン %s: 元データと照合できませんでした（公式ディレクトリ外の可能性）', 'wp-maintenance-audit-reporter' ),
 						$slug_safe
 					);
 
@@ -1002,6 +1029,24 @@ class WPMAR_Runner {
 						$slug_safe,
 						absint( $mismatch_n )
 					);
+
+					if ( $mismatch_n > 0 && ! empty( $row['mismatches'] ) && is_array( $row['mismatches'] ) ) {
+						$mismatch_rows = $row['mismatches'];
+						$slice         = array_slice( $mismatch_rows, 0, 40 );
+						foreach ( $slice as $m ) {
+							if ( ! is_array( $m ) || empty( $m['file'] ) ) {
+								continue;
+							}
+							$lines[] = '  * ' . sanitize_text_field( (string) $m['file'] );
+						}
+						if ( count( $mismatch_rows ) > 40 ) {
+							$lines[] = '  * ' . sprintf(
+								/* translators: %d: number of additional mismatched files not listed */
+								__( '…他 %d 件', 'wp-maintenance-audit-reporter' ),
+								count( $mismatch_rows ) - 40
+							);
+						}
+					}
 				}
 			}
 		}

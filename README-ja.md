@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.6.0**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.7.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.7 で追加されること
+
+- **手動実行時のスナップショット保存** — **設定・実行** の **「スナップショットを保存する（差分比較用）」** は **今すぐ実行** / **テストメール付き実行** のみに効きます。オンにすると手動実行のたびに `wpmar_snapshots` を更新し、次元ごとに古い行は最大 2 世代まで保持します。オフのときはレポート本文と変更履歴は **今回の収集** と **DB にある最新スナップショット** の比較のままですが、スナップショット表は更新しません。**WP-Cron** および **WP-CLI** の実行では従来どおり常にスナップショットを保存します。
 
 ## v0.6 で追加・変更されること
 
@@ -15,7 +19,7 @@ English: [README.md](README.md).
 
 ## v0.4 で追加されること
 
-- **PDF（クライアント向け）** — フル実行時に PDF を `uploads/wpmar/pdf/` へ保存（mPDF / Parsedown。プラグイン直下で `composer install`）。PDF は保存済みの **クライアント向け Markdown（`body_client_md`）** をソースにします。レポート詳細画面のプレビューは **管理者向け Markdown（`body_md`）** です。**設定・実行** で ON/OFF。
+- **PDF（クライアント向け）** — 監査実行時に PDF を `uploads/wpmar/pdf/` へ保存（mPDF / Parsedown。プラグイン直下で `composer install`）。PDF は保存済みの **クライアント向け Markdown（`body_client_md`）** をソースにします。レポート詳細画面のプレビューは **管理者向け Markdown（`body_md`）** です。**設定・実行** で ON/OFF。
 - **ZIP 一括ダウンロード** — **レポート** 一覧で行を選び、一括操作「ZIP 一括ダウンロード」で **管理者向け** `.md` と保存済み **クライアント向け** `.pdf` を ZIP 取得。行アクション・詳細からも Markdown（管理者向け）／PDF（クライアント向け）を個別ダウンロード。
 - **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`。`markdown` は **管理者向け** 本文、`pdf` は **クライアント向け**（保存済みクライアント向け Markdown がソース）。`--file=<path>` でファイルへ書き出し可能（他プラグインが CLI bootstrap で Notice を出すときの PDF 取得に有用）。
 - **管理画面の案内** — **設定・実行** と **レポート** で、レポート行もスナップショット行もまだ無いときに案内を表示。行削除・一括削除は **確認ダイアログなし** でそのまま実行されます。

@@ -291,6 +291,6 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 	 * @return void
 	 */
 	public function no_items() {
-		esc_html_e( '保存済みのレポートはまだありません。フル実行後にここへ一覧されます。', 'wp-maintenance-audit-reporter' );
+		esc_html_e( '保存済みのレポートはまだありません。実行後にここへ一覧されます。', 'wp-maintenance-audit-reporter' );
 	}
 }

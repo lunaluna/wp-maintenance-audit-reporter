@@ -1,8 +1,12 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.6.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.7.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.7 adds
+
+- **Manual snapshot persist** — On **設定・実行**, **「スナップショットを保存する（差分比較用）」** applies only to **今すぐ実行** / **テストメール付き実行**. When checked, each manual run saves canonical inventory rows to `wpmar_snapshots` (and prunes older than two per dimension). When unchecked, the report and diff still use the **current** scan vs the **latest** saved snapshot, but snapshot rows are not updated. **WP-Cron** and **WP-CLI** runs always persist snapshots.
 
 ## What v0.6 adds
 
@@ -13,7 +17,7 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ## What v0.4 adds
 
-- **PDF export (client-facing)** — On each full audit, optionally writes `uploads/wpmar/pdf/*.pdf` using **mPDF** + **Parsedown** (`composer install` in the plugin directory). PDFs are rendered from stored **client-facing** Markdown (`body_client_md`). The report detail preview shows the **administrator-facing** Markdown body (`body_md`). Toggle under **設定・実行**.
+- **PDF export (client-facing)** — On each audit run when enabled, writes `uploads/wpmar/pdf/*.pdf` using **mPDF** + **Parsedown** (`composer install` in the plugin directory). PDFs are rendered from stored **client-facing** Markdown (`body_client_md`). The report detail preview shows the **administrator-facing** Markdown body (`body_md`). Toggle under **設定・実行**.
 - **ZIP bulk download** — On **レポート**, select rows and use bulk action **ZIP 一括ダウンロード** to fetch **administrator-facing** `.md` files and any saved **client-facing** `.pdf` peers. Row actions and the detail screen expose Markdown **(administrator-facing)** / PDF **(client-facing)** downloads.
 - **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf` streams to STDOUT (`markdown` = **administrator-facing** body, `pdf` = **client-facing**); pass `--file=<path>` to write the artefact to disk (recommended for PDF when another plugin emits bootstrap notices on CLI).
 - **Admin UX** — Informational notice on **設定・実行** and **レポート** when both report rows and snapshot rows are empty. Row delete and bulk delete run immediately — there is **no** confirmation dialog.

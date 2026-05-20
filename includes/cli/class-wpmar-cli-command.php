@@ -250,7 +250,7 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 			if ( '' === $rel ) {
 				$pdf_md = WPMAR_PDF_Writer::markdown_body_for_client_pdf( $row );
 				if ( '' === $pdf_md ) {
-					WP_CLI::error( 'No client-facing Markdown stored for this report (upgrade plugin and run a full audit), or PDF deps missing.' );
+					WP_CLI::error( 'No client-facing Markdown stored for this report (upgrade plugin and run an audit), or PDF deps missing.' );
 				}
 				$written = WPMAR_PDF_Writer::write_pdf_from_markdown(
 					$pdf_md,
