@@ -61,7 +61,6 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 				array(
 					'dry'          => ! empty( $dry ),
 					'triggered_by' => 'cli_network',
-					'capture_cli'  => true,
 				)
 			);
 		} else {

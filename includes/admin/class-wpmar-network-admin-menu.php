@@ -172,17 +172,21 @@ class WPMAR_Network_Admin_Menu {
 				);
 				// Clear orphaned cron hooks on subsites when rollup takes over scheduling.
 				if ( ! empty( $merged['network_audit_enabled'] ) && function_exists( 'get_sites' ) ) {
+					$main_id = WPMAR_Network::main_site_id();
 					foreach ( get_sites( array( 'number' => 0 ) ) as $site ) {
 						if ( ! is_object( $site ) || ! isset( $site->blog_id ) ) {
 							continue;
 						}
 						$blog_id = (int) $site->blog_id;
-						if ( WPMAR_Network::main_site_id() === $blog_id ) {
+						if ( $main_id === $blog_id ) {
 							continue;
 						}
-						switch_to_blog( $blog_id );
-						WPMAR_Scheduler::clear();
-						restore_current_blog();
+						WPMAR_Network::on_blog(
+							$blog_id,
+							static function () {
+								WPMAR_Scheduler::clear();
+							}
+						);
 					}
 				}
 				add_settings_error(

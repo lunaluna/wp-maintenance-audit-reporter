@@ -38,7 +38,6 @@ class WPMAR_Network_Settings_Page {
 		try {
 			$tz_obj = new DateTimeZone( $tz_slug );
 		} catch ( Exception $ignored ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- fallback above.
-			unset( $ignored );
 		}
 		$next_lbl = __( '未スケジュール', 'wp-maintenance-audit-reporter' );
 		if ( false !== $next_ts ) {

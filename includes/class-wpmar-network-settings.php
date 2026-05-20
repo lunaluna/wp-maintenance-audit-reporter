@@ -175,6 +175,12 @@ class WPMAR_Network_Settings {
 			}
 		}
 
+		$tz_slug = sanitize_text_field( (string) ( $merged['schedule']['tz'] ?? '' ) );
+		if ( '' === $tz_slug || ! in_array( $tz_slug, timezone_identifiers_list(), true ) ) {
+			$tz_slug = 'Asia/Tokyo';
+		}
+		$merged['schedule']['tz'] = $tz_slug;
+
 		$merged['sites']['include_archived'] = ! empty( $merged['sites']['include_archived'] );
 		$merged['sites']['include_spam']     = ! empty( $merged['sites']['include_spam'] );
 		$merged['sites']['include_deleted']  = ! empty( $merged['sites']['include_deleted'] );

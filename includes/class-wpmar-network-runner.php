@@ -32,7 +32,7 @@ class WPMAR_Network_Runner {
 		$exec     = wp_parse_args( $options, $defaults );
 
 		if ( ! empty( $exec['dry'] ) ) {
-			return $this->handle_dry_run( $exec );
+			return $this->handle_dry_run();
 		}
 
 		if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
@@ -52,12 +52,9 @@ class WPMAR_Network_Runner {
 	/**
 	 * Network dry-run summary without persistence.
 	 *
-	 * @param array<string,mixed> $exec Options.
 	 * @return array<string,mixed>
 	 */
-	protected function handle_dry_run( array $exec ) {
-		unset( $exec );
-
+	protected function handle_dry_run() {
 		$blog_ids = WPMAR_Network::target_blog_ids();
 		$rows     = array();
 
@@ -109,14 +106,12 @@ class WPMAR_Network_Runner {
 	 * @return array<string,mixed>
 	 */
 	protected function run_on_main_site( array $exec ) {
-		if ( false !== get_site_transient( self::LOCK_TRANSIENT ) ) {
+		if ( ! add_site_transient( self::LOCK_TRANSIENT, 1, 20 * MINUTE_IN_SECONDS ) ) {
 			return array(
 				'skipped' => true,
 				'reason'  => 'busy',
 			);
 		}
-
-		set_site_transient( self::LOCK_TRANSIENT, 1, 20 * MINUTE_IN_SECONDS );
 
 		$t0               = microtime( true );
 		$network_settings = WPMAR_Network_Settings::get_all();

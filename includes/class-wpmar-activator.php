@@ -76,15 +76,17 @@ class WPMAR_Activator {
 	/**
 	 * Provisions schema when a new blog is created on a multisite network.
 	 *
-	 * @param int $blog_id New blog ID.
+	 * Hooked to `wp_initialize_site` (WordPress 5.1+).
+	 *
+	 * @param WP_Site $new_site Newly created site object.
 	 * @return void
 	 */
-	public static function activate_new_site( $blog_id ) {
+	public static function activate_new_site( WP_Site $new_site ) {
 		if ( ! function_exists( 'switch_to_blog' ) ) {
 			return;
 		}
 
-		switch_to_blog( absint( $blog_id ) );
+		switch_to_blog( absint( $new_site->blog_id ) );
 		self::maybe_create_tables();
 		self::maybe_seed_defaults();
 		update_option(

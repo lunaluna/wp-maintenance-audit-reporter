@@ -52,7 +52,7 @@ class WPMAR_Plugin {
 
 		if ( is_multisite() ) {
 			WPMAR_Network_Admin_Menu::init();
-			add_action( 'wpmu_new_blog', array( 'WPMAR_Activator', 'activate_new_site' ), 10, 1 );
+			add_action( 'wp_initialize_site', array( 'WPMAR_Activator', 'activate_new_site' ), 10, 1 );
 		}
 
 		if ( is_admin() ) {
