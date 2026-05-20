@@ -409,7 +409,11 @@ class WPMAR_Data_Collector {
 			if ( isset( $entry['markdown'] ) && is_string( $entry['markdown'] ) ) {
 				$markdown = $entry['markdown'];
 			} elseif ( isset( $entry['collect'] ) && is_callable( $entry['collect'] ) ) {
-				$snippet = call_user_func( $entry['collect'], $settings );
+				try {
+					$snippet = call_user_func( $entry['collect'], $settings );
+				} catch ( Throwable $e ) {
+					$snippet = null;
+				}
 				if ( is_string( $snippet ) ) {
 					$markdown = $snippet;
 				} elseif ( is_array( $snippet ) ) {

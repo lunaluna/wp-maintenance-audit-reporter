@@ -50,7 +50,7 @@ class WPMAR_Notifier_Mail {
 			$replacement = array();
 			if ( is_string( $qa_override ) ) {
 				$candidate = sanitize_email( trim( $qa_override ) );
-				if ( '' !== $candidate ) {
+				if ( is_email( $candidate ) ) {
 					$replacement[] = $candidate;
 				}
 			} else {
