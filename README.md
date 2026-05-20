@@ -1,12 +1,20 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.7.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.8.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
+## What v0.8 adds (Multisite)
+
+- **Network rollup** — Network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit**. All target sites are audited via `switch_to_blog`; **one client-facing** and **one administrator-facing** merged report is stored on the **main site** (`wpmar_reports`), with a single mail dispatch.
+- **Site filters** — Exclude blog IDs, cap `max_sites`, optionally include archived/spam/deleted blogs.
+- **Domain gate** — Per-site host check after blog switch; network **allowed host** fallback and optional **path prefix** for subdirectory installs.
+- **CLI** — `wp maintenance-audit run --network`.
+
 ## What v0.7 adds
 
-- **Manual snapshot persist** — On **設定・実行**, **「スナップショットを保存する（差分比較用）」** applies only to **今すぐ実行** / **テストメール付き実行**. When checked, each manual run saves canonical inventory rows to `wpmar_snapshots` (and prunes older than two per dimension). When unchecked, the report and diff still use the **current** scan vs the **latest** saved snapshot, but snapshot rows are not updated. **WP-Cron** and **WP-CLI** runs always persist snapshots.
+- **Manual snapshot persist** — On **設定・実行**, **「スナップショットを保存する（差分比較用）」** applies only to **今すぐ実行**. When checked, each manual run saves canonical inventory rows to `wpmar_snapshots` (and prunes older than two per dimension). When unchecked, the report and diff still use the **current** scan vs the **latest** saved snapshot, but snapshot rows are not updated. **WP-Cron** and **WP-CLI** runs always persist snapshots.
+- **Test mailbox** — Optional **テストメール上書き先**: on **今すぐ実行**, when filled, sends an extra **client** copy and an extra **admin** copy to that address (each skipped if the address is already in the corresponding configured list); configured `client_to` / `admin_to` unchanged. No separate “test mail run” button.
 
 ## What v0.6 adds
 

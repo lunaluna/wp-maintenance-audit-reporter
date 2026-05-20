@@ -27,8 +27,6 @@
 				return cfg.dryRun || '';
 			case 'full_run':
 				return cfg.fullRun || '';
-			case 'test_mail':
-				return cfg.testMail || '';
 			default:
 				return '';
 		}

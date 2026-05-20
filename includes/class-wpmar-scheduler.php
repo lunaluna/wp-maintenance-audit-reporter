@@ -35,11 +35,18 @@ class WPMAR_Scheduler {
 	/**
 	 * Clears and schedules the next run from settings.
 	 *
+	 * When network rollup is enabled, only the main site keeps a scheduled event.
+	 *
 	 * @return void
 	 */
 	public static function reschedule() {
 		self::clear();
-		$settings = WPMAR_Settings::get_all();
+
+		if ( ! self::should_schedule_here() ) {
+			return;
+		}
+
+		$settings = self::effective_schedule_settings();
 		$next     = self::next_timestamp_after(
 			new DateTimeImmutable( 'now', self::timezone_object( $settings ) ),
 			$settings
@@ -48,11 +55,60 @@ class WPMAR_Scheduler {
 	}
 
 	/**
+	 * Whether this blog should register the chained cron event.
+	 *
+	 * @return bool
+	 */
+	public static function should_schedule_here() {
+		return WPMAR_Network::should_run_network_scheduler_here();
+	}
+
+	/**
+	 * Settings envelope used to compute the next cron timestamp.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public static function effective_schedule_settings() {
+		if ( WPMAR_Network_Settings::is_network_audit_enabled() ) {
+			$delivery = WPMAR_Network_Settings::rollup_delivery_settings();
+
+			return wp_parse_args( $delivery, WPMAR_Settings::defaults() );
+		}
+
+		return WPMAR_Settings::get_all();
+	}
+
+	/**
 	 * Dispatches the runner for WP‑Cron.
 	 *
 	 * @return void
 	 */
 	public static function handle_event() {
+		if ( ! self::should_schedule_here() ) {
+			return;
+		}
+
+		if ( WPMAR_Network_Settings::is_network_audit_enabled() ) {
+			update_site_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
+			$runner = new WPMAR_Network_Runner();
+
+			try {
+				$runner->run(
+					array(
+						'dry'          => false,
+						'triggered_by' => 'cron_network',
+					)
+				);
+			} catch ( Exception $exception ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in noisy logging under WP_DEBUG.
+					error_log( 'WPMAR network cron error: ' . $exception->getMessage() );
+				}
+			}
+
+			return;
+		}
+
 		update_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
 		$runner = new WPMAR_Runner();
 

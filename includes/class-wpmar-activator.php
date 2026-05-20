@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WPMAR_Activator {
 
 	/**
-	 * Activation entry point.
+	 * Activation entry point (single site or one blog in a network).
 	 *
 	 * @return void
 	 */
@@ -29,6 +29,70 @@ class WPMAR_Activator {
 			WPMAR_VERSION,
 			true
 		);
+	}
+
+	/**
+	 * Network-wide activation: tables on every blog + network defaults + main-site cron.
+	 *
+	 * @return void
+	 */
+	public static function activate_network() {
+		if ( ! function_exists( 'get_sites' ) ) {
+			self::activate();
+			return;
+		}
+
+		$sites = get_sites(
+			array(
+				'number' => 0,
+			)
+		);
+
+		foreach ( $sites as $site ) {
+			if ( ! is_object( $site ) || ! isset( $site->blog_id ) ) {
+				continue;
+			}
+			switch_to_blog( (int) $site->blog_id );
+			self::maybe_create_tables();
+			self::maybe_seed_defaults();
+			self::ensure_site_defaults_and_schedule();
+			update_option(
+				'wpmar_db_version',
+				WPMAR_VERSION,
+				true
+			);
+			restore_current_blog();
+		}
+
+		WPMAR_Network_Settings::maybe_seed_defaults();
+
+		WPMAR_Network::on_main_site(
+			static function () {
+				WPMAR_Scheduler::reschedule();
+			}
+		);
+	}
+
+	/**
+	 * Provisions schema when a new blog is created on a multisite network.
+	 *
+	 * @param int $blog_id New blog ID.
+	 * @return void
+	 */
+	public static function activate_new_site( $blog_id ) {
+		if ( ! function_exists( 'switch_to_blog' ) ) {
+			return;
+		}
+
+		switch_to_blog( absint( $blog_id ) );
+		self::maybe_create_tables();
+		self::maybe_seed_defaults();
+		update_option(
+			'wpmar_db_version',
+			WPMAR_VERSION,
+			true
+		);
+		restore_current_blog();
 	}
 
 	/**

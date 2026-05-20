@@ -3,9 +3,10 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           0.7.0
+ * Version:           0.8.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
+ * Network:           true
  * Author:            lunaluna_dev
  * Author URI:        https://profiles.wordpress.org/lunaluna_dev/
  * License:           GPLv2 or later
@@ -20,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '0.7.0' );
+define( 'WPMAR_VERSION', '0.8.0' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -29,6 +30,7 @@ define( 'WPMAR_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 define( 'WPMAR_HOOK_SCHEDULED', 'wpmar_run_audit' );
 define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
 define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
+define( 'WPMAR_NETWORK_ADMIN_PAGE_SLUG', 'wpmar-network-maintenance-report' );
 
 /**
  * Includes loaded for activation hooks and runtime.
@@ -38,6 +40,8 @@ define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 function wpmar_get_include_manifest() {
 	return array(
 		'includes/class-wpmar-settings.php',
+		'includes/class-wpmar-network-settings.php',
+		'includes/class-wpmar-network.php',
 		'includes/class-wpmar-activator.php',
 		'includes/class-wpmar-domain-gate.php',
 		'includes/checks/class-wpmar-check-checksums.php',
@@ -54,9 +58,12 @@ function wpmar_get_include_manifest() {
 		'includes/notify/class-wpmar-notification-dispatcher.php',
 		'includes/class-wpmar-cli-environment.php',
 		'includes/class-wpmar-runner.php',
+		'includes/class-wpmar-network-runner.php',
 		'includes/class-wpmar-scheduler.php',
 		'includes/admin/class-wpmar-admin-menu.php',
 		'includes/admin/class-wpmar-settings-page.php',
+		'includes/admin/class-wpmar-network-admin-menu.php',
+		'includes/admin/class-wpmar-network-settings-page.php',
 		'includes/admin/class-wpmar-reports-list-table.php',
 		'includes/admin/class-wpmar-reports-page.php',
 	);
@@ -88,22 +95,30 @@ function wpmar_require_includes_once() {
 /**
  * Plugin activation hook: schema + defaults + cron anchor.
  *
- * WordPress forwards a multisite flag; unused until network-wide branching exists.
- *
+ * @param bool $network_wide Whether the plugin is being network-activated.
  * @return void
  */
-function wpmar_activate_plugin() {
+function wpmar_activate_plugin( $network_wide = false ) {
 	wpmar_require_includes_once();
+	if ( is_multisite() && $network_wide ) {
+		WPMAR_Activator::activate_network();
+		return;
+	}
 	WPMAR_Activator::activate();
 }
 
 /**
  * Removes scheduled Cron hook only (minimal scrape footprint).
  *
+ * @param bool $network_wide Whether the plugin is being network-deactivated.
  * @return void
  */
-function wpmar_deactivate_plugin() {
+function wpmar_deactivate_plugin( $network_wide = false ) {
 	require_once WPMAR_PLUGIN_DIR . 'includes/class-wpmar-deactivator.php';
+	if ( is_multisite() && $network_wide ) {
+		WPMAR_Deactivator::deactivate_network();
+		return;
+	}
 	WPMAR_Deactivator::deactivate();
 }
 

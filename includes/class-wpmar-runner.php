@@ -19,7 +19,7 @@ class WPMAR_Runner {
 	/**
 	 * Executes audits according to behavioural flags.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli|manual_test), mail_override, persist_snapshots (manual/manual_test only; cron always saves).
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (manual only; cron/cli always save).
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
@@ -27,6 +27,7 @@ class WPMAR_Runner {
 			'dry'               => false,
 			'triggered_by'      => 'manual',
 			'mail_override'     => '',
+			'mail_qa_extra'     => '',
 			'capture_cli'       => defined( 'WP_CLI' ) && WP_CLI,
 			'persist_snapshots' => false,
 		);
@@ -140,7 +141,8 @@ class WPMAR_Runner {
 					$settings,
 					$client_body,
 					$admin_body,
-					isset( $exec['mail_override'] ) ? $exec['mail_override'] : array()
+					isset( $exec['mail_override'] ) ? $exec['mail_override'] : array(),
+					isset( $exec['mail_qa_extra'] ) ? (string) $exec['mail_qa_extra'] : ''
 				)
 					? 1
 					: 0;
@@ -212,6 +214,150 @@ class WPMAR_Runner {
 	}
 
 	/**
+	 * Collects, diffs, optionally persists snapshots, and renders bodies for the current blog only.
+	 *
+	 * Used by {@see WPMAR_Network_Runner}; does not insert reports, send mail, or reschedule cron.
+	 *
+	 * @param array<string,mixed> $options Keys: persist_snapshots, gate_settings (optional settings for domain gate).
+	 * @return array<string,mixed>
+	 */
+	public function run_site_segment( array $options = array() ) {
+		$defaults = array(
+			'persist_snapshots' => true,
+			'gate_settings'     => null,
+		);
+		$exec     = wp_parse_args( $options, $defaults );
+		$t0       = microtime( true );
+
+		$blog_id   = get_current_blog_id();
+		$site_name = sanitize_text_field( get_bloginfo( 'name' ) );
+		$home      = home_url();
+
+		$settings = WPMAR_Settings::get_all();
+		if ( is_array( $exec['gate_settings'] ) ) {
+			$settings = $exec['gate_settings'];
+		}
+
+		$data_collector = new WPMAR_Data_Collector();
+		$dataset        = $data_collector->gather();
+
+		$domain_gate_ok = WPMAR_Domain_Gate::is_allowed( $settings );
+		$pairs          = $this->canonical_snapshots_from_report( $dataset );
+
+		$snapshot_repo = new WPMAR_Snapshot_Repository();
+		$prior_snap    = array();
+		foreach ( array_keys( $pairs ) as $dimension ) {
+			$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
+		}
+
+		list( $changelog_counts, $changelog_md ) = $this->difference_summary( $prior_snap, $pairs );
+
+		if ( ! $domain_gate_ok ) {
+			$pairs = array();
+		}
+
+		if ( $domain_gate_ok && ! empty( $exec['persist_snapshots'] ) ) {
+			foreach ( $pairs as $type => $canonical ) {
+				$snapshot_repo->save( $type, $canonical );
+				$snapshot_repo->prune_keep( $type, 2 );
+			}
+		}
+
+		$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
+
+		$client_body = self::render_client_markup( $dataset, $changelog_md, $changelog_counts, $domain_gate_ok );
+		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+
+		return array(
+			'blog_id'          => (int) $blog_id,
+			'site_name'        => $site_name,
+			'home_url'         => esc_url_raw( $home ),
+			'domain_gate_ok'   => $domain_gate_ok,
+			'dataset'          => $dataset,
+			'changelog_md'     => $changelog_md,
+			'changelog_counts' => absint( $changelog_counts ),
+			'client_body'      => $client_body,
+			'admin_body'       => $admin_body,
+			'duration_sec'     => $duration_sec,
+		);
+	}
+
+	/**
+	 * Merges per-site client bodies into one stakeholder Markdown document.
+	 *
+	 * @param array<int,array<string,mixed>> $segments Output of {@see self::run_site_segment()}.
+	 * @return string
+	 */
+	public static function merge_network_client_markup( array $segments ) {
+		return self::merge_network_markup_segments(
+			$segments,
+			'client',
+			__( '# ネットワーク保守レポート（クライアント向け）', 'wp-maintenance-audit-reporter' )
+		);
+	}
+
+	/**
+	 * Merges per-site operator bodies into one administrator Markdown document.
+	 *
+	 * @param array<int,array<string,mixed>> $segments Segment rows.
+	 * @return string
+	 */
+	public static function merge_network_operator_markup( array $segments ) {
+		return self::merge_network_markup_segments(
+			$segments,
+			'admin',
+			__( '# ネットワーク保守レポート（管理者向け）', 'wp-maintenance-audit-reporter' )
+		);
+	}
+
+	/**
+	 * Joins per-site Markdown segments under a network title.
+	 *
+	 * @param array<int,array<string,mixed>> $segments  Per-site rows.
+	 * @param string                         $audience  client|admin.
+	 * @param string                         $title     Document title line.
+	 * @return string
+	 */
+	protected static function merge_network_markup_segments( array $segments, $audience, $title ) {
+		$blocks = array();
+
+		foreach ( $segments as $segment ) {
+			if ( ! is_array( $segment ) ) {
+				continue;
+			}
+
+			$site_name = isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '';
+			$home_url  = isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '';
+			$blog_id   = isset( $segment['blog_id'] ) ? absint( $segment['blog_id'] ) : 0;
+
+			$heading = sprintf(
+				"## %s (%s)\n\n",
+				'' !== $site_name ? $site_name : sprintf( 'Blog #%d', $blog_id ),
+				'' !== $home_url ? $home_url : '—'
+			);
+
+			if ( empty( $segment['domain_gate_ok'] ) ) {
+				$blocks[] = $heading . __( '※ ドメインゲートにより、このサイトの監査結果は保存・通知対象外として扱われました。', 'wp-maintenance-audit-reporter' );
+				continue;
+			}
+
+			$body_key = ( 'admin' === $audience ) ? 'admin_body' : 'client_body';
+			$body     = isset( $segment[ $body_key ] ) ? trim( (string) $segment[ $body_key ] ) : '';
+			if ( '' === $body ) {
+				continue;
+			}
+
+			$blocks[] = $heading . $body;
+		}
+
+		if ( empty( $blocks ) ) {
+			return $title . "\n\n" . __( '対象サイトからレポート本文を生成できませんでした。', 'wp-maintenance-audit-reporter' ) . "\n";
+		}
+
+		return $title . "\n\n" . implode( "\n\n---\n\n", $blocks ) . "\n";
+	}
+
+	/**
 	 * Whether to write snapshot rows: WP-Cron always; CLI always; manual paths only when opted in.
 	 *
 	 * @param array<string,mixed> $exec Normalised {@see self::run()} options.
@@ -219,11 +365,11 @@ class WPMAR_Runner {
 	 */
 	protected static function should_persist_snapshots( array $exec ) {
 		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
-		if ( 'cron' === $triggered ) {
+		if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
 			return true;
 		}
 		// Unattended CLI runs mirror legacy “always persist” behaviour.
-		if ( 'cli' === $triggered ) {
+		if ( 'cli' === $triggered || 'cli_network' === $triggered ) {
 			return true;
 		}
 
@@ -1031,6 +1177,7 @@ class WPMAR_Runner {
 					);
 
 					if ( $mismatch_n > 0 && ! empty( $row['mismatches'] ) && is_array( $row['mismatches'] ) ) {
+						$lines[]       = '  * ' . __( '以下のファイルに変更が見つかりました', 'wp-maintenance-audit-reporter' );
 						$mismatch_rows = $row['mismatches'];
 						$slice         = array_slice( $mismatch_rows, 0, 40 );
 						foreach ( $slice as $m ) {

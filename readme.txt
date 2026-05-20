@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.7.0
+Stable tag: 0.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,14 +12,15 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** / **テストメール付き実行**: when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. **WP-Cron** and **WP-CLI** always persist snapshots. **v0.6** improved mail (client HTML, stale-plugin section, structured admin plaintext); **v0.5** hooks and extensions remain: `wpmar_report_sections`, `wpmar_notification_channels`, `wpmar_backup_providers`, optional `information_schema` table-size sampling (defaults off), and supplementary notification dispatch.
+**v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
 * **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
 * **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
 * **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
 * **Empty storage notice** — On **設定・実行** and **レポート**, an info notice when there are no report rows and no snapshot rows yet.
-* **Manual snapshot save (v0.7)** — Checkbox **「スナップショットを保存する（差分比較用）」** gates DB updates for **今すぐ実行** / **テストメール付き実行** only; changelog still compares latest stored snapshot to this run when unchecked. **WP-Cron** / **WP-CLI** always persist.
+* **Manual snapshot save (v0.7)** — Checkbox **「スナップショットを保存する（差分比較用）」** gates DB updates for **今すぐ実行** only; changelog still compares latest stored snapshot to this run when unchecked. **WP-Cron** / **WP-CLI** always persist.
+* **Test mailbox (v0.7)** — Optional **テストメール上書き先** on **今すぐ実行**: duplicate **client-facing** mail and duplicate **admin** mail to that address when it is not already in the respective configured list (does not replace configured recipients).
 
 * **Scheduling** — Monthly WP-Cron anchor plus optional server cron via WP-CLI.
 * **Inventory & deltas** — Core, themes, and plugins; change detection between snapshots.
@@ -50,7 +51,8 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 == Changelog ==
 
 = 0.7.0 =
-* Settings: **「スナップショットを保存する（差分比較用）」** for manual **今すぐ実行** / **テストメール付き実行** — toggles persisting `wpmar_snapshots`; diff still uses latest stored vs current scan when off. WP-Cron / WP-CLI unchanged (always persist).
+* Settings: **「スナップショットを保存する（差分比較用）」** for manual **今すぐ実行** — toggles persisting `wpmar_snapshots`; diff still uses latest stored vs current scan when off. WP-Cron / WP-CLI unchanged (always persist).
+* Settings: optional **テストメール上書き先** — on **今すぐ実行**, sends extra **client** and **admin** copies (two sends when both sides are needed) when the field is filled; duplicates skipped if the address already appears in `client_to` / `admin_to`. Removed separate **テストメール付き実行** button.
 
 = 0.6.0 =
 * Mail: client **HTML** email from client Markdown (Parsedown); plaintext `AltBody`; maintenance-scripts-style subjects; administrator **structured plaintext** body (replacing raw JSON).

@@ -31,9 +31,10 @@ class WPMAR_Notifier_Mail {
 	 * @param string              $body_client Accessible summary for stakeholders.
 	 * @param string              $body_admin  Verbose operator payload.
 	 * @param string|string[]     $qa_override When non-empty overrides every outbound recipient list equally.
+	 * @param string              $mail_qa_extra Optional single mailbox: receives an additional **client** mail and an additional **admin** mail (two sends when not duplicate of configured lists) without replacing `client_to` / `admin_to`.
 	 * @return bool True when something sent successfully.
 	 */
-	public static function send_pair( array $settings, $body_client, $body_admin, $qa_override = array() ) {
+	public static function send_pair( array $settings, $body_client, $body_admin, $qa_override = array(), $mail_qa_extra = '' ) {
 		$mail = isset( $settings['mail'] ) && is_array( $settings['mail'] ) ? $settings['mail'] : array();
 
 		// Short-circuit when mail is disabled - runner still records the audit row.
@@ -100,7 +101,12 @@ class WPMAR_Notifier_Mail {
 			)
 		);
 
-		if ( empty( $filtered_client ) && empty( $filtered_admin ) ) {
+		$qa_extra = sanitize_email( trim( (string) $mail_qa_extra ) );
+		if ( '' === $qa_extra || ! is_email( $qa_extra ) ) {
+			$qa_extra = '';
+		}
+
+		if ( empty( $filtered_client ) && empty( $filtered_admin ) && '' === $qa_extra ) {
 			return false;
 		}
 
@@ -126,38 +132,51 @@ class WPMAR_Notifier_Mail {
 		$site_label = sanitize_text_field( wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) );
 		$date_local = wp_date( 'Y-m-d' );
 
-		$results = array();
+		/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+		$client_subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+		$client_subject      = sprintf( $client_subject_text, $site_label, $date_local );
+
+		$html_enabled = (bool) apply_filters( 'wpmar_client_mail_html_enabled', true, $settings, $body_client );
+		$html_body    = '';
+		if ( $html_enabled ) {
+			$html_body = self::build_client_html_email_body( $body_client );
+		}
+
+		$client_batches = array();
 		if ( ! empty( $filtered_client ) ) {
-			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
-			$subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
-			$subject      = sprintf( $subject_text, $site_label, $date_local );
+			$client_batches[] = $filtered_client;
+		}
+		if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_client, true ) ) {
+			$client_batches[] = $qa_extra;
+		}
 
-			$html_enabled = (bool) apply_filters( 'wpmar_client_mail_html_enabled', true, $settings, $body_client );
-			$html_body    = '';
-			if ( $html_enabled ) {
-				$html_body = self::build_client_html_email_body( $body_client );
-			}
-
+		$results = array();
+		foreach ( $client_batches as $client_to_batch ) {
 			if ( '' !== $html_body ) {
 				add_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10, 1 );
 				self::$client_mail_plain_alt = wp_strip_all_tags( (string) $body_client );
 
 				$headers_html = array( 'Content-Type: text/html; charset=UTF-8' );
-				$results[]    = wp_mail( $filtered_client, $subject, $html_body, $headers_html );
+				$results[]    = wp_mail( $client_to_batch, $client_subject, $html_body, $headers_html );
 
 				remove_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10 );
 				self::$client_mail_plain_alt = null;
 			} else {
 				$headers_txt = array( 'Content-Type: text/plain; charset=UTF-8' );
-				$results[]   = wp_mail( $filtered_client, $subject, wp_strip_all_tags( (string) $body_client ), $headers_txt );
+				$results[]   = wp_mail( $client_to_batch, $client_subject, wp_strip_all_tags( (string) $body_client ), $headers_txt );
 			}
 		}
 
+		/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+		$admin_subject_text = __( '[%1$s] 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+		$admin_subject      = sprintf( $admin_subject_text, $site_label, $date_local );
+
 		if ( ! empty( $filtered_admin ) ) {
-			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
-			$subject_text = __( '[%1$s] 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
-			$subject      = sprintf( $subject_text, $site_label, $date_local );
-			$results[]    = wp_mail( $filtered_admin, $subject, wp_strip_all_tags( $body_admin ), $headers_admin );
+			$results[] = wp_mail( $filtered_admin, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
+		}
+
+		if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_admin, true ) ) {
+			$results[] = wp_mail( $qa_extra, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
 		}
 
 		remove_filter( 'wp_mail_from', $mail_from_email_callback );

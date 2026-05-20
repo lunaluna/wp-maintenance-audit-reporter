@@ -50,6 +50,11 @@ class WPMAR_Plugin {
 
 		WPMAR_Scheduler::init();
 
+		if ( is_multisite() ) {
+			WPMAR_Network_Admin_Menu::init();
+			add_action( 'wpmu_new_blog', array( 'WPMAR_Activator', 'activate_new_site' ), 10, 1 );
+		}
+
 		if ( is_admin() ) {
 			WPMAR_Admin_Menu::init();
 		}

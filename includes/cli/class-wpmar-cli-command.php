@@ -29,10 +29,14 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	 * [--dry]
 	 * : Harvest data without persisting or mailing.
 	 *
+	 * [--network]
+	 * : Run a multisite rollup audit (requires network audit enabled in network settings).
+	 *
 	 * ## EXAMPLES
 	 *
 	 * wp maintenance-audit run
 	 * wp maintenance-audit run --dry
+	 * wp maintenance-audit run --network
 	 *
 	 * @param array<int,string>             $positional  Positional arguments.
 	 * @param array<string,string|bool|int> $assoc_flags Associative CLI flags.
@@ -41,17 +45,36 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	public function run( $positional, $assoc_flags ) {
 		unset( $positional );
 
-		$dry = isset( $assoc_flags['dry'] );
+		$dry     = isset( $assoc_flags['dry'] );
+		$network = isset( $assoc_flags['network'] );
 
-		$runner = new WPMAR_Runner();
-		$result = $runner->run(
-			array(
-				'dry'           => ! empty( $dry ),
-				'triggered_by'  => 'cli',
-				'capture_cli'   => true,
-				'mail_override' => '',
-			)
-		);
+		if ( $network ) {
+			if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
+				WP_CLI::error( 'Multisite is not enabled on this installation.' );
+			}
+			if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
+				WP_CLI::error( 'Network rollup audit is disabled (enable it under Network Admin → Maintenance Audit).' );
+			}
+
+			$runner = new WPMAR_Network_Runner();
+			$result = $runner->run(
+				array(
+					'dry'          => ! empty( $dry ),
+					'triggered_by' => 'cli_network',
+					'capture_cli'  => true,
+				)
+			);
+		} else {
+			$runner = new WPMAR_Runner();
+			$result = $runner->run(
+				array(
+					'dry'           => ! empty( $dry ),
+					'triggered_by'  => 'cli',
+					'capture_cli'   => true,
+					'mail_override' => '',
+				)
+			);
+		}
 
 		// Echo structured JSON because operators often pipe CLI output downstream.
 		WP_CLI::success( wp_json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );

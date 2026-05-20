@@ -187,9 +187,8 @@ class WPMAR_Admin_Menu {
 		);
 
 		$wpmar_admin_l10n = array(
-			'dryRun'   => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-			'fullRun'  => __( 'レポート生成を実行しています…', 'wp-maintenance-audit-reporter' ),
-			'testMail' => __( 'テストメール付き監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'dryRun'  => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
+			'fullRun' => __( 'レポート生成を実行しています…', 'wp-maintenance-audit-reporter' ),
 		);
 
 		wp_localize_script(
@@ -268,6 +267,15 @@ class WPMAR_Admin_Menu {
 				);
 				break;
 			case 'dry_run':
+				if ( WPMAR_Network::per_site_runs_disabled() ) {
+					add_settings_error(
+						'wpmar_messages',
+						'wpmar_network_only',
+						__( 'ネットワーク集約監査が有効なため、子サイトからの実行はできません。ネットワーク管理画面から実行してください。', 'wp-maintenance-audit-reporter' ),
+						'error'
+					);
+					break;
+				}
 				// Collect-only path: skips DB artefacts; preview is rendered in the same POST response.
 				$runner = new WPMAR_Runner();
 				$result = $runner->run(
@@ -287,43 +295,34 @@ class WPMAR_Admin_Menu {
 				);
 				break;
 			case 'full_run':
+				if ( WPMAR_Network::per_site_runs_disabled() ) {
+					add_settings_error(
+						'wpmar_messages',
+						'wpmar_network_only',
+						__( 'ネットワーク集約監査が有効なため、子サイトからの実行はできません。ネットワーク管理画面から実行してください。', 'wp-maintenance-audit-reporter' ),
+						'error'
+					);
+					break;
+				}
 				// On-demand audit (same pathway as WP-Cron once domain gate passes).
 				$persist = ! empty( $input['wpmar_persist_snapshots'] );
-				$runner  = new WPMAR_Runner();
+				$qa_mail = '';
+				if ( isset( $input['wpmar_qa_mail'] ) ) {
+					$qa_mail = sanitize_email( $input['wpmar_qa_mail'] );
+				}
+				$runner = new WPMAR_Runner();
 				$runner->run(
 					array(
 						'dry'               => false,
 						'triggered_by'      => 'manual',
 						'persist_snapshots' => $persist,
+						'mail_qa_extra'     => $qa_mail,
 					)
 				);
 				add_settings_error(
 					'wpmar_messages',
 					'wpmar_full',
 					__( 'レポート生成を実行して完了しました。', 'wp-maintenance-audit-reporter' ),
-					'success'
-				);
-				break;
-			case 'test_mail':
-				// Optional single-address override forwarded to notifier inside the runner.
-				$override = '';
-				if ( isset( $input['wpmar_qa_mail'] ) ) {
-					$override = sanitize_email( $input['wpmar_qa_mail'] );
-				}
-				$persist = ! empty( $input['wpmar_persist_snapshots'] );
-				$runner  = new WPMAR_Runner();
-				$runner->run(
-					array(
-						'dry'               => false,
-						'triggered_by'      => 'manual_test',
-						'mail_override'     => $override,
-						'persist_snapshots' => $persist,
-					)
-				);
-				add_settings_error(
-					'wpmar_messages',
-					'wpmar_mail_test',
-					__( 'テストメール用の監査を実行しました。', 'wp-maintenance-audit-reporter' ),
 					'success'
 				);
 				break;
