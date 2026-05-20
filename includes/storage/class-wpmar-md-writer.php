@@ -89,7 +89,7 @@ class WPMAR_MD_Writer {
 	 */
 	public static function absolute_path_from_upload_relative( $relative ) {
 		$relative = is_string( $relative ) ? trim( $relative ) : '';
-		if ( '' === $relative ) {
+		if ( '' === $relative || false !== strpos( $relative, '..' ) ) {
 			return '';
 		}
 
@@ -117,7 +117,7 @@ class WPMAR_MD_Writer {
 	public static function delete_if_upload_relative( $relative ) {
 		$relative = is_string( $relative ) ? trim( $relative ) : '';
 
-		if ( '' === $relative ) {
+		if ( '' === $relative || false !== strpos( $relative, '..' ) ) {
 			return;
 		}
 

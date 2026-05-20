@@ -148,7 +148,7 @@ class WPMAR_Settings {
 			if ( '' === $tz_value && isset( $curr['schedule']['tz'] ) ) {
 				$tz_value = sanitize_text_field( $curr['schedule']['tz'] );
 			}
-			if ( '' === $tz_value ) {
+			if ( '' === $tz_value || ! in_array( $tz_value, timezone_identifiers_list(), true ) ) {
 				$tz_value = 'Asia/Tokyo';
 			}
 
@@ -162,7 +162,8 @@ class WPMAR_Settings {
 			if ( ! isset( $curr['schedule'] ) || ! is_array( $curr['schedule'] ) ) {
 				$curr['schedule'] = self::defaults()['schedule'];
 			}
-			$curr['schedule']['tz'] = sanitize_text_field( wp_unslash( $post['wpmar_schedule_tz'] ) );
+			$tz                     = sanitize_text_field( wp_unslash( $post['wpmar_schedule_tz'] ) );
+			$curr['schedule']['tz'] = in_array( $tz, timezone_identifiers_list(), true ) ? $tz : 'Asia/Tokyo';
 		}
 
 		if ( isset( $post['wpmar_allowed_host'] ) ) {

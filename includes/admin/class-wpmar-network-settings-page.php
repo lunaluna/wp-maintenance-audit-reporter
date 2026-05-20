@@ -24,7 +24,7 @@ class WPMAR_Network_Settings_Page {
 			return;
 		}
 
-		if ( isset( $_GET['wpmar_network_msg'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only flash from redirect.
+		if ( isset( $_GET['wpmar_network_msg'] ) && '1' === sanitize_key( wp_unslash( $_GET['wpmar_network_msg'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only flash from redirect; value restricted to '1'.
 			settings_errors( 'wpmar_network_messages' );
 		}
 

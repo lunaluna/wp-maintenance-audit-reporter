@@ -96,29 +96,48 @@ class WPMAR_Check_Security_Ops {
 			);
 		}
 
-		$port = isset( $bits['port'] ) ? absint( $bits['port'] ) : 443;
+		$port   = isset( $bits['port'] ) ? absint( $bits['port'] ) : 443;
+		$target = sprintf( 'ssl://%s:%d', $host, $port );
 
+		$ssl_opts = array(
+			'capture_peer_cert' => true,
+			'SNI_enabled'       => true,
+			'peer_name'         => $host,
+		);
+
+		// First attempt with full certificate verification.
 		$ctx = stream_context_create(
 			array(
-				'ssl' => array(
-					'capture_peer_cert' => true,
-					'verify_peer'       => false,
-					'verify_peer_name'  => false,
-					'SNI_enabled'       => true,
-					'peer_name'         => $host,
+				'ssl' => array_merge(
+					$ssl_opts,
+					array(
+						'verify_peer'      => true,
+						'verify_peer_name' => true,
+					)
 				),
 			)
 		);
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_stream_socket_client -- First-pass errors are expected for expired/self-signed certs.
+		$conn = @stream_socket_client( $target, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx );
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_stream_socket_client -- TLS peer capture without curl_exec.
-		$conn = stream_socket_client(
-			sprintf( 'ssl://%s:%d', $host, $port ),
-			$errno,
-			$errstr,
-			12,
-			STREAM_CLIENT_CONNECT,
-			$ctx
-		);
+		$verification_bypassed = false;
+		if ( false === $conn ) {
+			// Fallback without verification to capture expired or self-signed certificate details.
+			$ctx = stream_context_create(
+				array(
+					'ssl' => array_merge(
+						$ssl_opts,
+						array(
+							'verify_peer'      => false,
+							'verify_peer_name' => false,
+						)
+					),
+				)
+			);
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_stream_socket_client -- TLS peer capture without curl_exec.
+			$conn                  = stream_socket_client( $target, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx );
+			$verification_bypassed = ( false !== $conn );
+		}
 
 		if ( false === $conn ) {
 			$msg = '' !== (string) $errstr
@@ -181,6 +200,10 @@ class WPMAR_Check_Security_Ops {
 				__( '証明書の更新時期が近いです（残りおおよそ %d 日）。', 'wp-maintenance-audit-reporter' ),
 				$days_left
 			);
+		}
+
+		if ( $verification_bypassed ) {
+			$notes[] = __( 'SSL 証明書検証をバイパスして接続しました（証明書が期限切れまたは自己署名の可能性）。', 'wp-maintenance-audit-reporter' );
 		}
 
 		return array(

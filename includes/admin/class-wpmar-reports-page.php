@@ -222,7 +222,10 @@ class WPMAR_Reports_Page {
 		header( 'Content-Length: ' . (string) $size );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streams binary PDF artefact.
-		readfile( $abs );
+		$bytes = readfile( $abs );
+		if ( false === $bytes ) {
+			wp_die( esc_html__( 'PDF の送信中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ) );
+		}
 		exit;
 	}
 

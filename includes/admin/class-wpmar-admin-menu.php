@@ -239,15 +239,19 @@ class WPMAR_Admin_Menu {
 	 * @return void
 	 */
 	public static function handle_post() {
-		if ( ! isset( $_POST['wpmar_admin_action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified below.
-			return;
-		}
-
-		if ( ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! isset( $_POST['wpmar_settings_nonce'] ) ) {
 			return;
 		}
 
 		check_admin_referer( 'wpmar_settings_save', 'wpmar_settings_nonce' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'wp-maintenance-audit-reporter' ) );
+		}
+
+		if ( ! isset( $_POST['wpmar_admin_action'] ) ) {
+			return;
+		}
 
 		$action = sanitize_key( wp_unslash( $_POST['wpmar_admin_action'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via sanitize_key.
 		$input  = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Handed to sanitizer.
