@@ -864,6 +864,11 @@ class WPMAR_Runner {
 				$name = $stylesheet_clean;
 			}
 
+			$installed = $theme_obj->exists() ? sanitize_text_field( (string) $theme_obj->get( 'Version' ) ) : '';
+			if ( '' !== $installed && version_compare( $installed, $new, '>=' ) ) {
+				continue;
+			}
+
 			$lines[] = sprintf(
 				/* translators: 1: theme display name, 2: new version */
 				__( '* テーマ %1$s には新しいバージョン %2$s があります。', 'wp-maintenance-audit-reporter' ),
@@ -906,6 +911,11 @@ class WPMAR_Runner {
 			}
 
 			$plugin_data = get_plugin_data( $abs, false, false );
+			$installed   = isset( $plugin_data['Version'] ) ? sanitize_text_field( (string) $plugin_data['Version'] ) : '';
+			if ( '' !== $installed && version_compare( $installed, $new, '>=' ) ) {
+				continue;
+			}
+
 			$title       = isset( $plugin_data['Name'] ) ? sanitize_text_field( (string) $plugin_data['Name'] ) : '';
 			if ( '' === $title ) {
 				$title = dirname( $basename );
@@ -1229,7 +1239,8 @@ class WPMAR_Runner {
 		$chunks[] = self::render_operator_themes_section( $facts );
 		$chunks[] = self::render_operator_plugins_section( $facts );
 		$chunks[] = self::render_operator_server_section( $facts );
-		$chunks[] = self::render_operator_backup_section( $facts );
+		// Backup section hidden until backup status reporting is implemented.
+		// $chunks[] = self::render_operator_backup_section( $facts );
 		$chunks[] = self::render_operator_users_section( $facts );
 		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ) );
 		$chunks[] = self::render_operator_security_section_verbose( isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array() );
@@ -1365,6 +1376,32 @@ class WPMAR_Runner {
 	}
 
 	/**
+	 * Compares installed semver against WordPress.org directory `version`.
+	 *
+	 * @param string $installed Local version from theme stylesheet or plugin header.
+	 * @param string $latest    Directory API `version`.
+	 * @return string One of `update_available`, `current`, `data_error`, or `unknown`.
+	 */
+	protected static function directory_version_status( $installed, $latest ) {
+		$installed = trim( (string) $installed );
+		$latest    = trim( (string) $latest );
+
+		if ( '' === $latest || '' === $installed ) {
+			return 'unknown';
+		}
+
+		if ( version_compare( $installed, $latest, '<' ) ) {
+			return 'update_available';
+		}
+
+		if ( version_compare( $installed, $latest, '>' ) ) {
+			return 'data_error';
+		}
+
+		return 'current';
+	}
+
+	/**
 	 * Reads pending plugin upgrade target from the `update_plugins` site transient.
 	 *
 	 * @param string $basename Plugin basename (`dir/file.php`).
@@ -1446,8 +1483,9 @@ class WPMAR_Runner {
 				$last = __( '（未取得）', 'wp-maintenance-audit-reporter' );
 			}
 
-			$unavailable = ( '' === $latest );
-			if ( ! $unavailable && '' !== $ver && $latest !== $ver ) {
+			$unavailable     = ( '' === $latest );
+			$version_status  = self::directory_version_status( $ver, $latest );
+			if ( ! $unavailable && 'update_available' === $version_status ) {
 				$version_info = sprintf(
 					/* translators: %s: latest theme version from directory API */
 					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
@@ -1458,7 +1496,14 @@ class WPMAR_Runner {
 					__( '%s には新しいバージョンがあります。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
 					$name
 				);
-			} elseif ( ! $unavailable ) {
+			} elseif ( ! $unavailable && 'data_error' === $version_status ) {
+				$version_info = sprintf(
+					/* translators: %s: latest theme version from directory API */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( $latest )
+				);
+				$msg = __( 'データが正しく取得できませんでした。', 'wp-maintenance-audit-reporter' );
+			} elseif ( ! $unavailable && 'current' === $version_status ) {
 				$version_info = sprintf(
 					/* translators: %s: installed theme version */
 					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
@@ -1489,7 +1534,7 @@ class WPMAR_Runner {
 				);
 			}
 
-			if ( '' !== $pending ) {
+			if ( '' !== $pending && ( '' === $ver || version_compare( $ver, $pending, '<' ) ) ) {
 				$msg = sprintf(
 					/* translators: 1: theme name, 2: pending new version from updates transient */
 					__( '%1$s には新しいバージョン %2$s が通知されています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
@@ -1577,8 +1622,9 @@ class WPMAR_Runner {
 				$last = __( '（未取得）', 'wp-maintenance-audit-reporter' );
 			}
 
-			$unavailable = ( '' === $latest );
-			if ( ! $unavailable && '' !== $ver && $latest !== $ver ) {
+			$unavailable    = ( '' === $latest );
+			$version_status = self::directory_version_status( $ver, $latest );
+			if ( ! $unavailable && 'update_available' === $version_status ) {
 				$version_info = sprintf(
 					/* translators: %s: latest plugin version from directory API */
 					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
@@ -1589,7 +1635,14 @@ class WPMAR_Runner {
 					__( '%s には新しいバージョンがあります。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
 					$title
 				);
-			} elseif ( ! $unavailable ) {
+			} elseif ( ! $unavailable && 'data_error' === $version_status ) {
+				$version_info = sprintf(
+					/* translators: %s: latest plugin version from directory API */
+					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( $latest )
+				);
+				$msg = __( 'データが正しく取得できませんでした。', 'wp-maintenance-audit-reporter' );
+			} elseif ( ! $unavailable && 'current' === $version_status ) {
 				$version_info = sprintf(
 					/* translators: %s: installed plugin version */
 					__( '（最新バージョン：%s）', 'wp-maintenance-audit-reporter' ),
@@ -1602,7 +1655,11 @@ class WPMAR_Runner {
 				);
 			} else {
 				$version_info = '';
-				$msg          = __( 'このプラグインは非公式か既に公開終了している可能性があります。', 'wp-maintenance-audit-reporter' );
+				$msg          = sprintf(
+					/* translators: %s: plugin title */
+					__( '%s は非公式か、既に公開終了している可能性があります。', 'wp-maintenance-audit-reporter' ),
+					$title
+				);
 			}
 
 			if ( '' !== $version_info ) {
@@ -1620,7 +1677,7 @@ class WPMAR_Runner {
 				);
 			}
 
-			if ( '' !== $pending ) {
+			if ( '' !== $pending && ( '' === $ver || version_compare( $ver, $pending, '<' ) ) ) {
 				$msg = sprintf(
 					/* translators: 1: plugin title, 2: pending new version */
 					__( '%1$s には新しいバージョン %2$s が通知されています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' ),
@@ -1631,6 +1688,9 @@ class WPMAR_Runner {
 
 			$cs_row  = isset( $plugs_cs[ $slug ] ) && is_array( $plugs_cs[ $slug ] ) ? $plugs_cs[ $slug ] : array();
 			$cs_text = self::render_operator_plugin_checksum_prose( $title, $cs_row );
+			if ( $unavailable && 'no_checksums' === ( isset( $cs_row['status'] ) ? sanitize_key( (string) $cs_row['status'] ) : '' ) ) {
+				$cs_text = '';
+			}
 
 			$block = sprintf(
 				/* translators: 1: plugin title, 2: slug, 3: installed version */
@@ -1640,7 +1700,9 @@ class WPMAR_Runner {
 				$ver
 			) . "\n";
 			$block .= '　' . $version_line . "\n";
-			$block .= '　　' . $cs_text . "\n";
+			if ( '' !== $cs_text ) {
+				$block .= '　　' . $cs_text . "\n";
+			}
 			$block .= '　　' . $msg;
 
 			if ( $is_act ) {
@@ -1707,17 +1769,17 @@ class WPMAR_Runner {
 				$title
 			);
 			if ( 0 === $mismatch_n ) {
-				$lines[] = '　　' . __( '（詳細なし）', 'wp-maintenance-audit-reporter' );
+				$lines[] = '　　　　' . __( '（詳細なし）', 'wp-maintenance-audit-reporter' );
 			}
 			$slice = array_slice( $mismatches, 0, 30 );
 			foreach ( $slice as $m ) {
 				if ( ! is_array( $m ) || empty( $m['file'] ) ) {
 					continue;
 				}
-				$lines[] = '　　' . sanitize_text_field( (string) $m['file'] );
+				$lines[] = '　　　　' . sanitize_text_field( (string) $m['file'] );
 			}
 			if ( count( $mismatches ) > 30 ) {
-				$lines[] = '　　' . sprintf(
+				$lines[] = '　　　　' . sprintf(
 					/* translators: %d: omitted file count */
 					__( '…他 %d 件', 'wp-maintenance-audit-reporter' ),
 					count( $mismatches ) - 30
@@ -1798,6 +1860,8 @@ class WPMAR_Runner {
 
 	/**
 	 * バックアップ状況（管理者向けは常に `gather_backup_providers` を出力）.
+	 *
+	 * 現バージョンでは取得・表示機能は未実装のため、{@see render_operator_markup()} からは呼び出さない。
 	 *
 	 * @param array<string,mixed> $facts Dataset.
 	 * @return string
