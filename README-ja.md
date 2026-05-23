@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.0**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.1**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.10.1 で修正されること（CI を緑に）
+
+- **CI / phpcompat の修復** — v0.10.0 の YAML タブ→スペース修正で Actions がジョブを実行するようになった結果、PHP 8.0 / 8.2 / 8.3 全てで PHPCS が失敗していました。v0.10.1 では `includes/class-wpmar-runner.php` の等号アラインメントとインラインコメント終端の違反を修正し、`phpcs.xml.dist` に `tests/*` の除外を追加（PHPUnit テストは PHPUnit 規約に従うため WPCS 対象外）。
 
 ## v0.10 で追加・修正されること（レポート修正・リリースパイプライン）
 

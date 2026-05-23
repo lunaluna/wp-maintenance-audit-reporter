@@ -1,8 +1,12 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.10.1 adds (CI green)
+
+- **CI / phpcompat unblocked** — After v0.10.0's tab→space YAML fix, GitHub Actions could parse the workflow and started failing at PHPCS on PHP 8.0 / 8.2 / 8.3. v0.10.1 fixes those: alignment / inline-comment violations in `includes/class-wpmar-runner.php` are corrected, and `phpcs.xml.dist` excludes `tests/*` since PHPUnit tests follow PHPUnit conventions rather than WPCS doc-block requirements.
 
 ## What v0.10 adds (Report fixes & release pipeline)
 

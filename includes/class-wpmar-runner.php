@@ -916,7 +916,7 @@ class WPMAR_Runner {
 				continue;
 			}
 
-			$title       = isset( $plugin_data['Name'] ) ? sanitize_text_field( (string) $plugin_data['Name'] ) : '';
+			$title = isset( $plugin_data['Name'] ) ? sanitize_text_field( (string) $plugin_data['Name'] ) : '';
 			if ( '' === $title ) {
 				$title = dirname( $basename );
 			}
@@ -1240,7 +1240,7 @@ class WPMAR_Runner {
 		$chunks[] = self::render_operator_plugins_section( $facts );
 		$chunks[] = self::render_operator_server_section( $facts );
 		// Backup section hidden until backup status reporting is implemented.
-		// $chunks[] = self::render_operator_backup_section( $facts );
+		// Re-enable by adding: render_operator_backup_section() to the chunks array.
 		$chunks[] = self::render_operator_users_section( $facts );
 		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ) );
 		$chunks[] = self::render_operator_security_section_verbose( isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array() );
@@ -1483,8 +1483,8 @@ class WPMAR_Runner {
 				$last = __( '（未取得）', 'wp-maintenance-audit-reporter' );
 			}
 
-			$unavailable     = ( '' === $latest );
-			$version_status  = self::directory_version_status( $ver, $latest );
+			$unavailable    = ( '' === $latest );
+			$version_status = self::directory_version_status( $ver, $latest );
 			if ( ! $unavailable && 'update_available' === $version_status ) {
 				$version_info = sprintf(
 					/* translators: %s: latest theme version from directory API */

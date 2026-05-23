@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.10.0
+Stable tag: 0.10.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,6 +49,11 @@ Not yet. Treat as development until a stable release is tagged.
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 0.10.1 =
+* Fixed: CI / phpcompat (8.0 / 8.2 / 8.3) jobs were failing at the PHPCS step. After v0.10.0 corrected the workflow YAML, pre-existing WPCS violations under `tests/*` and minor alignment / inline-comment issues in `class-wpmar-runner.php` surfaced.
+* Fixed: `includes/class-wpmar-runner.php` — three `=` alignment warnings auto-fixed; backup-section toggle comment rewritten so it satisfies `Squiz.Commenting.InlineComment.InvalidEndChar`.
+* Changed: `phpcs.xml.dist` — `tests/*` excluded from WPCS scanning (PHPUnit tests follow PHPUnit conventions). Production sources under `includes/` continue to be enforced.
 
 = 0.10.0 =
 * Fixed: theme/plugin version comparison now uses `version_compare()`; when the installed version is newer than the WordPress.org directory response (likely stale API payload), prints `データが正しく取得できませんでした。` instead of mislabelling as "update available".

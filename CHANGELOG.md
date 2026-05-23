@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [0.10.1] - 2026-05-23
+
+### Fixed
+
+- **CI / phpcompat job failing** — `.github/workflows/ci.yml` PHPCS step failed on PHP 8.0 / 8.2 / 8.3 after the v0.10.0 tab→space fix made the workflow actually parse. Pre-existing WPCS violations in `tests/*` (PHPUnit-style doc blocks, camelCase methods) and in `class-wpmar-runner.php` (alignment, inline comment terminator) were the cause.
+- **`includes/class-wpmar-runner.php`** — Re-aligned three `=` warnings (auto-fixed by `phpcbf`). Rewrote the backup-section toggle comment as plain description text so it no longer trips `Squiz.Commenting.InlineComment.InvalidEndChar`.
+
+### Changed
+
+- **`phpcs.xml.dist`** — Added `<exclude-pattern>tests/*</exclude-pattern>` so PHPUnit tests are not graded against WordPress Coding Standards (camelCase test methods and short doc blocks are PHPUnit conventions). Production sources under `includes/` continue to be enforced.
+
 ## [0.10.0] - 2026-05-23
 
 ### Fixed
