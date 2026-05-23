@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 0.9.0
+Stable tag: 0.10.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
+**v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
 * **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
@@ -49,6 +49,15 @@ Not yet. Treat as development until a stable release is tagged.
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 0.10.0 =
+* Fixed: theme/plugin version comparison now uses `version_compare()`; when the installed version is newer than the WordPress.org directory response (likely stale API payload), prints `データが正しく取得できませんでした。` instead of mislabelling as "update available".
+* Fixed: removed duplicate "non-official plugin" message in administrator mail (checksum prose + version-info fallback were both firing).
+* Fixed: checksum-mismatch file list lines are now indented one level deeper (`　　　　`) under the plugin block.
+* Fixed: `.github/workflows/ci.yml` indentation (tabs → spaces); GitHub Actions could not parse the workflow and reported "No jobs were run". `fail-fast: false` added to the matrix.
+* Changed: `# 【バックアップ状況】` section is hidden from administrator mail (backup status reporting is not yet implemented). Collection / rendering code retained for future activation.
+* Added: `.github/workflows/release.yml` — on `v*` tag push, verifies the tag matches the plugin header version, runs `composer install --no-dev`, builds `wp-maintenance-audit-reporter.<version>.zip` (excludes `.git` / `.github` / `tests` / `phpunit.xml.dist` / `phpcs.xml.dist`), extracts release notes from CHANGELOG, and publishes a GitHub Release with the zip attached.
+* Tests: 4 new unit tests for `WPMAR_Runner::directory_version_status()`.
 
 = 0.9.0 =
 * Security: nonce check now runs before capability check in both admin settings handlers (CSRF fix).

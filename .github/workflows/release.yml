@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.9.0). Leave blank when triggered by tag push.'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build plugin zip and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "::error::Release tag could not be resolved."
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches plugin header version
+        run: |
+          HEADER_VERSION=$(grep -E '^[[:space:]]*\*[[:space:]]*Version:' wp-maintenance-audit-reporter.php \
+            | head -n1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '\r')
+          echo "Plugin header version: $HEADER_VERSION"
+          echo "Release version:       ${{ steps.tag.outputs.version }}"
+          if [ "$HEADER_VERSION" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::Tag (${{ steps.tag.outputs.version }}) does not match plugin header version ($HEADER_VERSION)."
+            exit 1
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install production dependencies
+        run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
+
+      - name: Assemble plugin zip
+        id: zip
+        run: |
+          SLUG="wp-maintenance-audit-reporter"
+          STAGE="/tmp/${SLUG}-build"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/${SLUG}"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='phpunit.xml.dist' \
+            --exclude='phpcs.xml.dist' \
+            --exclude='tests' \
+            --exclude='node_modules' \
+            ./ "$STAGE/${SLUG}/"
+          ZIP_NAME="${SLUG}.${{ steps.tag.outputs.version }}.zip"
+          (cd "$STAGE" && zip -rq "$ZIP_NAME" "${SLUG}")
+          mv "$STAGE/$ZIP_NAME" "$GITHUB_WORKSPACE/$ZIP_NAME"
+          echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+          NOTES_FILE="$(mktemp)"
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VERSION" '
+              BEGIN { capture = 0 }
+              /^##[[:space:]]/ {
+                if (capture) { exit }
+                if (index($0, "[" ver "]") > 0 || index($0, ver) > 0) { capture = 1; next }
+              }
+              capture { print }
+            ' CHANGELOG.md > "$NOTES_FILE"
+          fi
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "Automated release for ${{ steps.tag.outputs.tag }}." > "$NOTES_FILE"
+          fi
+          echo "notes_path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            "${{ steps.zip.outputs.zip_path }}" \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes-file "${{ steps.notes.outputs.notes_path }}"

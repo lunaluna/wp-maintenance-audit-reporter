@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [0.10.0] - 2026-05-23
+
+### Fixed
+
+- **Theme/plugin version comparison** — Switched from raw string inequality to `version_compare()` when comparing installed semver against the WordPress.org directory `version`. When the installed version is **newer** than the directory response (likely a stale or partial API payload), the report now prints `データが正しく取得できませんでした。` instead of mislabelling the row as "update available". Applies to both `render_operator_themes_section()` and `render_operator_plugins_section()` plus the `update_themes` / `update_plugins` transient pre-filters in `collect_pending_theme_update_lines()` / `collect_pending_plugin_update_lines()`.
+- **Duplicate "non-official plugin" message** — `render_operator_plugins_section()` no longer emits both the checksum prose (`%s は非公式か、既に公開終了しているプラグインです。`) and the version-info fallback (`このプラグインは非公式か既に公開終了している可能性があります。`). Single unified line `%s は非公式か、既に公開終了している可能性があります。` is shown instead.
+- **Checksum mismatch file indent** — Changed-file list lines under "の以下のファイルに変更が見つかりました:" now use 4 wide-space indent (`　　　　`) so they sit one level deeper than the surrounding plugin block.
+- **GitHub Actions CI parsing** — `.github/workflows/ci.yml` was indented with tab characters which YAML 1.2 does not permit; the workflow loaded with "No jobs were run". Replaced all indentation with spaces and added `fail-fast: false` to the matrix.
+
+### Changed
+
+- **Backup section hidden** — `# 【バックアップ状況】` is no longer emitted in the administrator-facing mail body because backup status reporting is not yet implemented. `render_operator_backup_section()`, `render_backup_client_section()`, and `gather_backup_providers()` are retained for future re-activation; only the call site in `render_operator_markup()` is commented out.
+
+### Added
+
+- **`.github/workflows/release.yml`** — Tag-driven release pipeline. On `v*` tag push (or manual `workflow_dispatch`):
+  - Resolves the tag and asserts it matches `wp-maintenance-audit-reporter.php`'s `Version:` header.
+  - Runs `composer install --no-dev --prefer-dist --optimize-autoloader` so runtime libraries (mPDF / Parsedown) are bundled.
+  - Builds `wp-maintenance-audit-reporter.<version>.zip`, excluding `.git`, `.github`, `tests/`, `phpunit.xml.dist`, `phpcs.xml.dist`, and similar dev-only paths.
+  - Extracts the matching `## [version]` section from `CHANGELOG.md` as release notes (falls back to a generic note when absent).
+  - Publishes a GitHub Release via `gh release create` with the zip attached.
+- **`tests/DirectoryVersionStatusTest.php`** — 4 unit tests for the new `WPMAR_Runner::directory_version_status()` helper covering `update_available` / `current` / `data_error` / `unknown` branches.
+
 ## [0.9.0] - 2026-05-20
 
 ### Security

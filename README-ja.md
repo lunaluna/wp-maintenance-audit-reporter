@@ -1,10 +1,31 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.9.0**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.10 で追加・修正されること（レポート修正・リリースパイプライン）
+
+- **`version_compare()` ベースの比較** — テーマ／プラグインの「最新バージョン」判定を文字列の不一致ではなく `version_compare()` に変更。インストール版＞ディレクトリ版の場合は誤って「アップデートあり」と表示せず、`データが正しく取得できませんでした。` と表示。
+- **非公式プラグインの重複メッセージ統合** — チェックサム文言とバージョン情報側のフォールバックが両方出ていたのを、1行 `◯◯ は非公式か、既に公開終了している可能性があります。` に統一。
+- **チェックサム差分のインデント** — `〜の以下のファイルに変更が見つかりました:` 配下のファイル行を1段深い `　　　　` に変更。
+- **バックアップ状況セクションの非表示** — 取得機能が未実装のため、管理者向けメール本文から `# 【バックアップ状況】` の出力を停止。`render_operator_backup_section()` 等のコードは将来のために残存。
+- **CI workflow のパース修正** — `.github/workflows/ci.yml` のインデントをタブ→スペースに変更（YAML 1.2 はタブインデント不可）。GitHub Actions が「No jobs were run」と通知していた問題を解消。マトリクスに `fail-fast: false` を追加。
+- **リリースパイプライン** — `.github/workflows/release.yml` を新規追加。`v*` タグ push（または手動 `workflow_dispatch`）で起動し、タグとプラグインヘッダ `Version:` の一致確認 → `composer install --no-dev --optimize-autoloader` → `wp-maintenance-audit-reporter.<version>.zip`（`.git` / `.github` / `tests` / `phpunit.xml.dist` / `phpcs.xml.dist` を除外）作成 → `CHANGELOG.md` から該当バージョンの節をリリースノートに抽出 → `gh release create` で GitHub Release 発行。
+
+### リリース手順
+
+```bash
+# 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / CHANGELOG.md を新バージョンに更新
+git commit -am "release: v0.10.0"
+git push origin main
+
+# 2. タグを打って push（release.yml が起動）
+git tag v0.10.0
+git push origin v0.10.0
+```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
 
@@ -89,15 +110,17 @@ composer run phpcs
 composer run phpunit
 ```
 
-### 配布用 ZIP（GitHub リリース — 予定）
+### 配布用 ZIP（GitHub リリース）
 
-リポジトリを GitHub と連携したあとの一般的なリリース手順の例です。
+v0.10.0 で **`.github/workflows/release.yml`** として実装済み。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。
 
-1. **タグ push**（または Release 公開）時に **`composer install --no-dev --optimize-autoloader`** を実行し、`vendor/` にランタイム依存（PDF 用ライブラリを含む）だけを入れる。
-2. **`tests/`**・**`.github/`**・**`phpunit.xml.dist`**・**`phpcs.xml.dist`** など開発用のみのパスをアーカイブから除外する。**`.distignore`**（よくある WordPress プラグイン向けデプロイワークフローが解釈する）や、ワークフロー内の明示的文件リストで対応できる。
-3. できあがった ZIP を **GitHub Release に添付**する（WordPress.org SVN への公開がある場合はその手順とも組み合わせる）。
+1. タグを解析し、`wp-maintenance-audit-reporter.php` の `Version:` ヘッダと一致するか検証。一致しなければジョブが失敗。
+2. **`composer install --no-dev --optimize-autoloader`** を実行し、`vendor/` にランタイム依存（mPDF / Parsedown）だけを入れる。
+3. `wp-maintenance-audit-reporter/` ディレクトリにステージング（`.git` / `.github` / `tests/` / `phpunit.xml.dist` / `phpcs.xml.dist` / `.phpunit.result.cache` などを除外）し、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。
+4. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
+5. `gh release create` で GitHub Release を作成し、zip を添付。
 
-PR 向け CI はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回し、**リリース用ジョブだけ `--no-dev`** にする、という切り分けがよく使われます。
+PR 向け CI（**`.github/workflows/ci.yml`**）はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回します。
 
 ## ライセンス
 

@@ -1,8 +1,29 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.9.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.10 adds (Report fixes & release pipeline)
+
+- **`version_compare()` semantics** — Theme/plugin "latest version" comparison no longer relies on raw string inequality. When the installed version is **newer** than the WordPress.org directory response (likely a stale or partial API payload), the administrator-facing report prints `データが正しく取得できませんでした。` instead of mislabelling the row as "update available".
+- **De-duplicated "non-official plugin" message** — Administrator mail no longer emits both the checksum prose and the version-info fallback; a single `%s は非公式か、既に公開終了している可能性があります。` line is shown.
+- **Checksum file list indent** — Changed-file lines under "の以下のファイルに変更が見つかりました:" are now indented one wide-space level deeper (`　　　　`).
+- **Backup section hidden** — `# 【バックアップ状況】` is no longer emitted in the administrator mail body because backup status reporting is not yet implemented. Rendering and collection code is retained for future activation.
+- **CI workflow parse fix** — `.github/workflows/ci.yml` indentation switched from tabs to spaces (YAML 1.2 disallows tabs); GitHub Actions previously failed with "No jobs were run". `fail-fast: false` added to the matrix.
+- **Release pipeline** — New `.github/workflows/release.yml` triggered on `v*` tag push (or manual `workflow_dispatch`). The job verifies the tag matches the plugin header `Version:`, runs `composer install --no-dev --optimize-autoloader`, builds `wp-maintenance-audit-reporter.<version>.zip` (excluding `.git` / `.github` / `tests` / `phpunit.xml.dist` / `phpcs.xml.dist`), extracts the matching `## [version]` section from `CHANGELOG.md` as release notes, and publishes the GitHub Release with the zip attached.
+
+### Release procedure
+
+```bash
+# 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, CHANGELOG.md
+git commit -am "release: v0.10.0"
+git push origin main
+
+# 2. Tag and push (this triggers release.yml)
+git tag v0.10.0
+git push origin v0.10.0
+```
 
 ## What v0.9 adds (Security & reliability)
 
@@ -87,15 +108,17 @@ composer run phpcs
 composer run phpunit
 ```
 
-### Distribution ZIP (GitHub releases — planned)
+### Distribution ZIP (GitHub releases)
 
-When this repo is wired to GitHub, a sensible release pipeline is:
+Implemented as **`.github/workflows/release.yml`** (v0.10.0). Trigger: push of a `v*` tag (or manual `workflow_dispatch`).
 
-1. On tag push (or publishing a Release), run **`composer install --no-dev --optimize-autoloader`** so `vendor/` contains only runtime dependencies (including PDF libraries).
-2. Build an archive that **excludes** developer-only paths — for example **`tests/`**, **`.github/`**, **`phpunit.xml.dist`**, **`phpcs.xml.dist`**, and similar — using a **`.distignore`** file (many WordPress plugin deploy workflows honor this convention) or an explicit file list in the workflow.
-3. **Attach** the resulting ZIP to the GitHub Release (and/or publish to WordPress.org SVN when applicable).
+1. The tag is parsed and asserted to match the `Version:` header of `wp-maintenance-audit-reporter.php`. Mismatch fails the job.
+2. **`composer install --no-dev --optimize-autoloader`** is run so `vendor/` contains only runtime dependencies (mPDF / Parsedown).
+3. The plugin tree is staged into `wp-maintenance-audit-reporter/`, **excluding** `.git`, `.github`, `tests/`, `phpunit.xml.dist`, `phpcs.xml.dist`, `.phpunit.result.cache`, and similar dev paths, and zipped as `wp-maintenance-audit-reporter.<version>.zip`.
+4. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
+5. `gh release create` publishes the GitHub Release with the zip attached.
 
-Pull-request CI can keep using **`composer install`** (with dev dependencies) for PHPCS and PHPUnit; only the **release** job needs **`--no-dev`**.
+Pull-request CI continues to use **`composer install`** (dev deps) for PHPCS / PHPUnit via **`.github/workflows/ci.yml`**.
 
 ## License
 
