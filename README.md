@@ -1,8 +1,12 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.1**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.2**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v0.10.2 adds (Release trigger)
+
+- **Bare semver tags accepted** — `.github/workflows/release.yml` now triggers on both `v*` and bare numeric tags (`'v[0-9]*'` / `'[0-9]*'`). The project convention is bare semver (e.g. `0.10.2`), matching the WordPress.org Stable-tag style.
 
 ## What v0.10.1 adds (CI green)
 
@@ -21,12 +25,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, CHANGELOG.md
-git commit -am "release: v0.10.0"
+git commit -am "release: 0.10.2"
 git push origin main
 
-# 2. Tag and push (this triggers release.yml)
-git tag v0.10.0
-git push origin v0.10.0
+# 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
+git tag 0.10.2
+git push origin 0.10.2
+# (v-prefixed tags like v0.10.2 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)

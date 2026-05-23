@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.1**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.2**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v0.10.2 で変更されること（リリーストリガ）
+
+- **`v` 無しタグも受け付け** — `.github/workflows/release.yml` のトリガを `'v[0-9]*'` と `'[0-9]*'` の両方に拡張。本プロジェクトでは WordPress.org Stable tag の慣習に合わせ `v` 無し（例 `0.10.2`）でタグを打ちます。
 
 ## v0.10.1 で修正されること（CI を緑に）
 
@@ -23,12 +27,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / CHANGELOG.md を新バージョンに更新
-git commit -am "release: v0.10.0"
+git commit -am "release: 0.10.2"
 git push origin main
 
-# 2. タグを打って push（release.yml が起動）
-git tag v0.10.0
-git push origin v0.10.0
+# 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
+git tag 0.10.2
+git push origin 0.10.2
+# （v0.10.2 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）

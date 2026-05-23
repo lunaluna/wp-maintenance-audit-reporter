@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [0.10.2] - 2026-05-23
+
+### Changed
+
+- **Release trigger accepts bare semver tags** — `.github/workflows/release.yml` now matches both `v*` and bare numeric tags (`'v[0-9]*'` / `'[0-9]*'`). Convention in this project is **bare** tags (e.g. `0.10.2`) matching the WordPress.org Stable-tag style; the previous `'v*'`-only pattern silently dropped the `0.10.1` tag push without starting the workflow. The version-extraction step (`${TAG#v}`) already handles both forms.
+
 ## [0.10.1] - 2026-05-23
 
 ### Fixed
