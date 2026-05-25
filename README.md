@@ -1,8 +1,21 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v0.10.2**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC1 marks (Release candidate)
+
+- **Release candidate** — Promoted from the `0.x` development series after end-to-end testing of all major subsystems. No new features; the full feature set from v0.11.0 is unchanged.
+
+## What v0.11.0 adds (GitHub Releases update checker)
+
+- **`WPMAR_GitHub_Updater`** — The plugin now self-updates directly from GitHub Releases. It hooks into WordPress's standard plugin update pipeline:
+  - `pre_set_site_transient_update_plugins` — queries the GitHub API for the latest release and injects update metadata when a newer version is available, enabling the "update available" badge and one-click update in the plugins list.
+  - `plugins_api` — supplies version details and release notes to the "View version details" modal.
+  - `upgrader_process_complete` — clears the cached release data after this plugin is updated.
+- **Transient cache** — GitHub API responses are cached for 6 hours (`wpmar_github_release_cache`). Rate-limited or failed requests back off for 30 minutes to avoid hammering the API.
+- **Release asset preferred** — Uses the zip attached to the GitHub Release (built by `release.yml`) rather than the auto-generated zipball, so the inner directory name matches the plugin directory and WordPress's upgrader unpacks cleanly without requiring a rename step.
 
 ## What v0.10.2 adds (Release trigger)
 
@@ -25,13 +38,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, CHANGELOG.md
-git commit -am "release: 0.10.2"
+git commit -am "release: 1.0.0-RC1"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 0.10.2
-git push origin 0.10.2
-# (v-prefixed tags like v0.10.2 are also accepted.)
+git tag 1.0.0-RC1
+git push origin 1.0.0-RC1
+# (v-prefixed tags like v1.0.0-RC1 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)
@@ -90,7 +103,7 @@ WordPress/runtime target: **PHP 7.4+**.
 
 Composer dev tooling and **runtime libraries** (mPDF, Parsedown) for PDF and **client HTML mail**: **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP-only syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
 
-WordPress **6.0+**.
+WordPress **6.0+**. Tested up to **7.0**.
 
 ### Composer
 

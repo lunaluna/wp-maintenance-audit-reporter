@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC1] - 2026-05-26
+
+### Changed
+
+- **Release candidate** — Promoted from the `0.x` development series. No new features; marks the codebase as production-ready following successful end-to-end testing of all major subsystems: scheduled auditing, multisite network rollup, checksums, security ops, mail/PDF/CLI output, report storage, and the GitHub Releases update checker.
+
+## [0.11.0] - 2026-05-26
+
+### Added
+
+- **GitHub Releases update checker** (`WPMAR_GitHub_Updater`) — The plugin now self-updates directly from GitHub Releases without requiring WordPress.org listing.
+  - Hooks into `pre_set_site_transient_update_plugins`: fetches the latest release from the GitHub API and injects update metadata into the WordPress update transient when a newer version is available.
+  - Hooks into `plugins_api`: supplies plugin details (version, release notes, links) to the "View version details" modal in the plugins list.
+  - Hooks into `upgrader_process_complete`: clears the cached release data after this plugin is updated so the next check fetches fresh information.
+  - GitHub API responses are cached for **6 hours** via a WordPress transient (`wpmar_github_release_cache`) to stay within the unauthenticated rate limit. Failed or rate-limited requests back off for **30 minutes**.
+  - Prefers the explicitly uploaded release asset zip (produced by `release.yml`) over the GitHub auto-generated zipball, ensuring the zip's inner directory name matches the plugin directory and WordPress's upgrader unpacks cleanly.
+
 ## [0.10.2] - 2026-05-23
 
 ### Changed
