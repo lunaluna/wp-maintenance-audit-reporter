@@ -1,10 +1,18 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC1**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC2**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC2 の修正内容
+
+- **有効化時の fatal error** — `WPMAR_GitHub_Updater` のクラス定数（`const`）に WordPress のランタイム定数（`HOUR_IN_SECONDS` / `MINUTE_IN_SECONDS`）を使用していた問題を修正。PHP はクラス定数を WordPress 起動前のコンパイル時に評価するため fatal error が発生していた。リテラル整数（`DEFAULT_CACHE_TTL = 21600`、`DEFAULT_BACKOFF_TTL = 1800`）に変更。
+- **PHP 7.4 非互換** — PHP 8.0 以降でのみ使用できる `str_contains()` を `false !== strpos()` に置き換え。
+- **TTL のフィルター対応** — キャッシュ時間とバックオフ時間を `apply_filters()` 経由で上書き可能に:
+  - `wpmar_github_updater_cache_ttl`（デフォルト 21600 秒 / 6 時間）
+  - `wpmar_github_updater_backoff_ttl`（デフォルト 1800 秒 / 30 分）
 
 ## v1.0.0-RC1 について（リリース候補版）
 
@@ -40,13 +48,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / CHANGELOG.md を新バージョンに更新
-git commit -am "release: 1.0.0-RC1"
+git commit -am "release: 1.0.0-RC2"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 1.0.0-RC1
-git push origin 1.0.0-RC1
-# （v1.0.0-RC1 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC2
+git push origin 1.0.0-RC2
+# （v1.0.0-RC2 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
