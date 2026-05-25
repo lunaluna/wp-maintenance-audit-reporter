@@ -2,9 +2,9 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 6.7
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.10.2
+Stable tag: 1.0.0-RC1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
+**v1.0.0-RC1** is the release candidate, promoted from the `0.x` development series after end-to-end testing of all major subsystems. **v0.11.0** added a **GitHub Releases update checker**: the plugin now hooks into WordPress's standard update pipeline so new releases published on GitHub appear as available updates in the dashboard and can be applied via the one-click updater — no WordPress.org listing required. The GitHub API response is cached for 6 hours (`wpmar_github_release_cache` transient). **v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
 * **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
@@ -42,13 +42,19 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-Not yet. Treat as development until a stable release is tagged.
+v1.0.0-RC1 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC1 =
+* Release candidate. No new features; promoted from the `0.x` development series after end-to-end testing of all major subsystems (scheduled auditing, multisite network rollup, checksums, security ops, mail/PDF/CLI output, report storage, GitHub Releases update checker).
+
+= 0.11.0 =
+* Added: `WPMAR_GitHub_Updater` — GitHub Releases update checker. Hooks into `pre_set_site_transient_update_plugins` to inject update metadata when a newer release is available, `plugins_api` to populate the "View version details" modal, and `upgrader_process_complete` to clear the release cache after updating. API responses cached 6 h; rate-limit/error back-off 30 min. Prefers the uploaded release-asset zip over the auto-generated zipball for correct directory structure on unpack.
 
 = 0.10.2 =
 * Changed: release workflow trigger broadened to accept both `v*` and bare numeric tags (`'v[0-9]*'` / `'[0-9]*'`). The bare-semver convention (e.g. `0.10.2`) aligns with the WordPress.org Stable-tag style; the previous `'v*'`-only pattern silently dropped the `0.10.1` tag push without firing the release job.

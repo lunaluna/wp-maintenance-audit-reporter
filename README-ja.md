@@ -1,10 +1,23 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v0.10.2**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC1**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC1 について（リリース候補版）
+
+- **リリース候補版** — 主要なサブシステム全体のエンドツーエンドテストを経て `0.x` 開発シリーズから昇格。新機能なし。v0.11.0 時点の全機能をそのまま引き継ぎます。
+
+## v0.11.0 で追加されること（GitHub Releases 自動アップデート）
+
+- **`WPMAR_GitHub_Updater`** — WordPress.org への掲載なしに、GitHub Releases から直接プラグインを自動アップデートできるようになります。
+  - `pre_set_site_transient_update_plugins` フィルター — GitHub API で最新リリースを確認し、新バージョンがあれば WordPress のトランジェントに更新情報を注入。プラグイン一覧に「アップデートあり」バッジが表示され、ワンクリックで更新可能になります。
+  - `plugins_api` フィルター — 「バージョン x.x.x の詳細を表示」モーダルにバージョン情報・リリースノートを提供。
+  - `upgrader_process_complete` アクション — アップデート完了後にリリースキャッシュを削除し、次回チェック時に最新情報を取得。
+- **トランジェントキャッシュ** — GitHub API レスポンスを 6 時間キャッシュ（`wpmar_github_release_cache`）。エラー・レート制限時は 30 分バックオフ。
+- **リリースアセット優先** — `release.yml` が添付した zip を自動生成の zipball より優先して使用することで、展開後のディレクトリ名がプラグインフォルダと一致し、WordPress のアップデーターがリネームなしで正常に展開可能。
 
 ## v0.10.2 で変更されること（リリーストリガ）
 
@@ -27,13 +40,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / CHANGELOG.md を新バージョンに更新
-git commit -am "release: 0.10.2"
+git commit -am "release: 1.0.0-RC1"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 0.10.2
-git push origin 0.10.2
-# （v0.10.2 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC1
+git push origin 1.0.0-RC1
+# （v1.0.0-RC1 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
@@ -92,7 +105,7 @@ WordPress / 実行環境の目安: **PHP 7.4+**。
 
 Composer の開発ツールおよび **ランタイム依存**（mPDF / Parsedown／PDF および **クライアント向け HTML メール**）: CI およびローカルで `composer install` には **PHP 8.0+**。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
 
-WordPress **6.0+**。
+WordPress **6.0+**。動作確認済み: **7.0**。
 
 ### Composer
 
