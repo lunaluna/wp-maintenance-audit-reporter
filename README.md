@@ -1,8 +1,16 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC1**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC2**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC2 fixes
+
+- **Fatal error on activation** — `WPMAR_GitHub_Updater` used WordPress runtime constants (`HOUR_IN_SECONDS`, `MINUTE_IN_SECONDS`) in PHP class `const` declarations. PHP evaluates class constants at compile time, before WordPress is loaded, causing a fatal error. Replaced with literal integer defaults (`DEFAULT_CACHE_TTL = 21600`, `DEFAULT_BACKOFF_TTL = 1800`).
+- **PHP 7.4 incompatibility** — `str_contains()` is PHP 8.0+. Replaced with `false !== strpos()`.
+- **Filterable TTL values** — Cache and back-off durations are now exposed via `apply_filters()` so they can be overridden at runtime without touching plugin source:
+  - `wpmar_github_updater_cache_ttl` (default 21600 s / 6 h)
+  - `wpmar_github_updater_backoff_ttl` (default 1800 s / 30 min)
 
 ## What v1.0.0-RC1 marks (Release candidate)
 
@@ -38,13 +46,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, CHANGELOG.md
-git commit -am "release: 1.0.0-RC1"
+git commit -am "release: 1.0.0-RC2"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 1.0.0-RC1
-git push origin 1.0.0-RC1
-# (v-prefixed tags like v1.0.0-RC1 are also accepted.)
+git tag 1.0.0-RC2
+git push origin 1.0.0-RC2
+# (v-prefixed tags like v1.0.0-RC2 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)

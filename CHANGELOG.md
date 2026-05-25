@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC2] - 2026-05-26
+
+### Fixed
+
+- **`WPMAR_GitHub_Updater` fatal error on activation** — Class constants (`const`) in PHP must be compile-time expressions. `HOUR_IN_SECONDS` and `MINUTE_IN_SECONDS` are WordPress runtime constants defined via `define()` and cannot be used in `const` declarations; doing so triggers a fatal error when the file is parsed. Replaced with literal integer defaults (`DEFAULT_CACHE_TTL = 21600`, `DEFAULT_BACKOFF_TTL = 1800`).
+- **`str_contains()` incompatibility** — `str_contains()` requires PHP 8.0+; the plugin declares PHP 7.4 as the minimum. Replaced with `false !== strpos()`.
+
+### Changed
+
+- **Filterable TTL values** — Cache and back-off durations are now returned by `get_cache_ttl()` / `get_backoff_ttl()` private static methods that pass through `apply_filters()`, allowing `functions.php` or a mu-plugin to override them at runtime:
+  - `wpmar_github_updater_cache_ttl` (default: 21600 s / 6 h)
+  - `wpmar_github_updater_backoff_ttl` (default: 1800 s / 30 min)
+
 ## [1.0.0-RC1] - 2026-05-26
 
 ### Changed
