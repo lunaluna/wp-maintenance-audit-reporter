@@ -24,11 +24,11 @@ class WPMAR_GitHub_Updater {
 	/** Transient key used to cache the latest release response. */
 	private const CACHE_KEY = 'wpmar_github_release_cache';
 
-	/** How long to keep a successful API response cached (seconds). */
-	private const CACHE_TTL = 6 * HOUR_IN_SECONDS;
+	/** Default cache TTL for a successful API response (seconds). 6 hours. */
+	private const DEFAULT_CACHE_TTL = 21600;
 
-	/** How long to back off after a failed / rate-limited request (seconds). */
-	private const BACKOFF_TTL = 30 * MINUTE_IN_SECONDS;
+	/** Default back-off TTL after a failed / rate-limited request (seconds). 30 minutes. */
+	private const DEFAULT_BACKOFF_TTL = 1800;
 
 	/**
 	 * Registers the three WordPress hooks needed for update integration.
@@ -179,26 +179,26 @@ class WPMAR_GitHub_Updater {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			set_transient( self::CACHE_KEY, array(), self::BACKOFF_TTL );
+			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$status = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== (int) $status ) {
 			// 403/429 = rate limit; back off longer to avoid hammering the API.
-			set_transient( self::CACHE_KEY, array(), self::BACKOFF_TTL );
+			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( ! is_array( $body ) || empty( $body['tag_name'] ) ) {
-			set_transient( self::CACHE_KEY, array(), self::BACKOFF_TTL );
+			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$zip_url = self::extract_zip_url( $body );
 		if ( ! $zip_url ) {
-			set_transient( self::CACHE_KEY, array(), self::BACKOFF_TTL );
+			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
@@ -209,7 +209,7 @@ class WPMAR_GitHub_Updater {
 			'published_at' => $body['published_at'] ?? '',
 		);
 
-		set_transient( self::CACHE_KEY, $release, self::CACHE_TTL );
+		set_transient( self::CACHE_KEY, $release, self::get_cache_ttl() );
 
 		return $release;
 	}
@@ -231,7 +231,7 @@ class WPMAR_GitHub_Updater {
 				if (
 					isset( $asset['browser_download_url'] ) &&
 					isset( $asset['content_type'] ) &&
-					str_contains( (string) $asset['content_type'], 'zip' )
+					false !== strpos( (string) $asset['content_type'], 'zip' )
 				) {
 					return $asset['browser_download_url'];
 				}
@@ -264,6 +264,30 @@ class WPMAR_GitHub_Updater {
 			'requires_php'  => '7.4',
 			'compatibility' => new \stdClass(),
 		);
+	}
+
+	/**
+	 * Returns the cache TTL for a successful API response in seconds.
+	 *
+	 * Override with the `wpmar_github_updater_cache_ttl` filter, e.g.:
+	 *   add_filter( 'wpmar_github_updater_cache_ttl', fn() => HOUR_IN_SECONDS );
+	 *
+	 * @return int
+	 */
+	private static function get_cache_ttl() {
+		return (int) apply_filters( 'wpmar_github_updater_cache_ttl', self::DEFAULT_CACHE_TTL );
+	}
+
+	/**
+	 * Returns the back-off TTL after a failed or rate-limited request in seconds.
+	 *
+	 * Override with the `wpmar_github_updater_backoff_ttl` filter, e.g.:
+	 *   add_filter( 'wpmar_github_updater_backoff_ttl', fn() => 5 * MINUTE_IN_SECONDS );
+	 *
+	 * @return int
+	 */
+	private static function get_backoff_ttl() {
+		return (int) apply_filters( 'wpmar_github_updater_backoff_ttl', self::DEFAULT_BACKOFF_TTL );
 	}
 
 	/**
