@@ -79,12 +79,20 @@ jobs:
             --exclude='phpcs.xml.dist' \
             --exclude='tests' \
             --exclude='node_modules' \
+            --exclude='vendor' \
+            --exclude='vendor-pdf.zip' \
             ./ "$STAGE/${SLUG}/"
           ZIP_NAME="${SLUG}.${{ steps.tag.outputs.version }}.zip"
           (cd "$STAGE" && zip -rq "$ZIP_NAME" "${SLUG}")
           mv "$STAGE/$ZIP_NAME" "$GITHUB_WORKSPACE/$ZIP_NAME"
           echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create vendor-pdf.zip
+        id: vendor_zip
+        run: |
+          zip -rq -X vendor-pdf.zip vendor/
+          echo "vendor_zip_path=$GITHUB_WORKSPACE/vendor-pdf.zip" >> "$GITHUB_OUTPUT"
 
       - name: Extract release notes from CHANGELOG.md
         id: notes
@@ -112,5 +120,6 @@ jobs:
         run: |
           gh release create "${{ steps.tag.outputs.tag }}" \
             "${{ steps.zip.outputs.zip_path }}" \
+            "${{ steps.vendor_zip.outputs.vendor_zip_path }}#vendor-pdf.zip" \
             --title "${{ steps.tag.outputs.tag }}" \
             --notes-file "${{ steps.notes.outputs.notes_path }}"
