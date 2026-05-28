@@ -31,7 +31,7 @@ class WPMAR_PDF_Installer {
 	 * @return bool
 	 */
 	public static function is_installed() {
-		return WPMAR_PDF_Writer::is_available();
+		return (bool) apply_filters( 'wpmar_pdf_is_installed', WPMAR_PDF_Writer::is_available() );
 	}
 
 	/**
@@ -172,7 +172,7 @@ class WPMAR_PDF_Installer {
 				</p>
 			<?php else : ?>
 				<p>
-					<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すと GitHub Releases からダウンロードし、プラグインの vendor/ ディレクトリに自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
+					<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、このプラグインの vendor/ ディレクトリ配下に自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
 				<p>
 					<button type="button" class="button button-primary" id="wpmar-install-pdf-btn">
