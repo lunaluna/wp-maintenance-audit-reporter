@@ -203,7 +203,7 @@ class WPMAR_Reports_Page {
 		}
 
 		if ( '' === $rel ) {
-			wp_die( esc_html__( 'PDF を出力できません。クライアント向けのレポート本文がないため PDF を生成できません（プラグイン更新前のデータなど）、または mPDF が利用できません。監査を実行して記録した後に試すか、composer install を確認してください。', 'wp-maintenance-audit-reporter' ) );
+			wp_die( esc_html__( 'PDF を出力できません。クライアント向けのレポート本文がないか、PDF ライブラリがインストールされていません。監査を実行した後に試すか、管理画面の「PDF ライブラリ」設定からライブラリをインストールしてください。', 'wp-maintenance-audit-reporter' ) );
 		}
 
 		$abs = WPMAR_MD_Writer::absolute_path_from_upload_relative( $rel );

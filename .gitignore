@@ -27,3 +27,6 @@ Thumbs.db
 coverage/
 *.clover
 build/
+
+# PDF vendor bundle (build artefact; uploaded to GitHub Releases)
+/vendor-pdf.zip

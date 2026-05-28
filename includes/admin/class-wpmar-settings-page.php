@@ -347,6 +347,8 @@ class WPMAR_Settings_Page {
 				</p>
 			</form>
 
+			<?php WPMAR_PDF_Installer::render_panel(); ?>
+
 			<div
 				id="wpmar-busy-overlay"
 				class="wpmar-busy-overlay"

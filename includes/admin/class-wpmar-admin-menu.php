@@ -32,6 +32,8 @@ class WPMAR_Admin_Menu {
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'strip_legacy_notice_query_arg' ), 2 );
 		add_action( 'admin_init', array( __CLASS__, 'handle_post' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
+
+		WPMAR_PDF_Installer::register_hooks();
 	}
 
 	/**

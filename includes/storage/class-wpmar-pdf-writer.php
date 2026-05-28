@@ -65,7 +65,7 @@ class WPMAR_PDF_Writer {
 		if ( ! self::is_available() ) {
 			return new WP_Error(
 				'wpmar_pdf_missing_libs',
-				__( 'PDF ライブラリが読み込めません。プラグイン直下で composer install を実行してください。', 'wp-maintenance-audit-reporter' )
+				__( 'PDF ライブラリが読み込まれていません。管理画面の「PDF ライブラリ」設定からインストールしてください。', 'wp-maintenance-audit-reporter' )
 			);
 		}
 
