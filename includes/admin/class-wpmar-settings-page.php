@@ -314,6 +314,8 @@ class WPMAR_Settings_Page {
 					</table>
 				</div>
 
+				<?php WPMAR_PDF_Installer::render_panel(); ?>
+
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( '検証ツール', 'wp-maintenance-audit-reporter' ); ?></h2>
 					<p>
@@ -346,8 +348,6 @@ class WPMAR_Settings_Page {
 					<?php endif; ?>
 				</p>
 			</form>
-
-			<?php WPMAR_PDF_Installer::render_panel(); ?>
 
 			<div
 				id="wpmar-busy-overlay"
