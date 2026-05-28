@@ -43,7 +43,7 @@ class WPMAR_PDF_Installer {
 	public static function get_download_url() {
 		return (string) apply_filters(
 			'wpmar_pdf_vendor_zip_url',
-			'https://github.com/lunaluna/wp-maintenance-audit-reporter/releases/download/v' . WPMAR_VERSION . '/vendor-pdf.zip'
+			'https://github.com/lunaluna/wp-maintenance-audit-reporter/releases/download/' . WPMAR_VERSION . '/vendor-pdf.zip'
 		);
 	}
 
