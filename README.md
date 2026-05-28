@@ -1,8 +1,13 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC3**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC4**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC4 fixes
+
+- **`vendor-pdf.zip` 404 on mPDF install** — The download URL was constructed with a `v` prefix (`v1.0.0-RC3`) but release tags are bare semver (`1.0.0-RC3`), causing a 404 when the admin clicked "PDF ライブラリをインストール". Removed the `v` prefix from the URL in `WPMAR_PDF_Installer::get_download_url()`.
+- **`build-vendor-pdf-zip.sh` incomplete zip on macOS** — `mktemp -d` returns a symlinked path (`/var/folders/…`) on macOS; `zip` could not resolve files through it, producing a truncated archive. Added `realpath` to resolve the path before use.
 
 ## What v1.0.0-RC3 adds (on-demand PDF library install)
 
@@ -53,13 +58,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, readme*.txt, README*.md
-git commit -am "release: 1.0.0-RC3"
+git commit -am "release: 1.0.0-RC4"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 1.0.0-RC3
-git push origin 1.0.0-RC3
-# (v-prefixed tags like v1.0.0-RC3 are also accepted.)
+git tag 1.0.0-RC4
+git push origin 1.0.0-RC4
+# (v-prefixed tags like v1.0.0-RC4 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC4] - 2026-05-29
+
+### Fixed
+
+- **`vendor-pdf.zip` 404 on mPDF install** — The download URL was constructed with a `v` prefix (`v1.0.0-RC3`) but release tags are bare semver (`1.0.0-RC3`), causing a 404 when the admin clicked "PDF ライブラリをインストール". Removed the `v` prefix from the URL in `WPMAR_PDF_Installer::get_download_url()`.
+- **`build-vendor-pdf-zip.sh` incomplete zip on macOS** — `mktemp -d` returns a symlinked path (`/var/folders/…`) on macOS; `zip` could not resolve files through it, producing a truncated archive. Added `realpath` to resolve the path before use.
+
+## [1.0.0-RC3] - 2026-05-28
+
+### Added
+
+- **`WPMAR_PDF_Installer`** — Install the mPDF vendor bundle directly from the plugin settings page via a one-click button that downloads `vendor-pdf.zip` from GitHub Releases and extracts it into `vendor/` using `ZipArchive`.
+- **`bin/build-vendor-pdf-zip.sh`** — Build script that installs production-only Composer deps in a temp directory and packages them as `vendor-pdf.zip` for upload to GitHub Releases.
+- **Release pipeline update** — `release.yml` now excludes `vendor/` from the plugin zip and automatically builds and attaches `vendor-pdf.zip` as a separate release asset.
+
 ## [1.0.0-RC2] - 2026-05-26
 
 ### Fixed

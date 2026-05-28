@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC3
+Stable tag: 1.0.0-RC4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,17 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC3 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC4 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC4 =
+* Fixed: `vendor-pdf.zip` 404 on mPDF install — download URL was constructed with a `v` prefix (`v1.0.0-RC3`) but release tags are bare semver (`1.0.0-RC3`). Removed the `v` prefix from `WPMAR_PDF_Installer::get_download_url()`.
+* Fixed: `bin/build-vendor-pdf-zip.sh` produced a truncated zip on macOS — `mktemp -d` returns a symlinked path; added `realpath` to resolve it before calling `zip`.
 
 = 1.0.0-RC3 =
 * Added: `WPMAR_PDF_Installer` — install the mPDF vendor bundle on-demand from the plugin settings page. A button in the new "PDF ライブラリ（mPDF）" panel downloads `vendor-pdf.zip` from GitHub Releases and extracts it into the plugin's `vendor/` directory. Removes the previous requirement to run `composer install` on the server and resolves upload failures caused by the 30 MB `upload_max_filesize` / `post_max_size` limit.

@@ -1,10 +1,15 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC3**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC4**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC4 の修正内容
+
+- **mPDF インストール時の `vendor-pdf.zip` 404** — ダウンロード URL に `v` プレフィックスを付けていたが（`v1.0.0-RC3`）、リリースタグは `v` なし（`1.0.0-RC3`）のため 404 になっていた。`WPMAR_PDF_Installer::get_download_url()` の URL から `v` を除去。
+- **macOS での `build-vendor-pdf-zip.sh` 不完全 zip** — `mktemp -d` が `/var/folders/…` というシンボリックリンク経由のパスを返すため、`zip` がファイルを解決できず不完全なアーカイブが生成されていた。`realpath` を追加して解決。
 
 ## v1.0.0-RC3 で追加されること（PDF ライブラリのオンデマンドインストール）
 
@@ -55,13 +60,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / readme*.txt / README*.md を新バージョンに更新
-git commit -am "release: 1.0.0-RC3"
+git commit -am "release: 1.0.0-RC4"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 1.0.0-RC3
-git push origin 1.0.0-RC3
-# （v1.0.0-RC3 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC4
+git push origin 1.0.0-RC4
+# （v1.0.0-RC4 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
