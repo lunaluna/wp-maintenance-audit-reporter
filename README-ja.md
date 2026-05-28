@@ -1,10 +1,17 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC2**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC3**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC3 で追加されること（PDF ライブラリのオンデマンドインストール）
+
+- **`WPMAR_PDF_Installer`** — 管理画面の設定ページから mPDF ベンダーバンドルをオンデマンドでインストールできます。新設の「PDF ライブラリ（mPDF）」パネルにインストール状況を表示し、ボタンを押すと GitHub Releases から `vendor-pdf.zip` をダウンロードしてプラグインの `vendor/` ディレクトリに `ZipArchive` で展開します。サーバー上での手動 `composer install` が不要になり、`upload_max_filesize` / `post_max_size` の 30 MB 制限でアップロードが失敗していた問題を解消します。
+- **`bin/build-vendor-pdf-zip.sh`** — プロダクション依存のみを一時ディレクトリにインストールして `vendor-pdf.zip` としてパッケージ化するビルドスクリプト。
+- **リリースパイプラインの更新** — `release.yml` がプラグイン zip から `vendor/` を除外し、`vendor-pdf.zip` を別アセットとして自動ビルド・添付。
+- **phpcs シム修正** — `.vscode/bin/phpcs` が既知のパスから PHP バイナリを検索し、常に `php phpcs_script` 形式で実行することで VS Code 拡張機能ホストでの `env: php: No such file or directory` エラーを解消。
 
 ## v1.0.0-RC2 の修正内容
 
@@ -47,14 +54,14 @@ English: [README.md](README.md).
 ### リリース手順
 
 ```bash
-# 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / CHANGELOG.md を新バージョンに更新
-git commit -am "release: 1.0.0-RC2"
+# 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / readme*.txt / README*.md を新バージョンに更新
+git commit -am "release: 1.0.0-RC3"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 1.0.0-RC2
-git push origin 1.0.0-RC2
-# （v1.0.0-RC2 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC3
+git push origin 1.0.0-RC3
+# （v1.0.0-RC3 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
@@ -89,7 +96,7 @@ git push origin 1.0.0-RC2
 
 ## v0.4 で追加されること
 
-- **PDF（クライアント向け）** — 監査実行時に PDF を `uploads/wpmar/pdf/` へ保存（mPDF / Parsedown。プラグイン直下で `composer install`）。PDF は保存済みの **クライアント向け Markdown（`body_client_md`）** をソースにします。レポート詳細画面のプレビューは **管理者向け Markdown（`body_md`）** です。**設定・実行** で ON/OFF。
+- **PDF（クライアント向け）** — 監査実行時に PDF を `uploads/wpmar/pdf/` へ保存（mPDF / Parsedown）。設定ページからオンデマンドで PDF ライブラリをインストール可能（サーバーでの `composer install` 不要）。PDF は保存済みの **クライアント向け Markdown（`body_client_md`）** をソースにします。レポート詳細画面のプレビューは **管理者向け Markdown（`body_md`）** です。**設定・実行** で ON/OFF。
 - **ZIP 一括ダウンロード** — **レポート** 一覧で行を選び、一括操作「ZIP 一括ダウンロード」で **管理者向け** `.md` と保存済み **クライアント向け** `.pdf` を ZIP 取得。行アクション・詳細からも Markdown（管理者向け）／PDF（クライアント向け）を個別ダウンロード。
 - **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`。`markdown` は **管理者向け** 本文、`pdf` は **クライアント向け**（保存済みクライアント向け Markdown がソース）。`--file=<path>` でファイルへ書き出し可能（他プラグインが CLI bootstrap で Notice を出すときの PDF 取得に有用）。
 - **管理画面の案内** — **設定・実行** と **レポート** で、レポート行もスナップショット行もまだ無いときに案内を表示。行削除・一括削除は **確認ダイアログなし** でそのまま実行されます。
@@ -145,10 +152,11 @@ composer run phpunit
 v0.10.0 で **`.github/workflows/release.yml`** として実装済み。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。
 
 1. タグを解析し、`wp-maintenance-audit-reporter.php` の `Version:` ヘッダと一致するか検証。一致しなければジョブが失敗。
-2. **`composer install --no-dev --optimize-autoloader`** を実行し、`vendor/` にランタイム依存（mPDF / Parsedown）だけを入れる。
-3. `wp-maintenance-audit-reporter/` ディレクトリにステージング（`.git` / `.github` / `tests/` / `phpunit.xml.dist` / `phpcs.xml.dist` / `.phpunit.result.cache` などを除外）し、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。
-4. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
-5. `gh release create` で GitHub Release を作成し、zip を添付。
+2. **`composer install --no-dev --optimize-autoloader`** を実行してプロダクション依存をインストール。
+3. `wp-maintenance-audit-reporter/` ディレクトリにステージング（`.git` / `.github` / `tests/` / **`vendor/`** / `phpunit.xml.dist` / `phpcs.xml.dist` / `.phpunit.result.cache` などを除外）し、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。
+4. インストール済みの `vendor/` から **`vendor-pdf.zip`** を別途作成し、管理画面からのオンデマンドインストール用の追加アセットとして添付。
+5. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
+6. `gh release create` で GitHub Release を作成し、両 zip を添付。
 
 PR 向け CI（**`.github/workflows/ci.yml`**）はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回します。
 
