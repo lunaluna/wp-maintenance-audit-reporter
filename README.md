@@ -1,8 +1,15 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC2**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC3**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC3 adds (on-demand PDF library install)
+
+- **`WPMAR_PDF_Installer`** — Install the mPDF vendor bundle directly from the plugin settings page. The new **"PDF ライブラリ（mPDF）"** panel shows installation status and offers a one-click install button that downloads `vendor-pdf.zip` from GitHub Releases and extracts it into the plugin's `vendor/` directory via `ZipArchive`. Eliminates the previous requirement to run `composer install` on the server and resolves 30 MB `upload_max_filesize` / `post_max_size` upload failures.
+- **`bin/build-vendor-pdf-zip.sh`** — Build script that installs production-only Composer deps in a temp directory and packages them as `vendor-pdf.zip` for upload to GitHub Releases.
+- **Release pipeline update** — `release.yml` now excludes `vendor/` from the plugin zip and automatically builds and attaches `vendor-pdf.zip` as a separate release asset.
+- **phpcs shim fix** — `.vscode/bin/phpcs` now locates PHP from known paths (`/opt/homebrew/bin/php`, etc.) and always invokes phpcs via `php phpcs_script`, avoiding `env: php: No such file or directory` in the VS Code extension host.
 
 ## What v1.0.0-RC2 fixes
 
@@ -45,14 +52,14 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 ### Release procedure
 
 ```bash
-# 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, CHANGELOG.md
-git commit -am "release: 1.0.0-RC2"
+# 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, readme*.txt, README*.md
+git commit -am "release: 1.0.0-RC3"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 1.0.0-RC2
-git push origin 1.0.0-RC2
-# (v-prefixed tags like v1.0.0-RC2 are also accepted.)
+git tag 1.0.0-RC3
+git push origin 1.0.0-RC3
+# (v-prefixed tags like v1.0.0-RC3 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)
@@ -87,7 +94,7 @@ git push origin 1.0.0-RC2
 
 ## What v0.4 adds
 
-- **PDF export (client-facing)** — On each audit run when enabled, writes `uploads/wpmar/pdf/*.pdf` using **mPDF** + **Parsedown** (`composer install` in the plugin directory). PDFs are rendered from stored **client-facing** Markdown (`body_client_md`). The report detail preview shows the **administrator-facing** Markdown body (`body_md`). Toggle under **設定・実行**.
+- **PDF export (client-facing)** — On each audit run when enabled, writes `uploads/wpmar/pdf/*.pdf` using **mPDF** + **Parsedown**. Install the PDF library on-demand via the settings page (no `composer install` needed on the server). PDFs are rendered from stored **client-facing** Markdown (`body_client_md`). The report detail preview shows the **administrator-facing** Markdown body (`body_md`). Toggle under **設定・実行**.
 - **ZIP bulk download** — On **レポート**, select rows and use bulk action **ZIP 一括ダウンロード** to fetch **administrator-facing** `.md` files and any saved **client-facing** `.pdf` peers. Row actions and the detail screen expose Markdown **(administrator-facing)** / PDF **(client-facing)** downloads.
 - **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf` streams to STDOUT (`markdown` = **administrator-facing** body, `pdf` = **client-facing**); pass `--file=<path>` to write the artefact to disk (recommended for PDF when another plugin emits bootstrap notices on CLI).
 - **Admin UX** — Informational notice on **設定・実行** and **レポート** when both report rows and snapshot rows are empty. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
@@ -143,10 +150,11 @@ composer run phpunit
 Implemented as **`.github/workflows/release.yml`** (v0.10.0). Trigger: push of a `v*` tag (or manual `workflow_dispatch`).
 
 1. The tag is parsed and asserted to match the `Version:` header of `wp-maintenance-audit-reporter.php`. Mismatch fails the job.
-2. **`composer install --no-dev --optimize-autoloader`** is run so `vendor/` contains only runtime dependencies (mPDF / Parsedown).
-3. The plugin tree is staged into `wp-maintenance-audit-reporter/`, **excluding** `.git`, `.github`, `tests/`, `phpunit.xml.dist`, `phpcs.xml.dist`, `.phpunit.result.cache`, and similar dev paths, and zipped as `wp-maintenance-audit-reporter.<version>.zip`.
-4. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
-5. `gh release create` publishes the GitHub Release with the zip attached.
+2. **`composer install --no-dev --optimize-autoloader`** is run to install production dependencies.
+3. The plugin tree is staged into `wp-maintenance-audit-reporter/`, **excluding** `.git`, `.github`, `tests/`, `vendor/`, `phpunit.xml.dist`, `phpcs.xml.dist`, `.phpunit.result.cache`, and similar dev paths, and zipped as `wp-maintenance-audit-reporter.<version>.zip`.
+4. A separate **`vendor-pdf.zip`** is created from the installed `vendor/` directory and attached to the release as an additional asset for on-demand installation via the admin UI.
+5. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
+6. `gh release create` publishes the GitHub Release with both zips attached.
 
 Pull-request CI continues to use **`composer install`** (dev deps) for PHPCS / PHPUnit via **`.github/workflows/ci.yml`**.
 

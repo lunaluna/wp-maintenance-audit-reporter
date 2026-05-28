@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC2
+Stable tag: 1.0.0-RC3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,10 +12,10 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v1.0.0-RC2** is the release candidate, promoted from the `0.x` development series after end-to-end testing of all major subsystems. **v0.11.0** added a **GitHub Releases update checker**: the plugin now hooks into WordPress's standard update pipeline so new releases published on GitHub appear as available updates in the dashboard and can be applied via the one-click updater — no WordPress.org listing required. The GitHub API response is cached for 6 hours (`wpmar_github_release_cache` transient). **v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
+**v1.0.0-RC3** is the release candidate, promoted from the `0.x` development series after end-to-end testing of all major subsystems. **v0.11.0** added a **GitHub Releases update checker**: the plugin now hooks into WordPress's standard update pipeline so new releases published on GitHub appear as available updates in the dashboard and can be applied via the one-click updater — no WordPress.org listing required. The GitHub API response is cached for 6 hours (`wpmar_github_release_cache` transient). **v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
 
 * **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
-* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Requires `composer install` for mPDF/Parsedown at runtime.
+* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Install the PDF library on-demand via the **"PDF ライブラリ（mPDF）"** panel in the settings page.
 * **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
 * **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
 * **Empty storage notice** — On **設定・実行** and **レポート**, an info notice when there are no report rows and no snapshot rows yet.
@@ -36,19 +36,26 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 1. Upload the plugin folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu in WordPress
-3. From the plugin directory, run **`composer install --no-dev`** before distribution so `vendor/` includes **Parsedown/mPDF** (required for PDF export and client HTML mail). Developers may use full `composer install` for PHPCS/PHPUnit (see README.md).
+3. If PDF output is needed, click **"PDF ライブラリをインストール"** in the **"PDF ライブラリ（mPDF）"** panel on the settings page. The plugin downloads and extracts `vendor-pdf.zip` (~94 MB) from GitHub Releases automatically.
 
 == Frequently Asked Questions ==
 
 = Is this production-ready? =
 
-v1.0.0-RC2 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC3 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC3 =
+* Added: `WPMAR_PDF_Installer` — install the mPDF vendor bundle on-demand from the plugin settings page. A button in the new "PDF ライブラリ（mPDF）" panel downloads `vendor-pdf.zip` from GitHub Releases and extracts it into the plugin's `vendor/` directory. Removes the previous requirement to run `composer install` on the server and resolves upload failures caused by the 30 MB `upload_max_filesize` / `post_max_size` limit.
+* Added: `bin/build-vendor-pdf-zip.sh` — local build script that runs `composer install --no-dev` in a temp directory and packages `vendor/` as `vendor-pdf.zip` for upload to GitHub Releases.
+* Changed: `.github/workflows/release.yml` — plugin zip now excludes `vendor/`; a separate `vendor-pdf.zip` asset is built and attached to the GitHub Release automatically.
+* Changed: Installation no longer requires manual `composer install`. PDF library can be installed via the admin UI when needed.
+* Fixed: `.vscode/bin/phpcs` shim — resolves `env: php: No such file or directory` in the VS Code extension host by locating the PHP binary from known paths and always invoking phpcs as `php phpcs_script` rather than relying on the `#!/usr/bin/env php` shebang.
 
 = 1.0.0-RC2 =
 * Fixed: `WPMAR_GitHub_Updater` — fatal error on plugin activation caused by PHP class `const` declarations using WordPress runtime constants (`HOUR_IN_SECONDS`, `MINUTE_IN_SECONDS`). Replaced with literal integer defaults.
