@@ -15,6 +15,9 @@ PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN_FILE="${PLUGIN_DIR}/wp-maintenance-audit-reporter.php"
 OUT_ZIP="${PLUGIN_DIR}/vendor-pdf.zip"
 TMP_DIR="$(mktemp -d)"
+# Resolve symlinks (macOS /var/folders → /private/var/folders) so that zip
+# can traverse the directory without "No such file or directory" warnings.
+TMP_DIR="$(realpath "$TMP_DIR")"
 
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
