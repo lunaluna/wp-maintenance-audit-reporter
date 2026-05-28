@@ -64,6 +64,8 @@ rsync -a \
   --exclude='tests' \
   --exclude='node_modules' \
   --exclude='bin' \
+  --exclude='vendor' \
+  --exclude='vendor-pdf.zip' \
   ./ "${STAGE}/${SLUG}/"
 
 # ---------------------------------------------------------------------------
