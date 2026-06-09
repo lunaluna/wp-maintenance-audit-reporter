@@ -309,6 +309,11 @@ class WPMAR_Settings_Page {
 									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
 									<?php esc_html_e( '実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
+								<?php if ( ! WPMAR_PDF_Installer::is_installed() ) : ?>
+									<p class="description" style="color:#996800;margin-top:4px;">
+										<?php esc_html_e( 'PDF ライブラリが未インストールのため、この設定は現在機能しません。下の「PDF ライブラリ（mPDF）」セクションからインストールしてください。', 'wp-maintenance-audit-reporter' ); ?>
+									</p>
+								<?php endif; ?>
 							</td>
 						</tr>
 					</table>
