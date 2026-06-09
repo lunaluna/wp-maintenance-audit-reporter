@@ -334,6 +334,9 @@ class WPMAR_PDF_Installer {
 					);
 					?>
 				</p>
+				<p class="description">
+					<?php esc_html_e( 'PDF ライブラリがインストールできない場合でも、クライアント向けレポートをマークダウン形式でダウンロードできます。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
 				<div id="wpmar-manual-upload-wrap" style="display:none;margin-top:1.5em;padding:1em;background:#fff8e1;border-left:4px solid #f0b849;">
 					<p><strong><?php esc_html_e( '手動インストール', 'wp-maintenance-audit-reporter' ); ?></strong></p>
 					<p class="description">
