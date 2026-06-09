@@ -14,7 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class WPMAR_PDF_Installer {
 
-	const AJAX_ACTION = 'wpmar_install_pdf_library';
+	const AJAX_ACTION    = 'wpmar_install_pdf_library';
+	const AJAX_PREFLIGHT = 'wpmar_pdf_preflight';
 
 	/**
 	 * Registers Ajax hooks.
@@ -22,7 +23,8 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function register_hooks() {
-		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_ajax' ) );
+		add_action( 'wp_ajax_' . self::AJAX_ACTION,    array( __CLASS__, 'handle_ajax' ) );
+		add_action( 'wp_ajax_' . self::AJAX_PREFLIGHT, array( __CLASS__, 'handle_preflight_ajax' ) );
 	}
 
 	/**
@@ -45,6 +47,30 @@ class WPMAR_PDF_Installer {
 			'wpmar_pdf_vendor_zip_url',
 			'https://github.com/lunaluna/wp-maintenance-audit-reporter/releases/download/' . WPMAR_VERSION . '/vendor-pdf.zip'
 		);
+	}
+
+	/**
+	 * Ajax endpoint: checks write permissions and disk space before downloading.
+	 *
+	 * @return void
+	 */
+	public static function handle_preflight_ajax() {
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error(
+				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
+				403
+			);
+		}
+
+		$result = self::preflight_check();
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+		}
+
+		wp_send_json_success();
 	}
 
 	/**
@@ -71,6 +97,43 @@ class WPMAR_PDF_Installer {
 		wp_send_json_success(
 			array( 'message' => __( 'PDF ライブラリのインストールが完了しました。ページを再読み込みします…', 'wp-maintenance-audit-reporter' ) )
 		);
+	}
+
+	/**
+	 * Checks whether the server environment allows writing and has enough free space.
+	 * Required free space: 150 MB (zip ~30 MB + extracted ~94 MB + margin).
+	 *
+	 * @return true|WP_Error
+	 */
+	private static function preflight_check() {
+		$target = WPMAR_PLUGIN_DIR;
+
+		if ( ! is_writable( $target ) ) {
+			return new WP_Error(
+				'wpmar_not_writable',
+				sprintf(
+					/* translators: %s: absolute path to the plugin directory */
+					__( 'ディレクトリへの書き込み権限がありません: %s。FTP またはサーバー管理画面でディレクトリのパーミッションを 755 に変更してください。', 'wp-maintenance-audit-reporter' ),
+					esc_html( $target )
+				)
+			);
+		}
+
+		$required = 150 * 1024 * 1024; // 150 MB
+		$free     = function_exists( 'disk_free_space' ) ? disk_free_space( $target ) : false;
+		if ( false !== $free && $free < $required ) {
+			return new WP_Error(
+				'wpmar_disk_full',
+				sprintf(
+					/* translators: 1: required size, 2: current free size */
+					__( 'ディスクの空き容量が不足しています（必要: %1$s 以上、現在の空き: %2$s）。不要なファイルを削除してから再試行してください。', 'wp-maintenance-audit-reporter' ),
+					size_format( $required ),
+					size_format( $free )
+				)
+			);
+		}
+
+		return true;
 	}
 
 	/**
@@ -206,6 +269,7 @@ class WPMAR_PDF_Installer {
 	private static function render_install_script() {
 		$nonce    = wp_create_nonce( 'wpmar_pdf_installer' );
 		$messages = array(
+			'checking'    => __( '環境を確認中…', 'wp-maintenance-audit-reporter' ),
 			'downloading' => __( 'ダウンロード中… しばらくお待ちください（数分かかる場合があります）', 'wp-maintenance-audit-reporter' ),
 			'timeout'     => __( 'タイムアウトしました。サーバーの PHP タイムアウト設定（max_execution_time）をご確認ください。', 'wp-maintenance-audit-reporter' ),
 			'network'     => __( 'ネットワークエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
@@ -219,41 +283,71 @@ class WPMAR_PDF_Installer {
 			var status = document.getElementById('wpmar-pdf-install-status');
 			if (!btn) { return; }
 
+			var nonce      = <?php echo wp_json_encode( $nonce ); ?>;
+			var actionMain = <?php echo wp_json_encode( self::AJAX_ACTION ); ?>;
+			var actionPre  = <?php echo wp_json_encode( self::AJAX_PREFLIGHT ); ?>;
+			var msg        = {
+				checking:    <?php echo wp_json_encode( $messages['checking'] ); ?>,
+				downloading: <?php echo wp_json_encode( $messages['downloading'] ); ?>,
+				timeout:     <?php echo wp_json_encode( $messages['timeout'] ); ?>,
+				network:     <?php echo wp_json_encode( $messages['network'] ); ?>,
+				fallback:    <?php echo wp_json_encode( $messages['fallback'] ); ?>
+			};
+
 			function setStatus(text, color) {
 				status.style.display = '';
 				status.style.color   = color || '';
 				status.textContent   = text;
 			}
 
-			btn.addEventListener('click', function () {
-				btn.disabled = true;
-				setStatus(<?php echo wp_json_encode( $messages['downloading'] ); ?>, '');
-
+			function doInstall() {
+				setStatus(msg.downloading, '');
 				$.ajax({
 					url:     ajaxurl,
 					method:  'POST',
 					timeout: 240000,
-					data: {
-						action: <?php echo wp_json_encode( self::AJAX_ACTION ); ?>,
-						nonce:  <?php echo wp_json_encode( $nonce ); ?>
-					},
+					data: { action: actionMain, nonce: nonce },
 					success: function (res) {
 						if (res && res.success) {
 							setStatus(res.data.message, '#0a7c00');
 							setTimeout(function () { location.reload(); }, 2000);
 						} else {
-							var msg = (res && res.data && res.data.message)
+							var errMsg = (res && res.data && res.data.message)
 								? res.data.message
-								: <?php echo wp_json_encode( $messages['fallback'] ); ?>;
-							setStatus(msg, '#cc0000');
+								: msg.fallback;
+							setStatus(errMsg, '#cc0000');
 							btn.disabled = false;
 						}
 					},
-					error: function (xhr, status_str) {
-						var msg = ('timeout' === status_str)
-							? <?php echo wp_json_encode( $messages['timeout'] ); ?>
-							: <?php echo wp_json_encode( $messages['network'] ); ?>;
-						setStatus(msg, '#cc0000');
+					error: function (xhr, statusStr) {
+						var errMsg = ('timeout' === statusStr) ? msg.timeout : msg.network;
+						setStatus(errMsg, '#cc0000');
+						btn.disabled = false;
+					}
+				});
+			}
+
+			btn.addEventListener('click', function () {
+				btn.disabled = true;
+				setStatus(msg.checking, '');
+
+				$.ajax({
+					url:    ajaxurl,
+					method: 'POST',
+					data:   { action: actionPre, nonce: nonce },
+					success: function (res) {
+						if (res && res.success) {
+							doInstall();
+						} else {
+							var errMsg = (res && res.data && res.data.message)
+								? res.data.message
+								: msg.fallback;
+							setStatus(errMsg, '#cc0000');
+							btn.disabled = false;
+						}
+					},
+					error: function () {
+						setStatus(msg.network, '#cc0000');
 						btn.disabled = false;
 					}
 				});
