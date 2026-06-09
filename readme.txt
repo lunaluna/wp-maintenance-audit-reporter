@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC4
+Stable tag: 1.0.0-RC5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,22 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC4 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC5 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC5 =
+* Added: Pre-flight check before PDF library download — validates write permissions and available disk space (≥150 MB); surfaces actionable error messages before the download starts.
+* Added: Manual ZIP upload fallback — when the automatic GitHub download fails, a "手動インストール" panel appears; admins upload `vendor-pdf.zip` directly from the browser; ZIP magic bytes are validated server-side before extraction.
+* Added: Markdown fallback note in the installer panel — informs admins that client-facing reports remain downloadable as Markdown when the PDF library cannot be installed.
+* Added: `client_md` download type — `body_client_md` (client-facing Markdown) can now be downloaded as `wpmar-report-{id}-client.md` from the report detail screen, independent of the PDF library.
+* Added: PDF availability awareness on report detail — "PDF をダウンロード（クライアント向け）" button replaced with "Markdown をダウンロード（クライアント向け）" when the PDF library is not installed.
+* Added: `pdf_enabled` warning in settings — a warning note is shown next to the "PDF を uploads に書き出して保存" checkbox when the PDF library is not installed.
+* Fixed: `.vscode/bin/phpcs` search order — Homebrew's phpcs 4.x is incompatible with WordPress Coding Standard (^3.x required); shim now searches Composer-installed phpcs before Homebrew.
 
 = 1.0.0-RC4 =
 * Fixed: `vendor-pdf.zip` 404 on mPDF install — download URL was constructed with a `v` prefix (`v1.0.0-RC3`) but release tags are bare semver (`1.0.0-RC3`). Removed the `v` prefix from `WPMAR_PDF_Installer::get_download_url()`.

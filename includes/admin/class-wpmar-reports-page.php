@@ -186,6 +186,16 @@ class WPMAR_Reports_Page {
 			exit;
 		}
 
+		if ( 'client_md' === $type ) {
+			nocache_headers();
+			header( 'Content-Type: text/plain; charset=utf-8' );
+			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $id . '-client.md"' );
+			$body = (string) ( $row['body_client_md'] ?? '' );
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown export payload for clients.
+			echo $body;
+			exit;
+		}
+
 		if ( 'pdf' !== $type ) {
 			wp_die( esc_html__( '未対応の形式です。', 'wp-maintenance-audit-reporter' ) );
 		}
@@ -459,13 +469,31 @@ class WPMAR_Reports_Page {
 			'wpmar_dl_pdf_' . $report_id
 		);
 
+		$client_md_dl_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'           => WPMAR_REPORTS_PAGE_SLUG,
+					'report_id'      => $report_id,
+					'wpmar_download' => 'client_md',
+				),
+				admin_url( 'admin.php' )
+			),
+			'wpmar_dl_client_md_' . $report_id
+		);
+
+		$pdf_available = WPMAR_PDF_Writer::is_available();
+
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( $title ); ?></h1>
 			<p>
 				<a class="button" href="<?php echo esc_url( $list_url ); ?>"><?php esc_html_e( '一覧へ戻る', 'wp-maintenance-audit-reporter' ); ?></a>
 				<a class="button" href="<?php echo esc_url( $md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></a>
-				<a class="button" href="<?php echo esc_url( $pdf_dl_url ); ?>"><?php esc_html_e( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
+				<?php if ( $pdf_available ) : ?>
+					<a class="button" href="<?php echo esc_url( $pdf_dl_url ); ?>"><?php esc_html_e( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
+				<?php else : ?>
+					<a class="button" href="<?php echo esc_url( $client_md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
+				<?php endif; ?>
 			</p>
 			<table class="form-table" role="presentation">
 				<tr>

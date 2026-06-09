@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC5] - 2026-06-10
+
+### Added
+
+- **`WPMAR_PDF_Installer`: pre-flight check** — Before attempting the GitHub download, the installer now validates that the plugin directory is writable and that at least 150 MB of disk space is free. Failures surface actionable error messages: the exact path and a `chmod 755` hint for permission issues; the current free-space value for disk-full situations.
+- **`WPMAR_PDF_Installer`: manual ZIP upload fallback** — When the automatic GitHub download fails (network restriction, firewall, etc.), a "手動インストール" panel is revealed in the admin UI. Admins can download `vendor-pdf.zip` directly from the link shown, then upload it through the browser. The server validates the ZIP magic bytes (`PK` header) and extracts it via the same `ZipArchive` / `unzip_file` pipeline. Upload errors such as `upload_max_filesize` exceeded are reported with specific messages.
+- **`WPMAR_PDF_Installer`: Markdown fallback note** — The installer panel now informs admins that client-facing reports can still be downloaded as Markdown when the PDF library cannot be installed.
+- **`client_md` download type** — `body_client_md` (client-facing Markdown) can now be downloaded directly from the report detail screen as `wpmar-report-{id}-client.md`, independent of the PDF library.
+- **PDF library availability awareness in report detail** — The "PDF をダウンロード（クライアント向け）" button is replaced with "Markdown をダウンロード（クライアント向け）" when the PDF library is not installed, ensuring a client-facing export is always accessible.
+- **`pdf_enabled` warning in settings** — A warning note is displayed next to the "PDF を uploads に書き出して保存" checkbox when the PDF library is not installed, explaining that the setting has no effect until the library is installed.
+
+### Fixed
+
+- **`.vscode/bin/phpcs` search order** — Homebrew's `phpcs` 4.x is incompatible with WordPress Coding Standard (which requires `^3.x`); the shim now searches Composer-installed `phpcs` (`~/.composer/vendor/bin/phpcs`) before Homebrew to ensure the WordPress standard is found.
+
 ## [1.0.0-RC4] - 2026-05-29
 
 ### Fixed

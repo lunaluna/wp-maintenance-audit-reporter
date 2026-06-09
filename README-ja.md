@@ -1,10 +1,20 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC4**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC5**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC5 の追加内容（PDF インストーラーのフォールバックとクライアント向け Markdown エクスポート）
+
+- **事前診断チェック（Pre-flight）** — GitHub ダウンロード開始前に、プラグインディレクトリへの書き込み権限とディスク空き容量（150 MB 以上）を検証。権限不足はパスと `chmod 755` の修正手順を、ディスク不足は現在の空き容量を表示してエラーを中断します。
+- **手動 ZIP アップロードフォールバック** — ファイアウォールやネットワーク制限で自動ダウンロードが失敗した場合、「手動インストール」パネルが表示されます。管理者が `vendor-pdf.zip` を手元にダウンロードしてブラウザ上からアップロードすると、サーバー側で ZIP マジックバイトを検証して同じパイプラインで展開します。`upload_max_filesize` 超過などのエラーも具体的なメッセージで報告します。
+- **Markdown フォールバック案内** — PDF ライブラリがインストールできない環境でも、クライアント向けレポートをマークダウン形式でダウンロードできることをインストーラーパネルに案内表示します。
+- **`client_md` ダウンロードタイプ** — レポート詳細画面から `body_client_md`（クライアント向けマークダウン）を `wpmar-report-{id}-client.md` としてダウンロードできるようになりました。PDF ライブラリの有無に関係なく利用可能です。
+- **PDF 利用可否に連動するボタン切り替え** — レポート詳細画面で PDF ライブラリが未インストールの場合、「PDF をダウンロード（クライアント向け）」ボタンが「Markdown をダウンロード（クライアント向け）」に切り替わります。
+- **`pdf_enabled` 未インストール警告** — 設定ページの「PDF を uploads に書き出して保存」チェックボックスの横に、PDF ライブラリが未インストールの場合は現在機能しない旨の警告を表示します。
+- **`.vscode/bin/phpcs` 検索順修正** — Homebrew の `phpcs` 4.x は WordPress Coding Standard（`^3.x` 必須）と非互換のため、シムが Homebrew より先に Composer インストール版 `phpcs` を検索するよう変更しました。
 
 ## v1.0.0-RC4 の修正内容
 
@@ -60,13 +70,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / readme*.txt / README*.md を新バージョンに更新
-git commit -am "release: 1.0.0-RC4"
+git commit -am "release: 1.0.0-RC5"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 1.0.0-RC4
-git push origin 1.0.0-RC4
-# （v1.0.0-RC4 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC5
+git push origin 1.0.0-RC5
+# （v1.0.0-RC5 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
