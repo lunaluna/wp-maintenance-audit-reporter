@@ -1,8 +1,18 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC4**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC5**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC5 adds (PDF installer fallbacks & client Markdown export)
+
+- **Pre-flight check** — Before starting the GitHub download, the installer validates write permissions and available disk space (≥150 MB). Permission failures show the exact path with a `chmod 755` hint; disk-full failures show the current free-space value.
+- **Manual ZIP upload fallback** — When the automatic download fails (firewall, network restriction), a "手動インストール" panel appears in the admin UI. Admins download `vendor-pdf.zip` manually and upload it through the browser; the server validates the ZIP magic bytes and extracts it via the same pipeline. `upload_max_filesize` errors are reported specifically.
+- **Markdown fallback note** — The installer panel now explains that client-facing reports remain downloadable as Markdown even when the PDF library cannot be installed.
+- **`client_md` download type** — `body_client_md` can be downloaded as `wpmar-report-{id}-client.md` from the report detail screen, independently of the PDF library.
+- **PDF availability awareness** — On the report detail screen, the "PDF をダウンロード（クライアント向け）" button is replaced with "Markdown をダウンロード（クライアント向け）" when the PDF library is not installed.
+- **`pdf_enabled` warning** — A warning note appears next to the "PDF を uploads に書き出して保存" checkbox when the PDF library is not installed.
+- **`.vscode/bin/phpcs` search order fix** — Homebrew's `phpcs` 4.x is incompatible with WordPress Coding Standard (`^3.x` required); the shim now searches Composer-installed `phpcs` before Homebrew.
 
 ## What v1.0.0-RC4 fixes
 
@@ -58,13 +68,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, readme*.txt, README*.md
-git commit -am "release: 1.0.0-RC4"
+git commit -am "release: 1.0.0-RC5"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 1.0.0-RC4
-git push origin 1.0.0-RC4
-# (v-prefixed tags like v1.0.0-RC4 are also accepted.)
+git tag 1.0.0-RC5
+git push origin 1.0.0-RC5
+# (v-prefixed tags like v1.0.0-RC5 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)
