@@ -23,7 +23,7 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function register_hooks() {
-		add_action( 'wp_ajax_' . self::AJAX_ACTION,    array( __CLASS__, 'handle_ajax' ) );
+		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_PREFLIGHT, array( __CLASS__, 'handle_preflight_ajax' ) );
 	}
 
@@ -108,6 +108,7 @@ class WPMAR_PDF_Installer {
 	private static function preflight_check() {
 		$target = WPMAR_PLUGIN_DIR;
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- WP_Filesystem has no equivalent for permission checks; PHP native is used widely in WP core for this purpose.
 		if ( ! is_writable( $target ) ) {
 			return new WP_Error(
 				'wpmar_not_writable',
