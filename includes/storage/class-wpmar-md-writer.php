@@ -68,7 +68,7 @@ class WPMAR_MD_Writer {
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged -- Mirror core upload permissions; failures are harmless.
-		@chmod( $file, FS_CHMOD_FILE );
+		@chmod( $file, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
 		// Store relative fragments in DB so restores can relocate uploads between environments.
 		$upload_info = wp_upload_dir();

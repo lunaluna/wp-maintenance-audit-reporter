@@ -135,7 +135,7 @@ class WPMAR_PDF_Writer {
 		self::cleanup_temp_dir( $temp_dir );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged -- Mirror uploaded artefact permissions like Markdown exports.
-		@chmod( $file, FS_CHMOD_FILE );
+		@chmod( $file, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
 		$upload_info = wp_upload_dir();
 		$relative    = str_replace( trailingslashit( $upload_info['basedir'] ), '', $file );
