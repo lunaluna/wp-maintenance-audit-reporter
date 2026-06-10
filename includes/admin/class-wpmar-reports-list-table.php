@@ -163,6 +163,20 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 			'wpmar_dl_pdf_' . $id
 		);
 
+		$client_md_dl_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'           => WPMAR_REPORTS_PAGE_SLUG,
+					'report_id'      => $id,
+					'wpmar_download' => 'client_md',
+				),
+				admin_url( 'admin.php' )
+			),
+			'wpmar_dl_client_md_' . $id
+		);
+
+		$pdf_available = WPMAR_PDF_Writer::is_available();
+
 		$actions = array(
 			'view'   => sprintf(
 				'<a href="%s">%s</a>',
@@ -174,11 +188,17 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 				esc_url( $md_dl_url ),
 				esc_html__( 'Markdown（管理者向け）', 'wp-maintenance-audit-reporter' )
 			),
-			'pdf'    => sprintf(
-				'<a href="%s">%s</a>',
-				esc_url( $pdf_dl_url ),
-				esc_html__( 'PDF（クライアント向け）', 'wp-maintenance-audit-reporter' )
-			),
+			'pdf'    => $pdf_available
+				? sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $pdf_dl_url ),
+					esc_html__( 'PDF（クライアント向け）', 'wp-maintenance-audit-reporter' )
+				)
+				: sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $client_md_dl_url ),
+					esc_html__( 'Markdown（クライアント向け）', 'wp-maintenance-audit-reporter' )
+				),
 			'delete' => sprintf(
 				'<a href="%1$s" class="wpmar-report-delete-trigger" data-wpmar-delete-message="%2$s">%3$s</a>',
 				esc_url( $delete_url ),
