@@ -247,6 +247,9 @@ class WPMAR_Network_Settings {
 		if ( isset( $post['wpmar_allowed_host'] ) ) {
 			$curr['domain']['allowed_host'] = sanitize_text_field( wp_unslash( $post['wpmar_allowed_host'] ) );
 		}
+		if ( isset( $post['wpmar_allowed_path_prefix'] ) ) {
+			$curr['domain']['allowed_path_prefix'] = sanitize_text_field( wp_unslash( $post['wpmar_allowed_path_prefix'] ) );
+		}
 		$curr['mail']['enabled'] = ! empty( $post['wpmar_mail_enabled'] );
 		if ( isset( $post['wpmar_client_mail'] ) ) {
 			$curr['mail']['client_to'] = WPMAR_Settings::parse_email_list( wp_unslash( $post['wpmar_client_mail'] ) );
