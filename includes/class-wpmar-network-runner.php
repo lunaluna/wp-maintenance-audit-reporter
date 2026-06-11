@@ -106,12 +106,13 @@ class WPMAR_Network_Runner {
 	 * @return array<string,mixed>
 	 */
 	protected function run_on_main_site( array $exec ) {
-		if ( ! add_site_transient( self::LOCK_TRANSIENT, 1, 20 * MINUTE_IN_SECONDS ) ) {
+		if ( false !== get_site_transient( self::LOCK_TRANSIENT ) ) {
 			return array(
 				'skipped' => true,
 				'reason'  => 'busy',
 			);
 		}
+		set_site_transient( self::LOCK_TRANSIENT, 1, 20 * MINUTE_IN_SECONDS );
 
 		$t0               = microtime( true );
 		$network_settings = WPMAR_Network_Settings::get_all();
