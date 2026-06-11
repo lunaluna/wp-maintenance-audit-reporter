@@ -133,8 +133,9 @@ class WPMAR_Notifier_Mail {
 			$data    = $wp_error->get_error_data();
 			$to_raw  = isset( $data['to'] ) ? $data['to'] : array();
 			$to_line = implode( ', ', (array) $to_raw );
+			$message = gmdate( '[d-M-Y H:i:s T]' ) . ' [WPMAR] wp_mail failed. To: ' . $to_line . ' — ' . $wp_error->get_error_message() . "\n";
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( '[WPMAR] wp_mail failed. To: ' . $to_line . ' — ' . $wp_error->get_error_message() );
+			error_log( $message, 3, WP_CONTENT_DIR . '/debug.log' );
 		};
 		add_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
 
