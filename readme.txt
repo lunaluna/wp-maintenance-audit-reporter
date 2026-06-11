@@ -51,6 +51,9 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 == Changelog ==
 
 = 1.0.0-RC5 =
+* Added: Mail send failure logging — `send_pair()` registers a scoped `wp_mail_failed` listener; when `WP_DEBUG_LOG` is enabled, transport failures are appended to `wp-content/debug.log` with the recipient address and error message.
+* Added: Empty recipient warnings — when mail is enabled but `client_to` or `admin_to` resolves to no valid addresses, a warning is written to `wp-content/debug.log`.
+* Added: Empty recipient admin notices — the settings page now shows a `warning` notice for each empty recipient list and an `error` notice when both are empty while mail sending is enabled.
 * Added: Pre-flight check before PDF library download — validates write permissions and available disk space (≥150 MB); surfaces actionable error messages before the download starts.
 * Added: Manual ZIP upload fallback — when the automatic GitHub download fails, a "手動インストール" panel appears; admins upload `vendor-pdf.zip` directly from the browser; ZIP magic bytes are validated server-side before extraction.
 * Added: Markdown fallback note in the installer panel — informs admins that client-facing reports remain downloadable as Markdown when the PDF library cannot be installed.

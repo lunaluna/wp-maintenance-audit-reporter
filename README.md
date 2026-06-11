@@ -6,6 +6,9 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ## What v1.0.0-RC5 adds (PDF installer fallbacks & client Markdown export)
 
+- **Mail send failure logging** — `send_pair()` registers a scoped `wp_mail_failed` listener. When `WP_DEBUG_LOG` is enabled, any transport failure is appended to `wp-content/debug.log` with the recipient address and PHPMailer error message, ending previously silent failures.
+- **Empty recipient warnings** — If mail is enabled but `client_to` or `admin_to` contains no valid addresses after sanitisation, a warning is written to `wp-content/debug.log` to surface the misconfiguration.
+- **Empty recipient admin notices** — The settings page now shows a `warning` notice for each empty recipient list and an `error` notice when both are empty while mail sending is enabled.
 - **Pre-flight check** — Before starting the GitHub download, the installer validates write permissions and available disk space (≥150 MB). Permission failures show the exact path with a `chmod 755` hint; disk-full failures show the current free-space value.
 - **Manual ZIP upload fallback** — When the automatic download fails (firewall, network restriction), a "手動インストール" panel appears in the admin UI. Admins download `vendor-pdf.zip` manually and upload it through the browser; the server validates the ZIP magic bytes and extracts it via the same pipeline. `upload_max_filesize` errors are reported specifically.
 - **Markdown fallback note** — The installer panel now explains that client-facing reports remain downloadable as Markdown even when the PDF library cannot be installed.

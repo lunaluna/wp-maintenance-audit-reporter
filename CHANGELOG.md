@@ -13,6 +13,9 @@ _No pending notes._
 
 ### Added
 
+- **Mail send failure logging** — `send_pair()` now registers a scoped `wp_mail_failed` listener that appends timestamped entries to `wp-content/debug.log` when `WP_DEBUG_LOG` is enabled, making previously silent `wp_mail()` transport failures visible for diagnosis.
+- **Empty recipient warnings** — When mail is enabled but `client_to` or `admin_to` resolves to no valid addresses after sanitisation, a warning is written to `wp-content/debug.log` so the misconfiguration is discoverable without triggering a send attempt.
+- **Empty recipient admin notices** — The plugin settings page now surfaces a `warning`-level notice for each empty recipient list and an `error`-level notice when both are empty, while mail sending is enabled.
 - **`WPMAR_PDF_Installer`: pre-flight check** — Before attempting the GitHub download, the installer now validates that the plugin directory is writable and that at least 150 MB of disk space is free. Failures surface actionable error messages: the exact path and a `chmod 755` hint for permission issues; the current free-space value for disk-full situations.
 - **`WPMAR_PDF_Installer`: manual ZIP upload fallback** — When the automatic GitHub download fails (network restriction, firewall, etc.), a "手動インストール" panel is revealed in the admin UI. Admins can download `vendor-pdf.zip` directly from the link shown, then upload it through the browser. The server validates the ZIP magic bytes (`PK` header) and extracts it via the same `ZipArchive` / `unzip_file` pipeline. Upload errors such as `upload_max_filesize` exceeded are reported with specific messages.
 - **`WPMAR_PDF_Installer`: Markdown fallback note** — The installer panel now informs admins that client-facing reports can still be downloaded as Markdown when the PDF library cannot be installed.

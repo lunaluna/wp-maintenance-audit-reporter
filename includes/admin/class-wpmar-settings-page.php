@@ -46,6 +46,38 @@ class WPMAR_Settings_Page {
 		$dry_note    = WPMAR_Admin_Menu::consume_dry_run_brevity();
 		$runs_locked = WPMAR_Network::per_site_runs_disabled();
 
+		// Validate mail recipient settings and surface warnings before rendering notices.
+		if ( ! empty( $settings['mail']['enabled'] ) ) {
+			$has_client = ! empty( $settings['mail']['client_to'] );
+			$has_admin  = ! empty( $settings['mail']['admin_to'] );
+
+			if ( ! $has_client && ! $has_admin ) {
+				add_settings_error(
+					'wpmar_messages',
+					'wpmar_mail_no_recipients',
+					__( 'メール通知が有効ですが、クライアント向け宛先・管理者向け宛先がどちらも空です。少なくとも一方にメールアドレスを設定してください。', 'wp-maintenance-audit-reporter' ),
+					'error'
+				);
+			} else {
+				if ( ! $has_client ) {
+					add_settings_error(
+						'wpmar_messages',
+						'wpmar_mail_no_client',
+						__( 'メール通知が有効ですが、クライアント向け宛先が空のためクライアントへのメールは送信されません。', 'wp-maintenance-audit-reporter' ),
+						'warning'
+					);
+				}
+				if ( ! $has_admin ) {
+					add_settings_error(
+						'wpmar_messages',
+						'wpmar_mail_no_admin',
+						__( 'メール通知が有効ですが、管理者向け宛先が空のため管理者へのメールは送信されません。', 'wp-maintenance-audit-reporter' ),
+						'warning'
+					);
+				}
+			}
+		}
+
 		// Notices from add_settings_error(); call settings_errors() in this screen (not options.php).
 
 		// Core status readouts + optional dry-run <pre> on the POST response immediately after 「ドライラン」.
