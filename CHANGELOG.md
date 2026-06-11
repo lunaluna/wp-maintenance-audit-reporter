@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC6] - 2026-06-11
+
+### Added
+
+- **Network settings — ステータス section** — Added "直近の完了時刻 (UTC 保存)" and "WP-CLI" items to the network admin status panel, matching the single-site settings page.
+- **Network settings — タイムゾーン hint** — Added description text under the timezone field ("例: Asia/Tokyo。PHP が解釈できる識別子を指定してください。") to match the single-site page.
+- **Network settings — ドメインゲート callout** — The "許可ホスト" row now shows the detected site host and a match/mismatch/empty-state feedback block, identical to the single-site implementation.
+- **Network settings — メール通知 From fields** — Split the single "From" row (two unlabelled inputs) into separate "送信元メールアドレス（オプション）" and "送信元表示名（オプション）" labelled rows, matching the single-site layout.
+- **Network settings — 出力・保持 split** — Replaced the single "出力・保持" panel with three distinct panels: "保持期間" (with description), "レポートをファイルとして自動保存" (Markdown and PDF rows with descriptions and PDF-missing warning), and "PDF ライブラリ（mPDF）" (renders `WPMAR_PDF_Installer::render_panel()`).
+- **Network settings — 検証ツール description** — Added the full QA-mailbox description text to the "検証ツール" panel, matching the single-site page.
+- **Network settings — スナップショット descriptions** — Added both snapshot-behaviour description spans under "スナップショットを保存する（差分比較用）", matching the single-site page.
+- **Network settings — WP-CLI run notice** — Added a description below the action buttons with the `wp maintenance-audit run --network` command and an explanation of the background-queue behaviour.
+- **Network settings — `DISABLE_WP_CRON` notice** — When `DISABLE_WP_CRON` is `true`, a red `notice-error` banner appears at the top of both the network and single-site settings pages, explaining that scheduled and manual execution are both non-functional and directing operators to WP-CLI or an external cron calling `wp cron event run --due-now`.
+- **Background execution for "今すぐ実行" (network)** — The network "今すぐ実行" button now schedules an immediate WP-Cron single event (`wpmar_run_network_audit_manual`) via `wp_schedule_single_event()` + `spawn_cron()` instead of running synchronously, eliminating 504 gateway timeouts on large networks. A new constant `WPMAR_HOOK_NETWORK_MANUAL_RUN` and handler `WPMAR_Scheduler::handle_network_manual_event()` were added.
+- **WP-CLI `--no-snapshot` flag** — `wp maintenance-audit run --no-snapshot` (and `--network --no-snapshot`) now skips snapshot persistence. Both `WPMAR_Runner` and `WPMAR_Network_Runner` honour an explicit `persist_snapshots: false` value that takes priority over the CLI trigger's "always persist" default.
+
+### Removed
+
+- **Network settings — 含めるサイト checkboxes** — Removed the "アーカイブ済み", "スパム", "削除済み" checkboxes from the "対象サイト" panel. The "最大サイト数" and "除外する blog ID" fields remain.
+- **Network settings — 許可パスプレフィックス field** — Removed the "許可パスプレフィックス（任意）" input and all related logic from `WPMAR_Domain_Gate` and `WPMAR_Network_Settings`. Subdirectory filtering can be achieved via "除外する blog ID".
+
+### Fixed
+
+- **Network settings — busy overlay missing** — The `#wpmar-busy-overlay` element was absent from the network settings page HTML, so the "ドライランを実行しています…" / "今すぐ実行しています…" overlay never appeared. The element is now rendered, matching the single-site page.
+- **`WPMAR_Network_Runner` — `add_site_transient()` fatal error** — `add_site_transient()` does not exist in WordPress core. The function call was replaced with `get_site_transient()` (existence check) + `set_site_transient()` (lock set). This resolved a PHP Fatal error when running `wp maintenance-audit run --network` from the CLI.
+- **Network "今すぐ実行" — `DISABLE_WP_CRON` behaviour** — When WP-Cron is disabled, the button no longer attempts a synchronous run (which would risk 504). Instead it shows an error notice directing the operator to WP-CLI or per-site manual execution.
+
 ## [1.0.0-RC5] - 2026-06-10
 
 ### Added
