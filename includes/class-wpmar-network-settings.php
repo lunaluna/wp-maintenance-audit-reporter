@@ -52,8 +52,7 @@ class WPMAR_Network_Settings {
 				'max_sites'        => 100,
 			),
 			'domain'                => array(
-				'allowed_host'        => '',
-				'allowed_path_prefix' => '',
+				'allowed_host' => '',
 			),
 		);
 	}
@@ -211,8 +210,7 @@ class WPMAR_Network_Settings {
 		}
 		$merged['retention']['months'] = $months;
 
-		$merged['domain']['allowed_host']        = sanitize_text_field( (string) $merged['domain']['allowed_host'] );
-		$merged['domain']['allowed_path_prefix'] = sanitize_text_field( (string) $merged['domain']['allowed_path_prefix'] );
+		$merged['domain']['allowed_host'] = sanitize_text_field( (string) $merged['domain']['allowed_host'] );
 
 		return $merged;
 	}
@@ -247,10 +245,6 @@ class WPMAR_Network_Settings {
 		if ( isset( $post['wpmar_allowed_host'] ) ) {
 			$curr['domain']['allowed_host'] = sanitize_text_field( wp_unslash( $post['wpmar_allowed_host'] ) );
 		}
-		if ( isset( $post['wpmar_allowed_path_prefix'] ) ) {
-			$curr['domain']['allowed_path_prefix'] = sanitize_text_field( wp_unslash( $post['wpmar_allowed_path_prefix'] ) );
-		}
-
 		$curr['mail']['enabled'] = ! empty( $post['wpmar_mail_enabled'] );
 		if ( isset( $post['wpmar_client_mail'] ) ) {
 			$curr['mail']['client_to'] = WPMAR_Settings::parse_email_list( wp_unslash( $post['wpmar_client_mail'] ) );

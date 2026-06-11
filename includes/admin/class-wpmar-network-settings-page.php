@@ -115,14 +115,6 @@ class WPMAR_Network_Settings_Page {
 					<h2><?php esc_html_e( '対象サイト', 'wp-maintenance-audit-reporter' ); ?></h2>
 					<table class="form-table" role="presentation">
 						<tr>
-							<th scope="row"><?php esc_html_e( '含めるサイト', 'wp-maintenance-audit-reporter' ); ?></th>
-							<td>
-								<label><input name="wpmar_include_archived" type="checkbox" <?php checked( ! empty( $settings['sites']['include_archived'] ) ); ?> /> <?php esc_html_e( 'アーカイブ済み', 'wp-maintenance-audit-reporter' ); ?></label><br />
-								<label><input name="wpmar_include_spam" type="checkbox" <?php checked( ! empty( $settings['sites']['include_spam'] ) ); ?> /> <?php esc_html_e( 'スパム', 'wp-maintenance-audit-reporter' ); ?></label><br />
-								<label><input name="wpmar_include_deleted" type="checkbox" <?php checked( ! empty( $settings['sites']['include_deleted'] ) ); ?> /> <?php esc_html_e( '削除済み', 'wp-maintenance-audit-reporter' ); ?></label>
-							</td>
-						</tr>
-						<tr>
 							<th scope="row"><label for="wpmar-max-sites"><?php esc_html_e( '最大サイト数', 'wp-maintenance-audit-reporter' ); ?></label></th>
 							<td><input name="wpmar_max_sites" id="wpmar-max-sites" type="number" min="1" max="500" value="<?php echo esc_attr( (string) ( $settings['sites']['max_sites'] ?? 100 ) ); ?>" /></td>
 						</tr>
@@ -138,18 +130,11 @@ class WPMAR_Network_Settings_Page {
 
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'ドメインゲート', 'wp-maintenance-audit-reporter' ); ?></h2>
-					<p class="description"><?php esc_html_e( '各サイトの home_url と照合します。サイト設定に許可ホストが無い場合、ここで指定したホストをフォールバックとして使います。サブディレクトリ型マルチサイトではパスプレフィックスも指定できます。', 'wp-maintenance-audit-reporter' ); ?></p>
+					<p class="description"><?php esc_html_e( '各サイトの home_url と照合します。サイト設定に許可ホストが無い場合、ここで指定したホストをフォールバックとして使います。', 'wp-maintenance-audit-reporter' ); ?></p>
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row"><label for="wpmar-allowed-host"><?php esc_html_e( '許可ホスト（フォールバック）', 'wp-maintenance-audit-reporter' ); ?></label></th>
 							<td><input class="regular-text" name="wpmar_allowed_host" id="wpmar-allowed-host" type="text" value="<?php echo esc_attr( (string) ( $settings['domain']['allowed_host'] ?? '' ) ); ?>" /></td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="wpmar-allowed-path-prefix"><?php esc_html_e( '許可パスプレフィックス（任意）', 'wp-maintenance-audit-reporter' ); ?></label></th>
-							<td>
-								<input class="regular-text" name="wpmar_allowed_path_prefix" id="wpmar-allowed-path-prefix" type="text" value="<?php echo esc_attr( (string) ( $settings['domain']['allowed_path_prefix'] ?? '' ) ); ?>" placeholder="blog/site-slug" />
-								<p class="description"><?php esc_html_e( '未入力のときはホストのみ照合。入力した場合、home_url のパスがこのプレフィックスと一致するサイトだけがゲートを通過します。', 'wp-maintenance-audit-reporter' ); ?></p>
-							</td>
 						</tr>
 					</table>
 				</div>

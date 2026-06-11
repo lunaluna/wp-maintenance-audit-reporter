@@ -42,9 +42,6 @@ class WPMAR_Domain_Gate {
 	/**
 	 * Whether this site may run audits (allowed host equals current host).
 	 *
-	 * When `domain.allowed_path_prefix` is set, the home URL path must equal or begin with that prefix
-	 * (useful on subdirectory multisite installs where many blogs share one host).
-	 *
 	 * @param array<string,mixed> $settings Merged plugin settings with `domain.allowed_host`.
 	 * @return bool
 	 */
@@ -55,32 +52,10 @@ class WPMAR_Domain_Gate {
 
 		if ( '' === $allowed ) {
 			// Undefined gate: permissive fallback (explicit host recommended).
-			$host_ok = true;
-		} else {
-			$host_ok = ( $curr === $allowed );
-		}
-
-		if ( ! $host_ok ) {
-			return false;
-		}
-
-		$prefix = isset( $domain['allowed_path_prefix'] ) ? trim( (string) $domain['allowed_path_prefix'], " \t\n\r\0\x0B/" ) : '';
-		if ( '' === $prefix ) {
 			return true;
 		}
 
-		$prefix = strtolower( $prefix );
-		$path   = self::current_path();
-
-		if ( '' === $path ) {
-			return ( '' === $prefix );
-		}
-
-		if ( $path === $prefix ) {
-			return true;
-		}
-
-		return 0 === strpos( $path, $prefix . '/' );
+		return $curr === $allowed;
 	}
 
 	/**
@@ -95,8 +70,7 @@ class WPMAR_Domain_Gate {
 
 		if ( ! isset( $merged['domain'] ) || ! is_array( $merged['domain'] ) ) {
 			$merged['domain'] = array(
-				'allowed_host'        => '',
-				'allowed_path_prefix' => '',
+				'allowed_host' => '',
 			);
 		}
 
@@ -106,10 +80,6 @@ class WPMAR_Domain_Gate {
 
 		if ( '' === trim( (string) $merged['domain']['allowed_host'] ) && ! empty( $network_domain['allowed_host'] ) ) {
 			$merged['domain']['allowed_host'] = sanitize_text_field( (string) $network_domain['allowed_host'] );
-		}
-
-		if ( ! empty( $network_domain['allowed_path_prefix'] ) ) {
-			$merged['domain']['allowed_path_prefix'] = sanitize_text_field( (string) $network_domain['allowed_path_prefix'] );
 		}
 
 		return $merged;
