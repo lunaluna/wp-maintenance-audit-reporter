@@ -19,7 +19,7 @@ class WPMAR_Network_Runner {
 	/**
 	 * Executes a network rollup audit.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots, mail_qa_extra.
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots, mail_qa_extra, same_setting, target_blog_id.
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
@@ -28,11 +28,13 @@ class WPMAR_Network_Runner {
 			'triggered_by'      => 'manual_network',
 			'persist_snapshots' => false,
 			'mail_qa_extra'     => '',
+			'same_setting'      => false,
+			'target_blog_id'    => 0,
 		);
 		$exec     = wp_parse_args( $options, $defaults );
 
 		if ( ! empty( $exec['dry'] ) ) {
-			return $this->handle_dry_run();
+			return $this->handle_dry_run( $exec );
 		}
 
 		if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
@@ -50,12 +52,35 @@ class WPMAR_Network_Runner {
 	}
 
 	/**
+	 * Resolves the list of blog IDs to audit based on exec options.
+	 *
+	 * Priority: target_blog_id > same_setting > all target sites.
+	 *
+	 * @param array<string,mixed>      $exec             Normalised options.
+	 * @param array<string,mixed>|null $network_settings Optional preloaded network settings.
+	 * @return array<int,int>
+	 */
+	protected static function resolve_blog_ids( array $exec, $network_settings = null ) {
+		$target_id = absint( $exec['target_blog_id'] ?? 0 );
+		if ( $target_id > 0 ) {
+			return array( $target_id );
+		}
+
+		if ( ! empty( $exec['same_setting'] ) ) {
+			return array( WPMAR_Network::main_site_id() );
+		}
+
+		return WPMAR_Network::target_blog_ids( $network_settings );
+	}
+
+	/**
 	 * Network dry-run summary without persistence.
 	 *
+	 * @param array<string,mixed> $exec Normalised options.
 	 * @return array<string,mixed>
 	 */
-	protected function handle_dry_run() {
-		$blog_ids = WPMAR_Network::target_blog_ids();
+	protected function handle_dry_run( array $exec = array() ) {
+		$blog_ids = self::resolve_blog_ids( $exec );
 		$rows     = array();
 
 		foreach ( $blog_ids as $blog_id ) {
@@ -117,7 +142,7 @@ class WPMAR_Network_Runner {
 		$t0               = microtime( true );
 		$network_settings = WPMAR_Network_Settings::get_all();
 		$delivery         = WPMAR_Network_Settings::rollup_delivery_settings();
-		$blog_ids         = WPMAR_Network::target_blog_ids( $network_settings );
+		$blog_ids         = self::resolve_blog_ids( $exec, $network_settings );
 		$runner           = new WPMAR_Runner();
 		$segments         = array();
 		$persist          = self::should_persist_snapshots( $exec );
