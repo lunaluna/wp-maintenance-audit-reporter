@@ -364,6 +364,11 @@ class WPMAR_Runner {
 	 * @return bool
 	 */
 	protected static function should_persist_snapshots( array $exec ) {
+		// Explicit false opt-out takes priority over any trigger default.
+		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
+			return false;
+		}
+
 		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
 		if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
 			return true;

@@ -32,11 +32,16 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	 * [--network]
 	 * : Run a multisite rollup audit (requires network audit enabled in network settings).
 	 *
+	 * [--no-snapshot]
+	 * : Skip snapshot persistence. Report is generated but the snapshot baseline is not updated.
+	 *
 	 * ## EXAMPLES
 	 *
 	 * wp maintenance-audit run
 	 * wp maintenance-audit run --dry
 	 * wp maintenance-audit run --network
+	 * wp maintenance-audit run --no-snapshot
+	 * wp maintenance-audit run --network --no-snapshot
 	 *
 	 * @param array<int,string>             $positional  Positional arguments.
 	 * @param array<string,string|bool|int> $assoc_flags Associative CLI flags.
@@ -45,8 +50,9 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	public function run( $positional, $assoc_flags ) {
 		unset( $positional );
 
-		$dry     = isset( $assoc_flags['dry'] );
-		$network = isset( $assoc_flags['network'] );
+		$dry         = isset( $assoc_flags['dry'] );
+		$network     = isset( $assoc_flags['network'] );
+		$no_snapshot = isset( $assoc_flags['no-snapshot'] );
 
 		if ( $network ) {
 			if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
@@ -59,18 +65,20 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 			$runner = new WPMAR_Network_Runner();
 			$result = $runner->run(
 				array(
-					'dry'          => ! empty( $dry ),
-					'triggered_by' => 'cli_network',
+					'dry'               => ! empty( $dry ),
+					'triggered_by'      => 'cli_network',
+					'persist_snapshots' => ! $no_snapshot,
 				)
 			);
 		} else {
 			$runner = new WPMAR_Runner();
 			$result = $runner->run(
 				array(
-					'dry'           => ! empty( $dry ),
-					'triggered_by'  => 'cli',
-					'capture_cli'   => true,
-					'mail_override' => '',
+					'dry'               => ! empty( $dry ),
+					'triggered_by'      => 'cli',
+					'capture_cli'       => true,
+					'mail_override'     => '',
+					'persist_snapshots' => ! $no_snapshot,
 				)
 			);
 		}
