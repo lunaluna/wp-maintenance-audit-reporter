@@ -44,6 +44,8 @@ class WPMAR_Network_Settings_Page {
 			$next_lbl = wp_date( 'Y-m-d H:i:s', $next_ts, $tz_obj );
 		}
 		$target_count = count( WPMAR_Network::target_blog_ids( $settings ) );
+		$last_done    = get_site_option( 'wpmar_last_network_audit_completed_at', '' );
+		$cli          = WPMAR_CLI_Environment::snapshot();
 		?>
 		<div class="wrap wpmar-maintenance-settings">
 			<h1><?php esc_html_e( 'Maintenance Audit — ネットワーク', 'wp-maintenance-audit-reporter' ); ?></h1>
@@ -60,6 +62,25 @@ class WPMAR_Network_Settings_Page {
 					<li><strong><?php esc_html_e( 'ネットワーク監査', 'wp-maintenance-audit-reporter' ); ?>:</strong> <?php echo ! empty( $settings['network_audit_enabled'] ) ? esc_html__( '有効', 'wp-maintenance-audit-reporter' ) : esc_html__( '無効', 'wp-maintenance-audit-reporter' ); ?></li>
 					<li><strong><?php esc_html_e( '対象サイト数', 'wp-maintenance-audit-reporter' ); ?>:</strong> <?php echo esc_html( (string) $target_count ); ?></li>
 					<li><strong><?php esc_html_e( '次回 WP-Cron（メインサイト）', 'wp-maintenance-audit-reporter' ); ?>:</strong> <?php echo esc_html( $next_lbl ); ?></li>
+					<li>
+						<strong><?php esc_html_e( '直近の完了時刻 (UTC 保存)', 'wp-maintenance-audit-reporter' ); ?>:</strong>
+						<?php echo esc_html( is_string( $last_done ) ? $last_done : '' ); ?>
+					</li>
+					<li>
+						<strong><?php esc_html_e( 'WP-CLI', 'wp-maintenance-audit-reporter' ); ?>:</strong>
+						<?php
+						if ( ! empty( $cli['is_available'] ) ) {
+							printf(
+								/* translators: 1 CLI version, 2 last seen ISO time */
+								esc_html__( '検出済み (version %1$s, last %2$s)', 'wp-maintenance-audit-reporter' ),
+								esc_html( (string) ( $cli['wp_cli_version'] ?? '' ) ),
+								esc_html( (string) ( $cli['last_seen_at'] ?? '' ) )
+							);
+						} else {
+							esc_html_e( '未取得（CLI でコマンドを一度実行すると記録されます）', 'wp-maintenance-audit-reporter' );
+						}
+						?>
+					</li>
 				</ul>
 			</div>
 
@@ -106,7 +127,10 @@ class WPMAR_Network_Settings_Page {
 						</tr>
 						<tr>
 							<th scope="row"><label for="wpmar-schedule-tz"><?php esc_html_e( 'タイムゾーン', 'wp-maintenance-audit-reporter' ); ?></label></th>
-							<td><input class="regular-text" name="wpmar_schedule_tz" id="wpmar-schedule-tz" type="text" value="<?php echo esc_attr( (string) ( $settings['schedule']['tz'] ?? 'Asia/Tokyo' ) ); ?>" /></td>
+							<td>
+							<input class="regular-text" name="wpmar_schedule_tz" id="wpmar-schedule-tz" type="text" value="<?php echo esc_attr( (string) ( $settings['schedule']['tz'] ?? 'Asia/Tokyo' ) ); ?>" />
+							<p class="description"><?php esc_html_e( '例: Asia/Tokyo。PHP が解釈できる識別子を指定してください。', 'wp-maintenance-audit-reporter' ); ?></p>
+						</td>
 						</tr>
 					</table>
 				</div>
@@ -134,7 +158,9 @@ class WPMAR_Network_Settings_Page {
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row"><label for="wpmar-allowed-host"><?php esc_html_e( '許可ホスト（フォールバック）', 'wp-maintenance-audit-reporter' ); ?></label></th>
-							<td><input class="regular-text" name="wpmar_allowed_host" id="wpmar-allowed-host" type="text" value="<?php echo esc_attr( (string) ( $settings['domain']['allowed_host'] ?? '' ) ); ?>" /></td>
+							<td>
+								<?php echo self::render_domain_gate_callout( $settings ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+							</td>
 						</tr>
 					</table>
 				</div>
@@ -155,11 +181,12 @@ class WPMAR_Network_Settings_Page {
 							<td><textarea class="large-text" rows="3" name="wpmar_admin_mail" id="wpmar-admin-mail"><?php echo esc_textarea( implode( "\n", (array) ( $settings['mail']['admin_to'] ?? array() ) ) ); ?></textarea></td>
 						</tr>
 						<tr>
-							<th scope="row"><label for="wpmar-from-email"><?php esc_html_e( 'From', 'wp-maintenance-audit-reporter' ); ?></label></th>
-							<td>
-								<input class="regular-text" name="wpmar_from_email" id="wpmar-from-email" type="email" value="<?php echo esc_attr( (string) ( $settings['mail']['from_address'] ?? '' ) ); ?>" />
-								<input class="regular-text" name="wpmar_from_name" type="text" value="<?php echo esc_attr( (string) ( $settings['mail']['from_name'] ?? '' ) ); ?>" placeholder="<?php esc_attr_e( '差出人名', 'wp-maintenance-audit-reporter' ); ?>" />
-							</td>
+							<th scope="row"><label for="wpmar-from-email"><?php esc_html_e( '送信元メールアドレス（オプション）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td><input class="regular-text" name="wpmar_from_email" id="wpmar-from-email" type="email" value="<?php echo esc_attr( (string) ( $settings['mail']['from_address'] ?? '' ) ); ?>" /></td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="wpmar-from-name"><?php esc_html_e( '送信元表示名（オプション）', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<td><input class="regular-text" name="wpmar_from_name" id="wpmar-from-name" type="text" value="<?php echo esc_attr( (string) ( $settings['mail']['from_name'] ?? '' ) ); ?>" /></td>
 						</tr>
 					</table>
 				</div>
@@ -217,5 +244,56 @@ class WPMAR_Network_Settings_Page {
 			</form>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Renders the allowed-host input and detection feedback for the domain gate row.
+	 *
+	 * @param array<string,mixed> $settings Network settings.
+	 * @return string Buffered HTML (escaped fragments).
+	 */
+	private static function render_domain_gate_callout( array $settings ) {
+		$ctx           = WPMAR_Domain_Gate::admin_gate_callout_context( $settings );
+		$detected_show = '' !== $ctx['detected'] ? $ctx['detected'] : '—';
+
+		ob_start();
+		?>
+		<input class="regular-text" name="wpmar_allowed_host" id="wpmar-allowed-host" type="text" value="<?php echo esc_attr( (string) ( $settings['domain']['allowed_host'] ?? '' ) ); ?>" />
+		<div class="wpmar-domain-gate-feedback">
+			<p class="wpmar-domain-gate-detected">
+				<strong><?php esc_html_e( '検出されたサイトホスト:', 'wp-maintenance-audit-reporter' ); ?></strong>
+				<code><?php echo esc_html( $detected_show ); ?></code>
+			</p>
+			<?php if ( 'empty' === $ctx['state'] ) : ?>
+				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--warn">
+					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#9888;</span>
+					<?php esc_html_e( '許可ホストが未入力です。ステージングで保存を抑止したい場合は検出ホストどおり入力して保存してください。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+			<?php elseif ( 'match' === $ctx['state'] ) : ?>
+				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--ok">
+					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#10003;</span>
+					<?php esc_html_e( '保存済みの許可ホストと一致しています。ドメインゲートは通過し、実行でスナップショット等が保存されます。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+			<?php else : ?>
+				<p class="wpmar-domain-gate-msg wpmar-domain-gate-msg--bad">
+					<span class="wpmar-domain-gate-icon" aria-hidden="true">&#10007;</span>
+					<?php esc_html_e( '保存済みの許可ホストと一致しません。実行は開始できますが、ゲートによりスナップショット・メール・管理者向け Markdown などが抑止されます。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+				<p class="wpmar-domain-gate-compare">
+					<?php
+					printf(
+						'%s <code>%s</code> / %s <code>%s</code>',
+						esc_html__( '保存値:', 'wp-maintenance-audit-reporter' ),
+						esc_html( '' !== trim( (string) $ctx['saved_display'] ) ? (string) $ctx['saved_display'] : '—' ),
+						esc_html__( '検出値:', 'wp-maintenance-audit-reporter' ),
+						esc_html( $detected_show )
+					);
+					?>
+				</p>
+			<?php endif; ?>
+		</div>
+		<?php
+
+		return (string) ob_get_clean();
 	}
 }
