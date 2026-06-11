@@ -98,7 +98,7 @@ class WPMAR_Network_Admin_Menu {
 			'wpmarAdminBusy',
 			array(
 				'dryRun'  => __( 'ネットワークドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-				'fullRun' => __( 'ネットワークレポート生成を実行しています…', 'wp-maintenance-audit-reporter' ),
+				'fullRun' => __( 'ネットワーク実行をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
 			)
 		);
 	}
@@ -144,21 +144,31 @@ class WPMAR_Network_Admin_Menu {
 				if ( isset( $input['wpmar_qa_mail'] ) ) {
 					$qa_mail = sanitize_email( $input['wpmar_qa_mail'] );
 				}
-				$runner = new WPMAR_Network_Runner();
-				$runner->run(
-					array(
-						'dry'               => false,
-						'triggered_by'      => 'manual_network',
-						'persist_snapshots' => $persist,
-						'mail_qa_extra'     => $qa_mail,
-					)
+				$run_options = array(
+					'dry'               => false,
+					'triggered_by'      => 'manual_network',
+					'persist_snapshots' => $persist,
+					'mail_qa_extra'     => $qa_mail,
 				);
-				add_settings_error(
-					'wpmar_network_messages',
-					'wpmar_network_full',
-					__( 'ネットワークレポート生成を実行して完了しました。', 'wp-maintenance-audit-reporter' ),
-					'success'
-				);
+
+				if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
+					// WP-Cron disabled: synchronous execution risks 504 on large networks, so refuse.
+					add_settings_error(
+						'wpmar_network_messages',
+						'wpmar_network_full',
+						__( 'WP-Cron が無効（DISABLE_WP_CRON）のため、管理画面からの実行はできません。WP-CLI（wp maintenance-audit run --network）を使用するか、各サイトの設定画面から個別に実行してください。', 'wp-maintenance-audit-reporter' ),
+						'error'
+					);
+				} else {
+					wp_schedule_single_event( time(), WPMAR_HOOK_NETWORK_MANUAL_RUN, array( $run_options ) );
+					spawn_cron();
+					add_settings_error(
+						'wpmar_network_messages',
+						'wpmar_network_full',
+						__( 'ネットワーク実行をキューに追加しました。バックグラウンドで処理が開始されます。完了後はステータスの「直近の完了時刻」が更新されます。', 'wp-maintenance-audit-reporter' ),
+						'success'
+					);
+				}
 				break;
 
 			case 'save':

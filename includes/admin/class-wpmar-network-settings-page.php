@@ -275,6 +275,17 @@ class WPMAR_Network_Settings_Page {
 					<button class="button" name="wpmar_admin_action" type="submit" value="dry_run"><?php esc_html_e( 'ドライラン', 'wp-maintenance-audit-reporter' ); ?></button>
 					<button class="button" name="wpmar_admin_action" type="submit" value="full_run"><?php esc_html_e( '今すぐ実行', 'wp-maintenance-audit-reporter' ); ?></button>
 				</p>
+				<?php if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) : ?>
+					<p class="description" style="color:#b32d2e;">
+						<?php esc_html_e( '⚠ WP-Cron が無効（DISABLE_WP_CRON）です。「今すぐ実行」は使用できません。WP-CLI で実行してください：', 'wp-maintenance-audit-reporter' ); ?>
+						<code>wp maintenance-audit run --network</code>
+					</p>
+				<?php else : ?>
+					<p class="description">
+						<?php esc_html_e( '「今すぐ実行」はサイト数が多い場合に 504 タイムアウトが発生するため、バックグラウンド（WP-Cron）でキューに追加して実行します。即時・確実に実行したい場合は WP-CLI を使用してください：', 'wp-maintenance-audit-reporter' ); ?>
+						<code>wp maintenance-audit run --network</code>
+					</p>
+				<?php endif; ?>
 			</form>
 
 			<div
