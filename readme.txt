@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC5
+Stable tag: 1.0.0-RC6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,25 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC5 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC6 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC6 =
+* Added: Network settings UI — status panel now shows "直近の完了時刻" and "WP-CLI" items, matching the single-site page.
+* Added: Network settings UI — timezone field now has description text; "許可ホスト" row shows detected host and match/mismatch feedback; "From" split into separate labelled "送信元メールアドレス" and "送信元表示名" rows; "出力・保持" split into three panels ("保持期間", "レポートをファイルとして自動保存", "PDF ライブラリ（mPDF）"); "検証ツール" and snapshot checkbox gained description text.
+* Added: Background execution for network "今すぐ実行" — schedules an immediate WP-Cron event (`wpmar_run_network_audit_manual`) instead of running synchronously, preventing 504 gateway timeouts on large networks.
+* Added: `DISABLE_WP_CRON` notice — when WP-Cron is disabled, a red error banner appears on both the network and single-site settings pages warning that scheduled and manual execution are non-functional; operators are directed to WP-CLI or an external cron.
+* Added: WP-CLI `--no-snapshot` flag — `wp maintenance-audit run --no-snapshot` (and `--network --no-snapshot`) skips snapshot persistence, overriding the CLI trigger's default "always persist" behaviour.
+* Removed: Network settings — "含めるサイト" checkboxes (archived/spam/deleted) removed from the "対象サイト" panel.
+* Removed: Network settings — "許可パスプレフィックス" field and all related `WPMAR_Domain_Gate` / `WPMAR_Network_Settings` logic removed.
+* Fixed: Network settings — `#wpmar-busy-overlay` element was missing, so the execution overlay never appeared; element added to match the single-site page.
+* Fixed: `WPMAR_Network_Runner` — `add_site_transient()` does not exist in WordPress core; replaced with `get_site_transient()` check + `set_site_transient()`, resolving a PHP Fatal error on `wp maintenance-audit run --network`.
+* Fixed: Network "今すぐ実行" with `DISABLE_WP_CRON` — no longer attempts synchronous execution (which risks 504); shows an error notice instead.
 
 = 1.0.0-RC5 =
 * Added: Mail send failure logging — `send_pair()` registers a scoped `wp_mail_failed` listener; when `WP_DEBUG_LOG` is enabled, transport failures are appended to `wp-content/debug.log` with the recipient address and error message.

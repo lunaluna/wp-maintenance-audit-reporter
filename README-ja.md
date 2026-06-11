@@ -1,10 +1,21 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC5**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC6**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC6 の変更内容（ネットワーク管理画面 UI の整備・504 修正・CLI --no-snapshot）
+
+- **ネットワーク設定ページの UI をシングルサイトと同水準に整備** — ステータスパネルに「直近の完了時刻」と「WP-CLI」を追加。タイムゾーン欄に説明文を追加。「許可ホスト」行に検出ホストとの一致・不一致フィードバックを追加。「From」を「送信元メールアドレス」と「送信元表示名」の 2 行に分割。「出力・保持」を「保持期間」「レポートをファイルとして自動保存」「PDF ライブラリ（mPDF）」の 3 パネルに分割。「検証ツール」とスナップショットチェックボックスに説明文を追加。
+- **削除: 含めるサイト チェックボックス** — 「対象サイト」パネルの「アーカイブ済み」「スパム」「削除済み」フィルターを廃止。除外したいサイトは「除外する blog ID」を使用してください。
+- **削除: 許可パスプレフィックス** — パスプレフィックスによるゲート設定フィールドと `WPMAR_Domain_Gate` / `WPMAR_Network_Settings` の関連ロジックをすべて削除。
+- **ネットワーク「今すぐ実行」をバックグラウンド実行に変更** — 同期実行（大規模ネットワークで 504 ゲートウェイタイムアウトを引き起こす原因）から WP-Cron の単発イベント（`wpmar_run_network_audit_manual`）のスケジュール登録＋ `spawn_cron()` 呼び出しに変更。新定数 `WPMAR_HOOK_NETWORK_MANUAL_RUN` とハンドラー `WPMAR_Scheduler::handle_network_manual_event()` を追加。`DISABLE_WP_CRON` が true の場合はエラー通知を表示するのみで実行しません（同期フォールバックなし）。
+- **`DISABLE_WP_CRON` 警告バナー** — WP-Cron が無効な場合、ネットワーク管理画面とシングルサイト両方の設定ページ上部に赤い `notice-error` バナーを表示。スケジュール実行と手動実行が機能しないことを警告し、`wp maintenance-audit run --network` または外部 Cron を案内します。
+- **WP-CLI `--no-snapshot` フラグ** — `wp maintenance-audit run --no-snapshot`（`--network` との併用も可）でスナップショットの保存を省略できるようになりました。CLI のデフォルト「常に保存」より優先されます。
+- **修正: ネットワーク管理ページで実行中オーバーレイが表示されない** — `#wpmar-busy-overlay` がネットワーク設定ページの HTML に存在しなかった問題を修正。ドライランおよびフルランで正しくオーバーレイが表示されるようになりました。
+- **修正: `add_site_transient()` Fatal エラー** — WordPress コアに `add_site_transient()` は存在しません。`get_site_transient()` + `set_site_transient()` に置き換え、`wp maintenance-audit run --network` 実行時の PHP Fatal エラーを解消しました。
 
 ## v1.0.0-RC5 の追加内容（PDF インストーラーのフォールバックとクライアント向け Markdown エクスポート）
 

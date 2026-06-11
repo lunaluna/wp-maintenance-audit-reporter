@@ -85,6 +85,21 @@ class WPMAR_Settings_Page {
 		<div class="wrap wpmar-maintenance-settings">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<?php settings_errors( 'wpmar_messages' ); ?>
+			<?php if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) : ?>
+				<div class="notice notice-error">
+					<p>
+						<?php
+						echo wp_kses_post(
+							sprintf(
+								/* translators: %s: WP-CLI command */
+								__( '<strong>WP-Cron が無効（DISABLE_WP_CRON）です。</strong>スケジュールによる定期実行および「今すぐ実行」はどちらも機能しません。WP-CLI（%s）を使用するか、サーバーの外部 Cron から <code>wp cron event run --due-now</code> を定期的に呼び出してください。', 'wp-maintenance-audit-reporter' ),
+								'<code>wp maintenance-audit run</code>'
+							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
 			<?php if ( $runs_locked ) : ?>
 				<div class="notice notice-info">
 					<p>

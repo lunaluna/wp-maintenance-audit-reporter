@@ -1,8 +1,19 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC5**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC6**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC6 changes (network admin UI overhaul, 504 fix, CLI --no-snapshot)
+
+- **Network settings UI parity** — The network admin page now matches the single-site page in completeness: status panel gains "直近の完了時刻" and "WP-CLI"; timezone field gains description text; "許可ホスト" row shows detected host with match/mismatch feedback; "From" split into labelled "送信元メールアドレス" and "送信元表示名" rows; "出力・保持" split into three panels ("保持期間", "レポートをファイルとして自動保存", "PDF ライブラリ（mPDF）"); "検証ツール" and snapshot checkbox gained description text.
+- **Removed: 含めるサイト checkboxes** — The "アーカイブ済み", "スパム", "削除済み" filters are removed from the "対象サイト" panel. Use "除外する blog ID" to exclude specific sites.
+- **Removed: 許可パスプレフィックス** — The path-prefix gate field and all related logic in `WPMAR_Domain_Gate` / `WPMAR_Network_Settings` are removed.
+- **Background execution for network "今すぐ実行"** — Instead of running synchronously (causing 504 gateway timeouts on large networks), the button now schedules an immediate WP-Cron single event (`wpmar_run_network_audit_manual`) and calls `spawn_cron()`. A new constant `WPMAR_HOOK_NETWORK_MANUAL_RUN` and handler `WPMAR_Scheduler::handle_network_manual_event()` were added. When `DISABLE_WP_CRON` is true, an error notice is shown instead—no synchronous fallback.
+- **`DISABLE_WP_CRON` notice** — A red `notice-error` banner appears at the top of both network and single-site settings pages when WP-Cron is disabled, warning that both scheduled and manual runs are non-functional and directing operators to `wp maintenance-audit run --network` or an external cron.
+- **WP-CLI `--no-snapshot` flag** — `wp maintenance-audit run --no-snapshot` (also with `--network`) skips snapshot persistence for that run, overriding the CLI trigger's "always persist" default.
+- **Fixed: busy overlay missing on network page** — `#wpmar-busy-overlay` was absent from the network settings HTML; the execution overlay now appears on dry run and full run.
+- **Fixed: `add_site_transient()` fatal error** — `add_site_transient()` does not exist in WordPress core. Replaced with `get_site_transient()` + `set_site_transient()`, resolving a PHP Fatal error on `wp maintenance-audit run --network`.
 
 ## What v1.0.0-RC5 adds (PDF installer fallbacks & client Markdown export)
 

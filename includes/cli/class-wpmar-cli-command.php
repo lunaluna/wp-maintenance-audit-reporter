@@ -32,11 +32,28 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	 * [--network]
 	 * : Run a multisite rollup audit (requires network audit enabled in network settings).
 	 *
+	 * [--no-snapshot]
+	 * : Skip snapshot persistence. Report is generated but the snapshot baseline is not updated.
+	 *
+	 * [--same-setting]
+	 * : (Requires --network) Collect data from the main site only instead of all target sites.
+	 *   Useful when all sites share identical plugins, themes, and configuration.
+	 *
+	 * [--id=<blog_id>]
+	 * : (Requires --network) Collect data from this specific blog ID only.
+	 *   Takes precedence over --same-setting when both are given.
+	 *
 	 * ## EXAMPLES
 	 *
 	 * wp maintenance-audit run
 	 * wp maintenance-audit run --dry
 	 * wp maintenance-audit run --network
+	 * wp maintenance-audit run --no-snapshot
+	 * wp maintenance-audit run --network --no-snapshot
+	 * wp maintenance-audit run --network --same-setting
+	 * wp maintenance-audit run --network --same-setting --no-snapshot
+	 * wp maintenance-audit run --network --id=2
+	 * wp maintenance-audit run --network --id=2 --no-snapshot
 	 *
 	 * @param array<int,string>             $positional  Positional arguments.
 	 * @param array<string,string|bool|int> $assoc_flags Associative CLI flags.
@@ -45,8 +62,11 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	public function run( $positional, $assoc_flags ) {
 		unset( $positional );
 
-		$dry     = isset( $assoc_flags['dry'] );
-		$network = isset( $assoc_flags['network'] );
+		$dry          = isset( $assoc_flags['dry'] );
+		$network      = isset( $assoc_flags['network'] );
+		$no_snapshot  = isset( $assoc_flags['no-snapshot'] );
+		$same_setting = isset( $assoc_flags['same-setting'] );
+		$target_id    = isset( $assoc_flags['id'] ) ? absint( $assoc_flags['id'] ) : 0;
 
 		if ( $network ) {
 			if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
@@ -55,22 +75,29 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 			if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
 				WP_CLI::error( 'Network rollup audit is disabled (enable it under Network Admin → Maintenance Audit).' );
 			}
+			if ( $target_id > 0 && ! get_blog_details( $target_id ) ) {
+				WP_CLI::error( sprintf( 'Blog ID %d does not exist on this network.', $target_id ) );
+			}
 
 			$runner = new WPMAR_Network_Runner();
 			$result = $runner->run(
 				array(
-					'dry'          => ! empty( $dry ),
-					'triggered_by' => 'cli_network',
+					'dry'               => ! empty( $dry ),
+					'triggered_by'      => 'cli_network',
+					'persist_snapshots' => ! $no_snapshot,
+					'same_setting'      => $same_setting,
+					'target_blog_id'    => $target_id,
 				)
 			);
 		} else {
 			$runner = new WPMAR_Runner();
 			$result = $runner->run(
 				array(
-					'dry'           => ! empty( $dry ),
-					'triggered_by'  => 'cli',
-					'capture_cli'   => true,
-					'mail_override' => '',
+					'dry'               => ! empty( $dry ),
+					'triggered_by'      => 'cli',
+					'capture_cli'       => true,
+					'mail_override'     => '',
+					'persist_snapshots' => ! $no_snapshot,
 				)
 			);
 		}

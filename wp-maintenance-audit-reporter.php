@@ -21,13 +21,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.0.0-RC5' );
+define( 'WPMAR_VERSION', '1.0.0-RC6' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'WPMAR_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 define( 'WPMAR_HOOK_SCHEDULED', 'wpmar_run_audit' );
+define( 'WPMAR_HOOK_NETWORK_MANUAL_RUN', 'wpmar_run_network_audit_manual' );
 define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
 define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 define( 'WPMAR_NETWORK_ADMIN_PAGE_SLUG', 'wpmar-network-maintenance-report' );

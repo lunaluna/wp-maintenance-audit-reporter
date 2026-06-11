@@ -21,6 +21,7 @@ class WPMAR_Scheduler {
 	 */
 	public static function init() {
 		add_action( WPMAR_HOOK_SCHEDULED, array( __CLASS__, 'handle_event' ) );
+		add_action( WPMAR_HOOK_NETWORK_MANUAL_RUN, array( __CLASS__, 'handle_network_manual_event' ), 10, 1 );
 	}
 
 	/**
@@ -76,6 +77,32 @@ class WPMAR_Scheduler {
 		}
 
 		return WPMAR_Settings::get_all();
+	}
+
+	/**
+	 * Dispatches a manually-queued network rollup run from the admin UI.
+	 *
+	 * Scheduled via {@see WPMAR_HOOK_NETWORK_MANUAL_RUN} to avoid HTTP 504 on
+	 * synchronous POSTs when there are many target sites.
+	 *
+	 * @param array<string,mixed> $options Run options forwarded from handle_post().
+	 * @return void
+	 */
+	public static function handle_network_manual_event( $options ) {
+		if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
+			return;
+		}
+
+		$runner = new WPMAR_Network_Runner();
+
+		try {
+			$runner->run( is_array( $options ) ? $options : array() );
+		} catch ( Exception $exception ) {
+			if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
+				error_log( 'WPMAR network manual run error: ' . $exception->getMessage() );
+			}
+		}
 	}
 
 	/**
