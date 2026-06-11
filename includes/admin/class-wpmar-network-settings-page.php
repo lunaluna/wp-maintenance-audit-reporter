@@ -252,13 +252,22 @@ class WPMAR_Network_Settings_Page {
 						<label for="wpmar-qa-mail"><?php esc_html_e( 'テストメール上書き先（メールアドレスを1件だけ指定可）', 'wp-maintenance-audit-reporter' ); ?></label><br />
 						<input class="regular-text" name="wpmar_qa_mail" id="wpmar-qa-mail" type="email" placeholder="qa@example.com" />
 					</p>
+					<p class="description">
+						<?php esc_html_e( 'メール通知が有効なとき、「今すぐ実行」でここにアドレスを入れていると、設定どおりの宛先への送信に加え、クライアント向けレポートメールと管理者向けレポートメールをそれぞれ1通ずつ（最大2通）このアドレスにも追加送信します。既にクライアント宛先／管理者宛先に含まれるアドレスと同じ場合は、該当する種類の重複送信はしません。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
 				</div>
 
 				<p class="wpmar-manual-run-options description">
 					<label for="wpmar-persist-snapshots">
 						<input name="wpmar_persist_snapshots" id="wpmar-persist-snapshots" type="checkbox" value="1" />
 						<?php esc_html_e( 'スナップショットを保存する（差分比較用）', 'wp-maintenance-audit-reporter' ); ?>
-					</label>
+					</label><br />
+					<span class="description">
+						<?php esc_html_e( '「今すぐ実行」でチェックを入れたときのみ、DB のスナップショット行を更新します。チェックなしの手動実行ではレポートのみ作成し、スナップショットは更新しません。WP-Cron の定期実行では常にスナップショットを保存します。', 'wp-maintenance-audit-reporter' ); ?>
+					</span>
+					<span class="description" style="display:block;margin-top:8px;">
+						<?php esc_html_e( '変更履歴の差分は、保存済みスナップショット（比較の基準）と、この実行で収集した現在のサイト状態を常に突き合わせて計算します。スナップショットを保存しなくても、レポート本文・一覧データは常に今回の収集結果（現在のファイル状態）に基づきます。', 'wp-maintenance-audit-reporter' ); ?>
+					</span>
 				</p>
 
 				<p class="wpmar-section-panel-actions">
