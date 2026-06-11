@@ -52,7 +52,8 @@ class WPMAR_Network_Settings {
 				'max_sites'        => 100,
 			),
 			'domain'                => array(
-				'allowed_host' => '',
+				'allowed_host'        => '',
+				'allowed_path_prefix' => '',
 			),
 		);
 	}
@@ -210,7 +211,8 @@ class WPMAR_Network_Settings {
 		}
 		$merged['retention']['months'] = $months;
 
-		$merged['domain']['allowed_host'] = sanitize_text_field( (string) $merged['domain']['allowed_host'] );
+		$merged['domain']['allowed_host']        = sanitize_text_field( (string) $merged['domain']['allowed_host'] );
+		$merged['domain']['allowed_path_prefix'] = sanitize_text_field( (string) ( $merged['domain']['allowed_path_prefix'] ?? '' ) );
 
 		return $merged;
 	}

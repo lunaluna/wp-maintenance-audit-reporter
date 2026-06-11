@@ -55,7 +55,18 @@ class WPMAR_Domain_Gate {
 			return true;
 		}
 
-		return $curr === $allowed;
+		if ( $curr !== $allowed ) {
+			return false;
+		}
+
+		$prefix = isset( $domain['allowed_path_prefix'] ) ? trim( strtolower( sanitize_text_field( $domain['allowed_path_prefix'] ) ), '/' ) : '';
+		if ( '' === $prefix ) {
+			return true;
+		}
+
+		$curr_path = self::current_path();
+
+		return $curr_path === $prefix || str_starts_with( $curr_path, $prefix . '/' );
 	}
 
 	/**
@@ -70,8 +81,13 @@ class WPMAR_Domain_Gate {
 
 		if ( ! isset( $merged['domain'] ) || ! is_array( $merged['domain'] ) ) {
 			$merged['domain'] = array(
-				'allowed_host' => '',
+				'allowed_host'        => '',
+				'allowed_path_prefix' => '',
 			);
+		}
+
+		if ( ! isset( $merged['domain']['allowed_path_prefix'] ) ) {
+			$merged['domain']['allowed_path_prefix'] = '';
 		}
 
 		$network_domain = isset( $network_settings['domain'] ) && is_array( $network_settings['domain'] )
@@ -80,6 +96,10 @@ class WPMAR_Domain_Gate {
 
 		if ( '' === trim( (string) $merged['domain']['allowed_host'] ) && ! empty( $network_domain['allowed_host'] ) ) {
 			$merged['domain']['allowed_host'] = sanitize_text_field( (string) $network_domain['allowed_host'] );
+		}
+
+		if ( '' === trim( (string) $merged['domain']['allowed_path_prefix'] ) && ! empty( $network_domain['allowed_path_prefix'] ) ) {
+			$merged['domain']['allowed_path_prefix'] = sanitize_text_field( (string) $network_domain['allowed_path_prefix'] );
 		}
 
 		return $merged;
