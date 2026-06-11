@@ -126,6 +126,18 @@ class WPMAR_Notifier_Mail {
 		add_filter( 'wp_mail_from', $mail_from_email_callback );
 		add_filter( 'wp_mail_from_name', $mail_from_name_callback );
 
+		$wpmar_mail_failed_handler = static function ( \WP_Error $wp_error ) {
+			if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
+				return;
+			}
+			$data    = $wp_error->get_error_data();
+			$to_raw  = isset( $data['to'] ) ? $data['to'] : array();
+			$to_line = implode( ', ', (array) $to_raw );
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( '[WPMAR] wp_mail failed. To: ' . $to_line . ' — ' . $wp_error->get_error_message() );
+		};
+		add_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
+
 		// Two separate sends keeps client copy lightweight while operators get the full blob.
 		$headers_admin = array( 'Content-Type: text/plain; charset=UTF-8' );
 
@@ -179,6 +191,7 @@ class WPMAR_Notifier_Mail {
 			$results[] = wp_mail( $qa_extra, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
 		}
 
+		remove_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
 		remove_filter( 'wp_mail_from', $mail_from_email_callback );
 		remove_filter( 'wp_mail_from_name', $mail_from_name_callback );
 
