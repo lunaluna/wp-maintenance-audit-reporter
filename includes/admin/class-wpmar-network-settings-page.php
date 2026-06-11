@@ -276,6 +276,21 @@ class WPMAR_Network_Settings_Page {
 					<button class="button" name="wpmar_admin_action" type="submit" value="full_run"><?php esc_html_e( '今すぐ実行', 'wp-maintenance-audit-reporter' ); ?></button>
 				</p>
 			</form>
+
+			<div
+				id="wpmar-busy-overlay"
+				class="wpmar-busy-overlay"
+				hidden
+				aria-hidden="true"
+				aria-live="polite"
+				aria-busy="false"
+				role="status"
+			>
+				<div class="wpmar-busy-panel">
+					<span class="wpmar-spinner" aria-hidden="true"></span>
+					<p id="wpmar-busy-message" class="wpmar-busy-message"></p>
+				</div>
+			</div>
 		</div>
 		<?php
 	}
