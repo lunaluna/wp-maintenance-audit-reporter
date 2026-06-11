@@ -192,34 +192,59 @@ class WPMAR_Network_Settings_Page {
 				</div>
 
 				<div class="wpmar-section-panel">
-					<h2><?php esc_html_e( '出力・保持', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<h2><?php esc_html_e( '保持期間', 'wp-maintenance-audit-reporter' ); ?></h2>
 					<table class="form-table" role="presentation">
 						<tr>
-							<th scope="row"><?php esc_html_e( 'Markdown / PDF', 'wp-maintenance-audit-reporter' ); ?></th>
-							<td>
-								<label><input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> /> <?php esc_html_e( '管理者向け Markdown を保存', 'wp-maintenance-audit-reporter' ); ?></label><br />
-								<label><input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> /> <?php esc_html_e( 'クライアント向け PDF を保存', 'wp-maintenance-audit-reporter' ); ?></label>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="wpmar-retention-months"><?php esc_html_e( '保持期間', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<th scope="row"><label for="wpmar-retention-months"><?php esc_html_e( 'レポート保管期間', 'wp-maintenance-audit-reporter' ); ?></label></th>
 							<td>
 								<select name="wpmar_retention_months" id="wpmar-retention-months">
 									<?php
 									$months = absint( $settings['retention']['months'] ?? 12 );
 									foreach ( array(
-										0  => __( '無期限', 'wp-maintenance-audit-reporter' ),
-										12 => '12',
-										24 => '24',
+										0  => __( '無期限（自動削除しない）', 'wp-maintenance-audit-reporter' ),
+										12 => '12 ヶ月より古いレポートを削除',
+										24 => '24 ヶ月より古いレポートを削除',
 									) as $val => $label ) :
 										?>
 										<option value="<?php echo esc_attr( (string) $val ); ?>" <?php selected( $months, $val ); ?>><?php echo esc_html( (string) $label ); ?></option>
 									<?php endforeach; ?>
 								</select>
+								<p class="description"><?php esc_html_e( '最新の実行から起算して、指定した期間より古いレポートのデータとそのデータから生成されたファイルを自動で削除します。', 'wp-maintenance-audit-reporter' ); ?></p>
 							</td>
 						</tr>
 					</table>
 				</div>
+
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'レポートをファイルとして自動保存', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Markdown を uploads に書き出して保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
+									<?php esc_html_e( '実行時に自動で `wp-content/uploads/wpmar/` に md ファイルを保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
+									<?php esc_html_e( '実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+								<?php if ( ! WPMAR_PDF_Installer::is_installed() ) : ?>
+									<p class="description" style="color:#996800;margin-top:4px;">
+										<?php esc_html_e( 'PDF ライブラリが未インストールのため、この設定は現在機能しません。下の「PDF ライブラリ（mPDF）」セクションからインストールしてください。', 'wp-maintenance-audit-reporter' ); ?>
+									</p>
+								<?php endif; ?>
+							</td>
+						</tr>
+					</table>
+				</div>
+
+				<?php WPMAR_PDF_Installer::render_panel(); ?>
 
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( '検証ツール', 'wp-maintenance-audit-reporter' ); ?></h2>
