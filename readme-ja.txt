@@ -51,6 +51,7 @@ v0.2 以降、管理 UI は専用のトップレベル **Maintenance Audit** メ
 == 変更履歴 ==
 
 = 1.0.0-RC7 =
+* 変更: 出力ファイル名にドメイン・対象・日付を付与 — Markdown および PDF のファイル名にサイトドメイン、対象（管理者 / クライアント）、日付が含まれるようになりました。管理者向け Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`、クライアント向け PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`。ネットワーク集約では同じ形式で `wpmar-network-report-` プレフィックスを使用します。従来は `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` という対象区別のない名前でした。
 * 修正: プラグインアップデート時の PDF ライブラリ（`vendor/`）保持 — zip アップロードまたは管理画面からのアップデート前にすでに `vendor/` が存在する場合、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイルが配置された後に自動的に復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
 
 = 1.0.0-RC6 =

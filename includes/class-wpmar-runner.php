@@ -102,9 +102,13 @@ class WPMAR_Runner {
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
 				// Uploaded Markdown mirrors the verbose admin-facing email payload.
-				$slug_candidate = gmdate( 'YmdHis' );
+				$domain_slug = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+				if ( '' === $domain_slug ) {
+					$domain_slug = 'site';
+				}
+				$slug_candidate = gmdate( 'Ymd-His' );
 				$file_result    = WPMAR_MD_Writer::write_markdown_file(
-					sprintf( 'wpmar-report-%s', $slug_candidate ),
+					sprintf( 'wpmar-report-%s-admin-%s', $domain_slug, $slug_candidate ),
 					$admin_body
 				);
 				if ( ! is_wp_error( $file_result ) && is_string( $file_result ) ) {
@@ -178,13 +182,17 @@ class WPMAR_Runner {
 			}
 
 			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
+				$domain_slug_pdf = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+				if ( '' === $domain_slug_pdf ) {
+					$domain_slug_pdf = 'site';
+				}
 				$pdf_rel = WPMAR_PDF_Writer::write_pdf_from_markdown(
 					WPMAR_PDF_Writer::markdown_body_for_client_pdf(
 						array(
 							'body_client_md' => $client_body,
 						)
 					),
-					'wpmar-report-' . (int) $row_id
+					sprintf( 'wpmar-report-%s-client-%s-%d', $domain_slug_pdf, gmdate( 'Ymd' ), (int) $row_id )
 				);
 				if ( ! is_wp_error( $pdf_rel ) && is_string( $pdf_rel ) && '' !== $pdf_rel ) {
 					$report_repo->update_pdf_file_path( (int) $row_id, $pdf_rel );
