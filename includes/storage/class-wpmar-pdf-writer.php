@@ -99,23 +99,41 @@ class WPMAR_PDF_Writer {
 
 		$parsedown = new \Parsedown();
 		$fragment  = $parsedown->text( $markdown );
+
+		$font_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
+		$has_noto = is_dir( $font_dir )
+			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP-Regular.ttf' );
+
+		$body_font = $has_noto ? 'notosansjp,dejavusans,sans-serif' : 'sun-exta,dejavusans,sans-serif';
 		$html      = '<!DOCTYPE html><html><head><meta charset="UTF-8" />'
-			. '<style>body{font-family:sun-exta,dejavusans,sans-serif;font-size:10pt;line-height:1.35;color:#111;}pre,code{font-family:dejavusansmono,monospace;font-size:8pt;}h1{font-size:14pt;}h2{font-size:12pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:4px;}</style>'
+			. '<style>body{font-family:' . $body_font . ';font-size:10pt;line-height:1.35;color:#111;}pre,code{font-family:dejavusansmono,monospace;font-size:8pt;}h1{font-size:14pt;}h2{font-size:12pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:4px;}</style>'
 			. '</head><body>' . $fragment . '</body></html>';
 
 		$file = trailingslashit( $pdf_dir ) . $slug . '.pdf';
 
-		try {
-			$mpdf = new \Mpdf\Mpdf(
-				array(
-					'mode'          => 'utf-8',
-					'format'        => 'A4',
-					'tempDir'       => $temp_dir,
-					'default_font'  => 'sun-exta',
-					'margin_top'    => 12,
-					'margin_bottom' => 12,
-				)
+		$mpdf_config = array(
+			'mode'          => 'utf-8',
+			'format'        => 'A4',
+			'tempDir'       => $temp_dir,
+			'default_font'  => $has_noto ? 'notosansjp' : 'sun-exta',
+			'margin_top'    => 12,
+			'margin_bottom' => 12,
+		);
+		if ( $has_noto ) {
+			$mpdf_config['fontDir']  = array( $font_dir );
+			$mpdf_config['fontdata'] = array(
+				'notosansjp' => array(
+					'R'      => 'NotoSansJP-Regular.ttf',
+					'B'      => 'NotoSansJP-Bold.ttf',
+					'I'      => 'NotoSansJP-Regular.ttf',
+					'BI'     => 'NotoSansJP-Bold.ttf',
+					'useOTL' => 0xFF,
+				),
 			);
+		}
+
+		try {
+			$mpdf = new \Mpdf\Mpdf( $mpdf_config );
 
 			$mpdf->WriteHTML( $html );
 			$mpdf->Output( $file, \Mpdf\Output\Destination::FILE );

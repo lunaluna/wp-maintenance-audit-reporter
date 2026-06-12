@@ -65,14 +65,28 @@ composer install \
   --no-progress
 
 # ---------------------------------------------------------------------------
-# Package vendor/ into a zip
-# vendor/ sits at the zip root so ZipArchive::extractTo(PLUGIN_DIR) is enough.
+# Download Noto Sans JP fonts (Regular + Bold)
+# ---------------------------------------------------------------------------
+echo ""
+echo "Downloading Noto Sans JP fonts ..."
+mkdir -p "${TMP_DIR}/fonts"
+NOTO_TMP="${TMP_DIR}/noto-sans-jp.zip"
+curl -fsSL "https://fonts.google.com/download?family=Noto+Sans+JP" -o "$NOTO_TMP"
+unzip -jo "$NOTO_TMP" \
+  "static/NotoSansJP-Regular.ttf" \
+  "static/NotoSansJP-Bold.ttf" \
+  -d "${TMP_DIR}/fonts/"
+rm -f "$NOTO_TMP"
+
+# ---------------------------------------------------------------------------
+# Package vendor/ and fonts/ into a zip
+# Both sit at the zip root so ZipArchive::extractTo(PLUGIN_DIR) is enough.
 # -X suppresses macOS resource-fork entries (__MACOSX/).
 # ---------------------------------------------------------------------------
 echo ""
 echo "Creating zip ..."
 rm -f "$OUT_ZIP"
-(cd "$TMP_DIR" && zip -rq -X "$OUT_ZIP" vendor/)
+(cd "$TMP_DIR" && zip -rq -X "$OUT_ZIP" vendor/ fonts/)
 
 SIZE="$(du -sh "$OUT_ZIP" | cut -f1)"
 echo "Done: ${OUT_ZIP}  (${SIZE})"

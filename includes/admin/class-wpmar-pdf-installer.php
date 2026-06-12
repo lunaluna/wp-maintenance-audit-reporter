@@ -68,6 +68,15 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
+	 * Absolute path used as a temporary fonts/ backup during upgrades.
+	 *
+	 * @return string
+	 */
+	private static function fonts_backup_path() {
+		return WP_CONTENT_DIR . '/wpmar-fonts-backup';
+	}
+
+	/**
 	 * Moves vendor/ to a safe location before the upgrader removes the plugin directory.
 	 *
 	 * Hooked on `upgrader_source_selection`, which fires after the incoming package is
@@ -101,6 +110,15 @@ class WPMAR_PDF_Installer {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- atomic rename within wp-content; WP_Filesystem has no equivalent.
 		if ( @rename( $vendor, $backup ) ) {
 			self::$vendor_pending_restore = true;
+		}
+
+		$fonts = WPMAR_PLUGIN_DIR . 'fonts';
+		$fback = self::fonts_backup_path();
+		if ( is_dir( $fonts ) ) {
+			if ( is_dir( $fback ) ) {
+				self::remove_dir( $fback );
+			}
+			@rename( $fonts, $fback ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 
 		return $source;
@@ -157,6 +175,16 @@ class WPMAR_PDF_Installer {
 			// New package already includes vendor/ — discard the backup.
 			self::remove_dir( $backup );
 		}
+
+		$fback = self::fonts_backup_path();
+		$fonts = WPMAR_PLUGIN_DIR . 'fonts';
+		if ( is_dir( $fback ) ) {
+			if ( ! is_dir( $fonts ) ) {
+				@rename( $fback, $fonts ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
+			} else {
+				self::remove_dir( $fback );
+			}
+		}
 	}
 
 	/**
@@ -181,6 +209,12 @@ class WPMAR_PDF_Installer {
 		}
 
 		@rename( $backup, $vendor ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
+
+		$fback = self::fonts_backup_path();
+		$fonts = WPMAR_PLUGIN_DIR . 'fonts';
+		if ( ! is_dir( $fonts ) && is_dir( $fback ) ) {
+			@rename( $fback, $fonts ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
+		}
 	}
 
 	/**
