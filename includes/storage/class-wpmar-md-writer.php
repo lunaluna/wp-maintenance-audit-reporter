@@ -38,6 +38,11 @@ class WPMAR_MD_Writer {
 			return new WP_Error( 'wpmar_upload_mkdir_fail', __( 'Unable to create upload directory.', 'wp-maintenance-audit-reporter' ) );
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- lightweight pre-flight; WP_Filesystem not yet initialised at this point.
+		if ( ! is_writable( $dir ) ) {
+			return new WP_Error( 'wpmar_upload_not_writable', __( 'Upload directory is not writable.', 'wp-maintenance-audit-reporter' ) );
+		}
+
 		return trailingslashit( $dir );
 	}
 
