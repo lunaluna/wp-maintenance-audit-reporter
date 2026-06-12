@@ -113,6 +113,13 @@ class WPMAR_Check_Checksums {
 			}
 
 			$key = $this->normalize_rel_path( (string) $rel_path );
+
+			// wp core verify-checksums と同様に wp-content/ 以下はコア検証の対象外とする.
+			if ( 0 === strpos( $key, 'wp-content/' ) ) {
+				++$out['skipped_files'];
+				continue;
+			}
+
 			if ( isset( $exclude_set[ $key ] ) ) {
 				++$out['skipped_files'];
 				continue;
