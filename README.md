@@ -1,8 +1,12 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC6**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC7**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC7 fixes (PDF library preserved across plugin updates)
+
+- **`vendor/` preserved across plugin updates** — `WPMAR_PDF_Installer` now hooks into `upgrader_pre_install` and `upgrader_process_complete`. When the plugin is updated via zip upload or the admin-screen updater, if `vendor/` already exists it is moved to a temporary location (`wp-content/wpmar-vendor-backup/`) before WordPress removes the plugin directory, then restored automatically once the new files are in place. This eliminates the need to re-install the PDF library after each plugin update.
 
 ## What v1.0.0-RC6 changes (network admin UI overhaul, 504 fix, CLI --no-snapshot)
 
@@ -82,13 +86,13 @@ See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. *
 
 ```bash
 # 1. Bump version in wp-maintenance-audit-reporter.php, WPMAR_VERSION, composer.json, readme*.txt, README*.md
-git commit -am "release: 1.0.0-RC5"
+git commit -am "release: 1.0.0-RC7"
 git push origin main
 
 # 2. Tag and push (this triggers release.yml). Bare semver matches Stable-tag style:
-git tag 1.0.0-RC5
-git push origin 1.0.0-RC5
-# (v-prefixed tags like v1.0.0-RC5 are also accepted.)
+git tag 1.0.0-RC7
+git push origin 1.0.0-RC7
+# (v-prefixed tags like v1.0.0-RC7 are also accepted.)
 ```
 
 ## What v0.9 adds (Security & reliability)

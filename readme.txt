@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC6
+Stable tag: 1.0.0-RC7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,16 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC6 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC7 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC7 =
+* Fixed: PDF library (`vendor/`) preserved across plugin updates — on zip upload or admin-screen update, if `vendor/` already exists it is moved to a temporary location (`wp-content/wpmar-vendor-backup/`) before WordPress removes the plugin directory and restored automatically after the new files are in place. Eliminates the need to re-install the PDF library after each plugin update.
 
 = 1.0.0-RC6 =
 * Added: Network settings UI — status panel now shows "直近の完了時刻" and "WP-CLI" items, matching the single-site page.
