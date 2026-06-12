@@ -88,12 +88,12 @@ jobs:
           echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Download Noto Sans CJK JP fonts
+      - name: Download Noto Sans JP font
         run: |
           mkdir -p fonts
-          NOTO_BASE="https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese"
-          curl -fsSL "${NOTO_BASE}/NotoSansCJKjp-Regular.otf" -o fonts/NotoSansCJKjp-Regular.otf
-          curl -fsSL "${NOTO_BASE}/NotoSansCJKjp-Bold.otf"    -o fonts/NotoSansCJKjp-Bold.otf
+          curl -fsSL \
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
+            -o fonts/NotoSansJP.ttf
 
       - name: Create vendor-pdf.zip
         id: vendor_zip
