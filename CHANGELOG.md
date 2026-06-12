@@ -17,7 +17,7 @@ _No pending notes._
 
 ### Fixed
 
-- **`vendor/` preserved across plugin updates** — `WPMAR_PDF_Installer` now hooks into `upgrader_pre_install` and `upgrader_process_complete`. When the plugin is updated via zip upload or the admin-screen updater, if `vendor/` already exists it is moved to a temporary location (`wp-content/wpmar-vendor-backup/`) before WordPress removes the plugin directory, then restored automatically once the new files are in place. This eliminates the need to re-install the PDF library after each plugin update.
+- **`vendor/` preserved across plugin updates** — `WPMAR_PDF_Installer` hooks into `upgrader_source_selection` and `upgrader_process_complete`. When an update is detected to be this plugin (matched by the incoming package's folder + main file, so it works for the manual ZIP-upload _install_ flow whose `hook_extra` omits the `plugin` key, the dashboard "update now" flow, and WP-CLI / auto-update), any existing `vendor/` is moved to `wp-content/wpmar-vendor-backup/` before WordPress removes the plugin directory, then restored once the new files are in place. The hooks register in every context (not just admin), and a self-heal step restores an orphaned backup on the next load if an update was interrupted mid-copy. This eliminates the need to re-install the PDF library after each plugin update.
 
 ## [1.0.0-RC6] - 2026-06-11
 

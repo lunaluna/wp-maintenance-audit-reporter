@@ -19,6 +19,18 @@ class WPMAR_PDF_Installer {
 	const AJAX_MANUAL_UPLOAD = 'wpmar_pdf_manual_upload';
 
 	/**
+	 * Whether a vendor/ backup is awaiting restore in this request.
+	 *
+	 * Set when {@see backup_vendor_before_upgrade()} moves vendor/ aside, read by
+	 * {@see restore_vendor_after_upgrade()}. Both run within the same upgrade request,
+	 * so a static flag is a reliable channel — and avoids depending on $hook_extra,
+	 * which lacks the `plugin` key during the manual ZIP-upload (install) flow.
+	 *
+	 * @var bool
+	 */
+	private static $vendor_pending_restore = false;
+
+	/**
 	 * Registers Ajax hooks.
 	 *
 	 * @return void
@@ -27,17 +39,23 @@ class WPMAR_PDF_Installer {
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_PREFLIGHT, array( __CLASS__, 'handle_preflight_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_MANUAL_UPLOAD, array( __CLASS__, 'handle_manual_upload_ajax' ) );
-		self::register_upgrade_hooks();
 	}
 
 	/**
 	 * Registers hooks that preserve vendor/ across plugin upgrades.
 	 *
+	 * Registered in all contexts (admin, WP-CLI, auto-update cron) — not gated behind
+	 * is_admin() — so the PDF library survives every update path.
+	 *
 	 * @return void
 	 */
-	private static function register_upgrade_hooks() {
-		add_filter( 'upgrader_pre_install', array( __CLASS__, 'backup_vendor_before_upgrade' ), 10, 2 );
-		add_action( 'upgrader_process_complete', array( __CLASS__, 'restore_vendor_after_upgrade' ), 10, 2 );
+	public static function register_upgrade_hooks() {
+		// Recover from an upgrade that was interrupted after vendor/ was moved aside
+		// but before it could be restored (e.g. a fatal error mid-copy).
+		self::maybe_recover_vendor_backup();
+
+		add_filter( 'upgrader_source_selection', array( __CLASS__, 'backup_vendor_before_upgrade' ), 10, 1 );
+		add_action( 'upgrader_process_complete', array( __CLASS__, 'restore_vendor_after_upgrade' ), 10, 0 );
 	}
 
 	/**
@@ -52,22 +70,27 @@ class WPMAR_PDF_Installer {
 	/**
 	 * Moves vendor/ to a safe location before the upgrader removes the plugin directory.
 	 *
-	 * @param bool|WP_Error $pre_result Pass-through return value.
-	 * @param array         $hook_extra Upgrade context supplied by WordPress.
-	 * @return bool|WP_Error
+	 * Hooked on `upgrader_source_selection`, which fires after the incoming package is
+	 * unpacked but before the old plugin directory is cleared. Unlike `upgrader_pre_install`,
+	 * this receives the unpacked $source directory, letting us identify our own package by its
+	 * folder name + main file — reliable for BOTH the manual ZIP-upload (install) and the
+	 * dashboard "update now" flows, where $hook_extra differs.
+	 *
+	 * @param string|WP_Error $source Path to the unpacked package source directory.
+	 * @return string|WP_Error The unchanged $source (this is a filter).
 	 */
-	public static function backup_vendor_before_upgrade( $pre_result, $hook_extra ) {
-		if ( is_wp_error( $pre_result ) ) {
-			return $pre_result;
+	public static function backup_vendor_before_upgrade( $source ) {
+		if ( is_wp_error( $source ) ) {
+			return $source;
 		}
 
-		if ( empty( $hook_extra['plugin'] ) || WPMAR_PLUGIN_BASENAME !== $hook_extra['plugin'] ) {
-			return $pre_result;
+		if ( ! self::source_is_this_plugin( $source ) ) {
+			return $source;
 		}
 
 		$vendor = WPMAR_PLUGIN_DIR . 'vendor';
 		if ( ! is_dir( $vendor ) ) {
-			return $pre_result;
+			return $source;
 		}
 
 		$backup = self::vendor_backup_path();
@@ -75,30 +98,52 @@ class WPMAR_PDF_Installer {
 			self::remove_dir( $backup );
 		}
 
-		@rename( $vendor, $backup ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- atomic rename within wp-content; WP_Filesystem has no equivalent.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- atomic rename within wp-content; WP_Filesystem has no equivalent.
+		if ( @rename( $vendor, $backup ) ) {
+			self::$vendor_pending_restore = true;
+		}
 
-		return $pre_result;
+		return $source;
+	}
+
+	/**
+	 * Whether the unpacked upgrade $source is this plugin's package.
+	 *
+	 * Matches the source folder name against the plugin slug and confirms the main plugin
+	 * file is present inside it, so we only ever back up vendor/ when THIS plugin is the
+	 * one being replaced.
+	 *
+	 * @param string $source Path to the unpacked package source directory.
+	 * @return bool
+	 */
+	private static function source_is_this_plugin( $source ) {
+		if ( ! is_string( $source ) || '' === $source ) {
+			return false;
+		}
+
+		$slug     = dirname( WPMAR_PLUGIN_BASENAME );
+		$basename = basename( untrailingslashit( wp_normalize_path( $source ) ) );
+		if ( $basename !== $slug ) {
+			return false;
+		}
+
+		$main_file = trailingslashit( $source ) . basename( WPMAR_PLUGIN_BASENAME );
+		return is_file( $main_file );
 	}
 
 	/**
 	 * Moves the backed-up vendor/ back into the plugin directory after the upgrade completes.
 	 *
-	 * @param \WP_Upgrader $upgrader  Upgrader instance (unused).
-	 * @param array        $hook_extra Upgrade context supplied by WordPress.
+	 * Driven by the {@see $vendor_pending_restore} flag set during this same request rather
+	 * than by $hook_extra (which omits the `plugin` key for manual ZIP uploads).
+	 *
 	 * @return void
 	 */
-	public static function restore_vendor_after_upgrade( $upgrader, $hook_extra ) {
-		if ( empty( $hook_extra['type'] ) || 'plugin' !== $hook_extra['type'] ) {
+	public static function restore_vendor_after_upgrade() {
+		if ( ! self::$vendor_pending_restore ) {
 			return;
 		}
-
-		$plugins = array_merge(
-			isset( $hook_extra['plugins'] ) ? (array) $hook_extra['plugins'] : array(),
-			isset( $hook_extra['plugin'] ) ? array( $hook_extra['plugin'] ) : array()
-		);
-		if ( ! in_array( WPMAR_PLUGIN_BASENAME, $plugins, true ) ) {
-			return;
-		}
+		self::$vendor_pending_restore = false;
 
 		$backup = self::vendor_backup_path();
 		if ( ! is_dir( $backup ) ) {
@@ -112,6 +157,30 @@ class WPMAR_PDF_Installer {
 			// New package already includes vendor/ — discard the backup.
 			self::remove_dir( $backup );
 		}
+	}
+
+	/**
+	 * Restores an orphaned vendor/ backup left by an interrupted upgrade.
+	 *
+	 * If a previous upgrade moved vendor/ aside but died before restoring it (so the
+	 * in-request flag was lost), the next plugin load finds vendor/ missing while the
+	 * backup survives, and moves it back. Runs only when vendor/ is absent, so it never
+	 * fires mid-upgrade (no fresh plugin load happens between backup and restore).
+	 *
+	 * @return void
+	 */
+	private static function maybe_recover_vendor_backup() {
+		$vendor = WPMAR_PLUGIN_DIR . 'vendor';
+		if ( is_dir( $vendor ) ) {
+			return;
+		}
+
+		$backup = self::vendor_backup_path();
+		if ( ! is_dir( $backup ) ) {
+			return;
+		}
+
+		@rename( $backup, $vendor ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
 	}
 
 	/**

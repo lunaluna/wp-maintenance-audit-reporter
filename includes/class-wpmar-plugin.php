@@ -55,6 +55,10 @@ class WPMAR_Plugin {
 			add_action( 'wp_initialize_site', array( 'WPMAR_Activator', 'activate_new_site' ), 10, 1 );
 		}
 
+		// Register upgrade hooks in every context (admin, WP-CLI, auto-update cron) so the
+		// on-demand PDF library (vendor/) survives all plugin update paths.
+		WPMAR_PDF_Installer::register_upgrade_hooks();
+
 		if ( is_admin() ) {
 			WPMAR_Admin_Menu::init();
 		}

@@ -52,7 +52,7 @@ v0.2 以降、管理 UI は専用のトップレベル **Maintenance Audit** メ
 
 = 1.0.0-RC7 =
 * 変更: 出力ファイル名にドメイン・対象・日付を付与 — Markdown および PDF のファイル名にサイトドメイン、対象（管理者 / クライアント）、日付が含まれるようになりました。管理者向け Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`、クライアント向け PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`。ネットワーク集約では同じ形式で `wpmar-network-report-` プレフィックスを使用します。従来は `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` という対象区別のない名前でした。
-* 修正: プラグインアップデート時の PDF ライブラリ（`vendor/`）保持 — zip アップロードまたは管理画面からのアップデート前にすでに `vendor/` が存在する場合、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイルが配置された後に自動的に復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
+* 修正: プラグインアップデート時の PDF ライブラリ（`vendor/`）保持 — `WPMAR_PDF_Installer` が `upgrader_source_selection` ＋ `upgrader_process_complete` をフックし、取り込みパッケージのフォルダ名＋本体ファイルで対象を判定するため、`hook_extra` に `plugin` キーを含まない zip アップロード（インストール扱い）、管理画面の「今すぐ更新」、WP-CLI・自動更新のいずれでも動作します。すでに `vendor/` が存在する場合は、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイル配置後に復元します。フックは全コンテキストで登録され、更新中断時も次回読み込み時のセルフヒールで退避済み `vendor/` を自動復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
 
 = 1.0.0-RC6 =
 * 追加: ネットワーク設定 UI — ステータスパネルに「直近の完了時刻」と「WP-CLI」を追加（シングルサイトと統一）。
