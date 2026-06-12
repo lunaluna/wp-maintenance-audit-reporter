@@ -1,10 +1,14 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC6**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC7**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC7 の修正内容（プラグインアップデート時の PDF ライブラリ保持）
+
+- **プラグインアップデート時に `vendor/` を保持** — `WPMAR_PDF_Installer` が `upgrader_pre_install` および `upgrader_process_complete` フックに対応しました。zip アップロードまたは管理画面からのアップデート前にすでに `vendor/` が存在する場合、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイルが配置された後に自動的に復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
 
 ## v1.0.0-RC6 の変更内容（ネットワーク管理画面 UI の整備・504 修正・CLI --no-snapshot）
 
@@ -84,13 +88,13 @@ English: [README.md](README.md).
 
 ```bash
 # 1. wp-maintenance-audit-reporter.php / WPMAR_VERSION / composer.json / readme*.txt / README*.md を新バージョンに更新
-git commit -am "release: 1.0.0-RC5"
+git commit -am "release: 1.0.0-RC7"
 git push origin main
 
 # 2. タグを打って push（release.yml が起動）。Stable tag 風の v 無し表記:
-git tag 1.0.0-RC5
-git push origin 1.0.0-RC5
-# （v1.0.0-RC5 のような v 付きタグも受け付けます）
+git tag 1.0.0-RC7
+git push origin 1.0.0-RC7
+# （v1.0.0-RC7 のような v 付きタグも受け付けます）
 ```
 
 ## v0.9 で追加・修正されること（セキュリティ・信頼性）
