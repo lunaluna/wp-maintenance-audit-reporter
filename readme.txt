@@ -52,7 +52,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 = 1.0.0-RC7 =
 * Changed: Output file naming — Markdown and PDF artefacts now embed the site domain, audience label, and date in the filename. Administrator-facing Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`; client-facing PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`. Network rollup uses the same pattern with the `wpmar-network-report-` prefix. Previously all artefacts used `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` with no domain or audience distinction.
-* Fixed: PDF library (`vendor/`) preserved across plugin updates — on zip upload or admin-screen update, if `vendor/` already exists it is moved to a temporary location (`wp-content/wpmar-vendor-backup/`) before WordPress removes the plugin directory and restored automatically after the new files are in place. Eliminates the need to re-install the PDF library after each plugin update.
+* Fixed: PDF library (`vendor/`) preserved across plugin updates — `WPMAR_PDF_Installer` hooks `upgrader_source_selection` + `upgrader_process_complete` and detects this plugin by the incoming package's folder + main file, so it works for zip upload (install), dashboard "update now", and WP-CLI / auto-update alike. Any existing `vendor/` is moved to `wp-content/wpmar-vendor-backup/` before WordPress removes the plugin directory and restored after the new files are in place; hooks register in all contexts and an orphaned backup self-heals on the next load. Eliminates the need to re-install the PDF library after each plugin update.
 
 = 1.0.0-RC6 =
 * Added: Network settings UI — status panel now shows "直近の完了時刻" and "WP-CLI" items, matching the single-site page.
