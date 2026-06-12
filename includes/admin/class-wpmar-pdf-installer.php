@@ -75,8 +75,7 @@ class WPMAR_PDF_Installer {
 			self::remove_dir( $backup );
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic rename within wp-content; WP_Filesystem has no equivalent.
-		@rename( $vendor, $backup ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		@rename( $vendor, $backup ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- atomic rename within wp-content; WP_Filesystem has no equivalent.
 
 		return $pre_result;
 	}
@@ -108,8 +107,7 @@ class WPMAR_PDF_Installer {
 
 		$vendor = WPMAR_PLUGIN_DIR . 'vendor';
 		if ( ! is_dir( $vendor ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
-			@rename( $backup, $vendor ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			@rename( $backup, $vendor ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged
 		} else {
 			// New package already includes vendor/ — discard the backup.
 			self::remove_dir( $backup );
@@ -129,12 +127,12 @@ class WPMAR_PDF_Installer {
 		);
 		foreach ( $iterator as $item ) {
 			if ( $item->isDir() ) {
-				@rmdir( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir
+				@rmdir( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
 			} else {
 				@unlink( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
 			}
 		}
-		@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir
+		@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir
 	}
 
 	/**
