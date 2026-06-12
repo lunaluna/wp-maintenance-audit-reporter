@@ -217,6 +217,8 @@ class WPMAR_Reports_Page {
 			if ( ! is_wp_error( $written ) && is_string( $written ) && '' !== $written ) {
 				$repository->update_pdf_file_path( $id, $written );
 				$rel = $written;
+			} elseif ( is_wp_error( $written ) ) {
+				wp_die( esc_html( $written->get_error_message() ) );
 			}
 		}
 

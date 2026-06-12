@@ -102,7 +102,7 @@ class WPMAR_PDF_Writer {
 
 		$font_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
 		$has_noto = is_dir( $font_dir )
-			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansCJKjp-Regular.otf' );
+			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP.ttf' );
 
 		$body_font = $has_noto ? 'notosansjp,dejavusans,sans-serif' : 'sun-exta,dejavusans,sans-serif';
 		$html      = '<!DOCTYPE html><html><head><meta charset="UTF-8" />'
@@ -123,10 +123,10 @@ class WPMAR_PDF_Writer {
 			$mpdf_config['fontDir']  = array( $font_dir );
 			$mpdf_config['fontdata'] = array(
 				'notosansjp' => array(
-					'R'      => 'NotoSansCJKjp-Regular.otf',
-					'B'      => 'NotoSansCJKjp-Bold.otf',
-					'I'      => 'NotoSansCJKjp-Regular.otf',
-					'BI'     => 'NotoSansCJKjp-Bold.otf',
+					'R'      => 'NotoSansJP.ttf',
+					'B'      => 'NotoSansJP.ttf',
+					'I'      => 'NotoSansJP.ttf',
+					'BI'     => 'NotoSansJP.ttf',
 					'useOTL' => 0xFF,
 				),
 			);

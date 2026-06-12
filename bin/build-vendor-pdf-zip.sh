@@ -68,11 +68,11 @@ composer install \
 # Download Noto Sans JP fonts (Regular + Bold)
 # ---------------------------------------------------------------------------
 echo ""
-echo "Downloading Noto Sans CJK JP fonts ..."
+echo "Downloading Noto Sans JP font ..."
 mkdir -p "${TMP_DIR}/fonts"
-NOTO_BASE="https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese"
-curl -fsSL "${NOTO_BASE}/NotoSansCJKjp-Regular.otf" -o "${TMP_DIR}/fonts/NotoSansCJKjp-Regular.otf"
-curl -fsSL "${NOTO_BASE}/NotoSansCJKjp-Bold.otf"    -o "${TMP_DIR}/fonts/NotoSansCJKjp-Bold.otf"
+curl -fsSL \
+  "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
+  -o "${TMP_DIR}/fonts/NotoSansJP.ttf"
 
 # ---------------------------------------------------------------------------
 # Package vendor/ and fonts/ into a zip
