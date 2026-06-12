@@ -27,6 +27,114 @@ class WPMAR_PDF_Installer {
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_PREFLIGHT, array( __CLASS__, 'handle_preflight_ajax' ) );
 		add_action( 'wp_ajax_' . self::AJAX_MANUAL_UPLOAD, array( __CLASS__, 'handle_manual_upload_ajax' ) );
+		self::register_upgrade_hooks();
+	}
+
+	/**
+	 * Registers hooks that preserve vendor/ across plugin upgrades.
+	 *
+	 * @return void
+	 */
+	private static function register_upgrade_hooks() {
+		add_filter( 'upgrader_pre_install', array( __CLASS__, 'backup_vendor_before_upgrade' ), 10, 2 );
+		add_action( 'upgrader_process_complete', array( __CLASS__, 'restore_vendor_after_upgrade' ), 10, 2 );
+	}
+
+	/**
+	 * Absolute path used as a temporary vendor/ backup during upgrades.
+	 *
+	 * @return string
+	 */
+	private static function vendor_backup_path() {
+		return WP_CONTENT_DIR . '/wpmar-vendor-backup';
+	}
+
+	/**
+	 * Moves vendor/ to a safe location before the upgrader removes the plugin directory.
+	 *
+	 * @param bool|WP_Error $pre_result Pass-through return value.
+	 * @param array         $hook_extra Upgrade context supplied by WordPress.
+	 * @return bool|WP_Error
+	 */
+	public static function backup_vendor_before_upgrade( $pre_result, $hook_extra ) {
+		if ( is_wp_error( $pre_result ) ) {
+			return $pre_result;
+		}
+
+		if ( empty( $hook_extra['plugin'] ) || WPMAR_PLUGIN_BASENAME !== $hook_extra['plugin'] ) {
+			return $pre_result;
+		}
+
+		$vendor = WPMAR_PLUGIN_DIR . 'vendor';
+		if ( ! is_dir( $vendor ) ) {
+			return $pre_result;
+		}
+
+		$backup = self::vendor_backup_path();
+		if ( is_dir( $backup ) ) {
+			self::remove_dir( $backup );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- atomic rename within wp-content; WP_Filesystem has no equivalent.
+		@rename( $vendor, $backup ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		return $pre_result;
+	}
+
+	/**
+	 * Moves the backed-up vendor/ back into the plugin directory after the upgrade completes.
+	 *
+	 * @param \WP_Upgrader $upgrader  Upgrader instance (unused).
+	 * @param array        $hook_extra Upgrade context supplied by WordPress.
+	 * @return void
+	 */
+	public static function restore_vendor_after_upgrade( $upgrader, $hook_extra ) {
+		if ( empty( $hook_extra['type'] ) || 'plugin' !== $hook_extra['type'] ) {
+			return;
+		}
+
+		$plugins = array_merge(
+			isset( $hook_extra['plugins'] ) ? (array) $hook_extra['plugins'] : array(),
+			isset( $hook_extra['plugin'] ) ? array( $hook_extra['plugin'] ) : array()
+		);
+		if ( ! in_array( WPMAR_PLUGIN_BASENAME, $plugins, true ) ) {
+			return;
+		}
+
+		$backup = self::vendor_backup_path();
+		if ( ! is_dir( $backup ) ) {
+			return;
+		}
+
+		$vendor = WPMAR_PLUGIN_DIR . 'vendor';
+		if ( ! is_dir( $vendor ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename
+			@rename( $backup, $vendor ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		} else {
+			// New package already includes vendor/ — discard the backup.
+			self::remove_dir( $backup );
+		}
+	}
+
+	/**
+	 * Recursively removes a directory and all its contents.
+	 *
+	 * @param string $dir Absolute path to remove.
+	 * @return void
+	 */
+	private static function remove_dir( $dir ) {
+		$iterator = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::CHILD_FIRST
+		);
+		foreach ( $iterator as $item ) {
+			if ( $item->isDir() ) {
+				@rmdir( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir
+			} else {
+				@unlink( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
+			}
+		}
+		@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.rmdir_rmdir
 	}
 
 	/**
