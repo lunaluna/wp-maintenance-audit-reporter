@@ -4,8 +4,9 @@ WordPress plugin: scheduled maintenance audits for core, themes, and plugins —
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
-## What v1.0.0-RC7 fixes (PDF library preserved across plugin updates)
+## What v1.0.0-RC7 changes (output filename includes domain, audience, and date; PDF library preserved across updates)
 
+- **Output file naming — domain, audience, and date** — Markdown and PDF artefacts now embed the site domain, audience label, and date in the filename. Administrator-facing Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`; client-facing PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`. Network rollup follows the same pattern with the `wpmar-network-report-` prefix. Previously all artefacts used `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` with no domain or audience distinction.
 - **`vendor/` preserved across plugin updates** — `WPMAR_PDF_Installer` now hooks into `upgrader_pre_install` and `upgrader_process_complete`. When the plugin is updated via zip upload or the admin-screen updater, if `vendor/` already exists it is moved to a temporary location (`wp-content/wpmar-vendor-backup/`) before WordPress removes the plugin directory, then restored automatically once the new files are in place. This eliminates the need to re-install the PDF library after each plugin update.
 
 ## What v1.0.0-RC6 changes (network admin UI overhaul, 504 fix, CLI --no-snapshot)
