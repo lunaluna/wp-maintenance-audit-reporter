@@ -174,9 +174,8 @@ class WPMAR_Scheduler {
 				$month_anchor = $localized->modify( 'first day of this month' )->modify( '+' . $offset . ' month' );
 				$y            = (int) $month_anchor->format( 'Y' );
 				$mon_num      = (int) $month_anchor->format( 'n' );
-				// phpcs:disable WordPress.DateTime.RestrictedFunctions.cal_days_in_month -- Gregorian envelope for scheduled day clamps.
-				$dim = (int) cal_days_in_month( CAL_GREGORIAN, $mon_num, $y );
-				// phpcs:enable WordPress.DateTime.RestrictedFunctions.cal_days_in_month
+				// Days in this month via DateTime (no ext/calendar dependency — unavailable on many shared hosts).
+				$dim = (int) $month_anchor->format( 't' );
 				$dom = min( $day, max( $dim, 1 ) );
 
 				$candidate_local = new DateTimeImmutable(
