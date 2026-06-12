@@ -176,10 +176,18 @@ class WPMAR_Reports_Page {
 			wp_die( esc_html__( '指定されたレポートは存在しません。', 'wp-maintenance-audit-reporter' ) );
 		}
 
+		$dl_domain = sanitize_file_name( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+		if ( '' === $dl_domain ) {
+			$dl_domain = 'site';
+		}
+		$created_ts  = strtotime( (string) ( $row['created_at'] ?? '' ) );
+		$dl_date_his = false !== $created_ts ? gmdate( 'Ymd-His', $created_ts ) : gmdate( 'Ymd-His' );
+		$dl_date_ymd = false !== $created_ts ? gmdate( 'Ymd', $created_ts ) : gmdate( 'Ymd' );
+
 		if ( 'md' === $type ) {
 			nocache_headers();
 			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $id . '.md"' );
+			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-admin-' . $dl_date_his . '.md"' );
 			$body = (string) ( $row['body_md'] ?? '' );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown export payload for operators.
 			echo $body;
@@ -189,7 +197,7 @@ class WPMAR_Reports_Page {
 		if ( 'client_md' === $type ) {
 			nocache_headers();
 			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $id . '-client.md"' );
+			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '.md"' );
 			$body = (string) ( $row['body_client_md'] ?? '' );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown export payload for clients.
 			echo $body;
@@ -205,7 +213,7 @@ class WPMAR_Reports_Page {
 		$pdf_md = WPMAR_PDF_Writer::markdown_body_for_client_pdf( $row );
 
 		if ( '' === $rel && '' !== $pdf_md && WPMAR_PDF_Writer::is_available() ) {
-			$written = WPMAR_PDF_Writer::write_pdf_from_markdown( $pdf_md, 'wpmar-report-' . $id );
+			$written = WPMAR_PDF_Writer::write_pdf_from_markdown( $pdf_md, 'wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id );
 			if ( ! is_wp_error( $written ) && is_string( $written ) && '' !== $written ) {
 				$repository->update_pdf_file_path( $id, $written );
 				$rel = $written;
@@ -228,7 +236,7 @@ class WPMAR_Reports_Page {
 
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
-		header( 'Content-Disposition: attachment; filename="wpmar-report-' . $id . '.pdf"' );
+		header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id . '.pdf"' );
 		header( 'Content-Length: ' . (string) $size );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streams binary PDF artefact.
