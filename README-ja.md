@@ -6,10 +6,11 @@ WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-
 
 English: [README.md](README.md).
 
-## v1.0.0-RC7 の変更内容（出力ファイル名にドメイン・対象・日付を付与、アップデート時の PDF ライブラリ保持）
+## v1.0.0-RC7 の変更内容（出力ファイル名にドメイン・対象・日付を付与、アップデート時の PDF ライブラリ保持、BIZ UDGothic フォントに変更）
 
 - **出力ファイル名にドメイン・対象・日付を付与** — Markdown および PDF のファイル名にサイトドメイン、対象（管理者 / クライアント）、日付が含まれるようになりました。管理者向け Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`、クライアント向け PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`。ネットワーク集約では同じ形式で `wpmar-network-report-` プレフィックスを使用します。従来は `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` という対象区別のない名前でした。
-- **プラグインアップデート時に `vendor/` を保持** — `WPMAR_PDF_Installer` が `upgrader_source_selection` および `upgrader_process_complete` フックに対応しました。取り込まれるパッケージのフォルダ名＋本体ファイルで「対象が本プラグインか」を判定するため、`hook_extra` に `plugin` キーを含まない zip アップロード（インストール扱い）でも、管理画面からの「今すぐ更新」でも、WP-CLI・自動更新でも動作します。すでに `vendor/` が存在する場合は、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイルが配置された後に復元します。フックは管理画面に限らず全コンテキストで登録され、更新がコピー中に中断した場合も次回読み込み時のセルフヒールで退避済みの `vendor/` を自動復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
+- **プラグインアップデート時に `vendor/` を保持** — `WPMAR_PDF_Installer` が `upgrader_source_selection` および `upgrader_process_complete` フックに対応しました。
+- **PDF 埋め込みフォントを Noto Sans JP から BIZ UDGothic に変更** — PDF 生成に使用するフォントを Noto Sans JP 可変フォント（1ファイル・mPDF でウェイト指定不可）から BIZ UDGothic Regular + Bold（TTF 2ファイル）に変更しました。mPDF が Regular / Bold を正しく描き分けるようになります。旧フォントファイル（`NotoSansJP.ttf`）は次回プラグイン読み込み時に `WPMAR_PDF_Installer::maybe_cleanup_legacy_fonts()` により自動削除されます。取り込まれるパッケージのフォルダ名＋本体ファイルで「対象が本プラグインか」を判定するため、`hook_extra` に `plugin` キーを含まない zip アップロード（インストール扱い）でも、管理画面からの「今すぐ更新」でも、WP-CLI・自動更新でも動作します。すでに `vendor/` が存在する場合は、WordPress がプラグインディレクトリを削除する前に一時領域（`wp-content/wpmar-vendor-backup/`）へ退避し、新しいファイルが配置された後に復元します。フックは管理画面に限らず全コンテキストで登録され、更新がコピー中に中断した場合も次回読み込み時のセルフヒールで退避済みの `vendor/` を自動復元します。アップデートのたびに PDF ライブラリを再インストールする必要がなくなります。
 
 ## v1.0.0-RC6 の変更内容（ネットワーク管理画面 UI の整備・504 修正・CLI --no-snapshot）
 

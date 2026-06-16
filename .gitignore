@@ -30,3 +30,6 @@ build/
 
 # PDF vendor bundle (build artefact; uploaded to GitHub Releases)
 /vendor-pdf.zip
+
+# Fonts extracted from vendor-pdf.zip — downloaded at runtime via the admin installer
+/fonts/

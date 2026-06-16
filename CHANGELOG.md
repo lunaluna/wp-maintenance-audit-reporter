@@ -14,6 +14,7 @@ _No pending notes._
 ### Changed
 
 - **Output file naming — domain, audience, and date** — Markdown and PDF artefacts now embed the site domain, audience label, and date in the filename. Administrator-facing Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`; client-facing PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`. Network rollup follows the same pattern with the `wpmar-network-report-` prefix. Previously all artefacts used `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` with no domain or audience distinction.
+- **PDF embedded font — Noto Sans JP → BIZ UDGothic** — Replaced the Noto Sans JP variable font (single file; no font-weight distinction in mPDF) with BIZ UDGothic Regular + Bold (two separate TTF files). mPDF can now render Regular and Bold weights correctly in exported PDFs. The legacy `NotoSansJP.ttf` is removed automatically on the next plugin load via `WPMAR_PDF_Installer::maybe_cleanup_legacy_fonts()`.
 
 ### Fixed
 
