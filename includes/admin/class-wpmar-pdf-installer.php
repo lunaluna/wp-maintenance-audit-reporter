@@ -54,6 +54,9 @@ class WPMAR_PDF_Installer {
 		// but before it could be restored (e.g. a fatal error mid-copy).
 		self::maybe_recover_vendor_backup();
 
+		// Remove legacy Noto Sans JP variable font from previous versions.
+		self::maybe_cleanup_legacy_fonts();
+
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'backup_vendor_before_upgrade' ), 10, 1 );
 		add_action( 'upgrader_process_complete', array( __CLASS__, 'restore_vendor_after_upgrade' ), 10, 0 );
 	}
@@ -184,6 +187,24 @@ class WPMAR_PDF_Installer {
 			} else {
 				self::remove_dir( $fback );
 			}
+		}
+	}
+
+	/**
+	 * Removes the legacy Noto Sans JP variable font file left by previous versions.
+	 *
+	 * Runs once per plugin load when the old file is found. The overhead is a single
+	 * is_file() check, which is negligible. No option flag is needed because the
+	 * file disappears after the first successful cleanup.
+	 *
+	 * @since 1.1.0
+	 * @return void
+	 */
+	private static function maybe_cleanup_legacy_fonts() {
+		$legacy = WPMAR_PLUGIN_DIR . 'fonts' . DIRECTORY_SEPARATOR . 'NotoSansJP.ttf';
+		if ( is_file( $legacy ) ) {
+			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
+			@unlink( $legacy );
 		}
 	}
 
