@@ -65,14 +65,17 @@ composer install \
   --no-progress
 
 # ---------------------------------------------------------------------------
-# Download Noto Sans JP fonts (Regular + Bold)
+# Download BIZ UDGothic fonts (Regular + Bold)
 # ---------------------------------------------------------------------------
 echo ""
-echo "Downloading Noto Sans JP font ..."
+echo "Downloading BIZ UDGothic fonts ..."
 mkdir -p "${TMP_DIR}/fonts"
 curl -fsSL \
-  "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
-  -o "${TMP_DIR}/fonts/NotoSansJP.ttf"
+  "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Regular.ttf" \
+  -o "${TMP_DIR}/fonts/BIZUDGothic-Regular.ttf"
+curl -fsSL \
+  "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Bold.ttf" \
+  -o "${TMP_DIR}/fonts/BIZUDGothic-Bold.ttf"
 
 # ---------------------------------------------------------------------------
 # Package vendor/ and fonts/ into a zip

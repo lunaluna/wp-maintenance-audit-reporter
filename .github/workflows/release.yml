@@ -88,12 +88,15 @@ jobs:
           echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Download Noto Sans JP font
+      - name: Download BIZ UDGothic fonts
         run: |
           mkdir -p fonts
           curl -fsSL \
-            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
-            -o fonts/NotoSansJP.ttf
+            "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Regular.ttf" \
+            -o fonts/BIZUDGothic-Regular.ttf
+          curl -fsSL \
+            "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Bold.ttf" \
+            -o fonts/BIZUDGothic-Bold.ttf
 
       - name: Create vendor-pdf.zip
         id: vendor_zip
