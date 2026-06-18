@@ -1,8 +1,15 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC7**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC8**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC8 adds (network run-scope selector UI; CLI --same-setting and --id flags)
+
+- **WP-CLI `--same-setting` flag (network)** — `wp maintenance-audit run --network --same-setting` audits the main site only instead of all target sites. Useful when all network sites share identical plugins, themes, and configuration.
+- **WP-CLI `--id=<blog_id>` flag (network)** — `wp maintenance-audit run --network --id=2` audits a single specified blog ID only. Takes precedence over `--same-setting`; raises an error if the blog ID does not exist on the network.
+- **Network admin — "実行範囲" run-scope selector** — A radio-button group above the snapshot checkbox exposes the two new CLI flags as a UI control. Applies to both "ドライラン" and "今すぐ実行": (1) すべての対象サイト（デフォルト）, (2) 親サイトのみ (`--same-setting` equivalent), (3) 特定のサイトのみ with a blog ID number input (`--id` equivalent). Invalid or non-existent blog IDs are caught before execution with an error notice.
+- **Fixed: `resolve_blog_ids()` ghost-site guard** — `WPMAR_Network_Runner::resolve_blog_ids()` now returns an empty array when `target_blog_id` does not exist, preventing `switch_to_blog()` from being called on a nonexistent site via a stale WP-Cron payload.
 
 ## What v1.0.0-RC7 changes (output filename includes domain, audience, and date; PDF library preserved across updates; BIZ UDGothic font)
 

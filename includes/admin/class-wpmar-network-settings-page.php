@@ -272,6 +272,29 @@ class WPMAR_Network_Settings_Page {
 					</p>
 				</div>
 
+				<fieldset class="wpmar-run-scope">
+					<legend class="wpmar-run-scope-legend"><?php esc_html_e( '実行範囲（ドライラン／今すぐ実行）', 'wp-maintenance-audit-reporter' ); ?></legend>
+					<label for="wpmar-run-scope-all">
+						<input type="radio" name="wpmar_run_scope" id="wpmar-run-scope-all" value="all" checked />
+						<?php esc_html_e( 'すべての対象サイト（デフォルト）', 'wp-maintenance-audit-reporter' ); ?>
+					</label><br />
+					<label for="wpmar-run-scope-main">
+						<input type="radio" name="wpmar_run_scope" id="wpmar-run-scope-main" value="same_setting" />
+						<?php esc_html_e( '親サイトのみ（全サイトが同一構成の場合）', 'wp-maintenance-audit-reporter' ); ?>
+					</label><br />
+					<label for="wpmar-run-scope-single">
+						<input type="radio" name="wpmar_run_scope" id="wpmar-run-scope-single" value="target_blog_id" />
+						<?php esc_html_e( '特定のサイトのみ', 'wp-maintenance-audit-reporter' ); ?>
+					</label>
+					<label for="wpmar-target-blog-id" class="screen-reader-text"><?php esc_html_e( '対象 blog ID', 'wp-maintenance-audit-reporter' ); ?></label>
+					<input type="number" name="wpmar_target_blog_id" id="wpmar-target-blog-id" class="small-text" min="1" step="1" value="" />
+					<p class="description">
+						<?php
+						esc_html_e( '「親サイトのみ」は WP-CLI の --same-setting、「特定のサイトのみ」は --id=<blog_id> に相当します。全サイトが同一のプラグイン・テーマ構成なら親サイトのみでレポートを作成できます。', 'wp-maintenance-audit-reporter' );
+						?>
+					</p>
+				</fieldset>
+
 				<p class="wpmar-manual-run-options description">
 					<label for="wpmar-persist-snapshots">
 						<input name="wpmar_persist_snapshots" id="wpmar-persist-snapshots" type="checkbox" value="1" />

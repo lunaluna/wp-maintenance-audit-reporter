@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC7
+Stable tag: 1.0.0-RC8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,19 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC7 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC8 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC8 =
+* Added: WP-CLI `--same-setting` flag (network) — `wp maintenance-audit run --network --same-setting` audits the main site only. Useful when all network sites share identical plugins, themes, and configuration.
+* Added: WP-CLI `--id=<blog_id>` flag (network) — `wp maintenance-audit run --network --id=2` audits a single specified blog ID only. Takes precedence over `--same-setting`; raises an error if the blog ID does not exist.
+* Added: Network admin "実行範囲" run-scope selector — a radio-button group above the snapshot checkbox lets operators choose the audit scope for both "ドライラン" and "今すぐ実行": all target sites (default), main site only (--same-setting), or a specific site by blog ID (--id). Invalid or non-existent blog IDs show an error notice before execution.
+* Fixed: `WPMAR_Network_Runner::resolve_blog_ids()` — nonexistent blog IDs now return an empty array instead of being passed to `switch_to_blog()`, preventing errors on stale WP-Cron payloads.
 
 = 1.0.0-RC7 =
 * Changed: Output file naming — Markdown and PDF artefacts now embed the site domain, audience label, and date in the filename. Administrator-facing Markdown: `wpmar-report-{domain}-admin-{Ymd}-{His}.md`; client-facing PDF: `wpmar-report-{domain}-client-{Ymd}-{id}.pdf`. Network rollup uses the same pattern with the `wpmar-network-report-` prefix. Previously all artefacts used `wpmar-report-{YmdHis}.md` / `wpmar-report-{id}.pdf` with no domain or audience distinction.

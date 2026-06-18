@@ -1,10 +1,17 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC7**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC8**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
 English: [README.md](README.md).
+
+## v1.0.0-RC8 の追加内容（ネットワーク実行範囲 UI・CLI --same-setting / --id フラグ）
+
+- **WP-CLI `--same-setting` フラグ（ネットワーク）** — `wp maintenance-audit run --network --same-setting` で親サイトのみを監査対象にします。全サイトが同一のプラグイン・テーマ構成の場合に便利です。
+- **WP-CLI `--id=<blog_id>` フラグ（ネットワーク）** — `wp maintenance-audit run --network --id=2` で特定の blog ID 1件のみを監査対象にします。`--same-setting` より優先され、存在しない blog ID を指定するとエラーになります。
+- **ネットワーク管理画面に「実行範囲」セレクターを追加** — スナップショットチェックボックスの直前にラジオボタンを追加。「ドライラン」「今すぐ実行」どちらにも適用されます。選択肢：すべての対象サイト（デフォルト）・親サイトのみ（`--same-setting` 相当）・特定のサイトのみ（`--id` 相当、blog ID 数値入力付き）。不正または存在しない blog ID はエラー notice を表示して実行を中断します。
+- **修正: `resolve_blog_ids()` 存在しない blog ID ガード** — `WPMAR_Network_Runner::resolve_blog_ids()` で存在しない blog ID が指定された場合（古い WP-Cron ペイロードなど）、`switch_to_blog()` を呼ばず空配列を返すようにしました。
 
 ## v1.0.0-RC7 の変更内容（出力ファイル名にドメイン・対象・日付を付与、アップデート時の PDF ライブラリ保持、BIZ UDGothic フォントに変更）
 
