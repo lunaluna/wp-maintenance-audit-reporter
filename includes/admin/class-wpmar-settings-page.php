@@ -309,7 +309,7 @@ class WPMAR_Settings_Page {
 							</td>
 						</tr>
 						<tr>
-							<th scope="row"><label for="wpmar-plugin-excludes"><?php esc_html_e( 'プラグイン除外', 'wp-maintenance-audit-reporter' ); ?></label></th>
+							<th scope="row"><label for="wpmar-plugin-excludes"><?php esc_html_e( 'プラグイン除外パス', 'wp-maintenance-audit-reporter' ); ?></label></th>
 							<td>
 								<textarea class="large-text code" rows="6" name="wpmar_plugin_checksum_excludes" id="wpmar-plugin-excludes"><?php echo esc_textarea( self::stringify_plugin_exclude_textarea( $plugin_rules ) ); ?></textarea>
 							</td>
