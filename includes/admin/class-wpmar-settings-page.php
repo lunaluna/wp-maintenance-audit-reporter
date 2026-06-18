@@ -299,7 +299,7 @@ class WPMAR_Settings_Page {
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'チェックサム除外リスト', 'wp-maintenance-audit-reporter' ); ?></h2>
 					<p class="description">
-						<?php esc_html_e( 'コアは ABSPATH からの相対パス（例: wp-config.php）。プラグインは「スラッグ:相対パス」1 行に 1 エントリ（例: akismet:readme.txt）。# で始まる行はコメントとして無視されます。', 'wp-maintenance-audit-reporter' ); ?>
+						<?php esc_html_e( 'コアは ABSPATH からの相対パス（例: wp-config.php）。プラグインは「スラッグ:相対パス」1 行に 1 エントリ（例: akismet:readme.txt）。ディレクトリ以下をすべて除外するには末尾に / または /* を付けてください（例: wp-admin/ または wp-admin/*）。# で始まる行はコメントとして無視されます。', 'wp-maintenance-audit-reporter' ); ?>
 					</p>
 					<table class="form-table" role="presentation">
 						<tr>
