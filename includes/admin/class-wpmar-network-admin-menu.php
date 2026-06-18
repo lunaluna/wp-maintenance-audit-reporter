@@ -120,11 +120,18 @@ class WPMAR_Network_Admin_Menu {
 
 		switch ( $action ) {
 			case 'dry_run':
+				$scope = self::read_run_scope( $input, $scope_error );
+				if ( '' !== $scope_error ) {
+					add_settings_error( 'wpmar_network_messages', 'wpmar_network_dry', $scope_error, 'error' );
+					break;
+				}
 				$runner = new WPMAR_Network_Runner();
 				$result = $runner->run(
 					array(
-						'dry'          => true,
-						'triggered_by' => 'manual_network',
+						'dry'            => true,
+						'triggered_by'   => 'manual_network',
+						'same_setting'   => $scope['same_setting'],
+						'target_blog_id' => $scope['target_blog_id'],
 					)
 				);
 				if ( isset( $result['dry_brevity'] ) && is_string( $result['dry_brevity'] ) ) {
@@ -139,6 +146,11 @@ class WPMAR_Network_Admin_Menu {
 				break;
 
 			case 'full_run':
+				$scope = self::read_run_scope( $input, $scope_error );
+				if ( '' !== $scope_error ) {
+					add_settings_error( 'wpmar_network_messages', 'wpmar_network_full', $scope_error, 'error' );
+					break;
+				}
 				$persist = ! empty( $input['wpmar_persist_snapshots'] );
 				$qa_mail = '';
 				if ( isset( $input['wpmar_qa_mail'] ) ) {
@@ -149,6 +161,8 @@ class WPMAR_Network_Admin_Menu {
 					'triggered_by'      => 'manual_network',
 					'persist_snapshots' => $persist,
 					'mail_qa_extra'     => $qa_mail,
+					'same_setting'      => $scope['same_setting'],
+					'target_blog_id'    => $scope['target_blog_id'],
 				);
 
 				if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
@@ -220,5 +234,39 @@ class WPMAR_Network_Admin_Menu {
 			)
 		);
 		exit;
+	}
+
+	/**
+	 * Reads and validates the run-scope POST fields, mapping them to runner option keys.
+	 *
+	 * @param array  $input       wp_unslash()'d $_POST.
+	 * @param string $scope_error Output: non-empty string when validation fails.
+	 * @return array{ same_setting: bool, target_blog_id: int }
+	 */
+	private static function read_run_scope( array $input, &$scope_error ) {
+		$scope_error    = '';
+		$scope          = isset( $input['wpmar_run_scope'] ) ? sanitize_key( $input['wpmar_run_scope'] ) : 'all';
+		$same_setting   = false;
+		$target_blog_id = 0;
+
+		if ( 'same_setting' === $scope ) {
+			$same_setting = true;
+		} elseif ( 'target_blog_id' === $scope ) {
+			$target_blog_id = isset( $input['wpmar_target_blog_id'] ) ? absint( $input['wpmar_target_blog_id'] ) : 0;
+			if ( $target_blog_id <= 0 ) {
+				$scope_error = __( '「特定のサイトのみ」を選択した場合は blog ID を入力してください。', 'wp-maintenance-audit-reporter' );
+			} elseif ( ! get_blog_details( $target_blog_id ) ) {
+				$scope_error = sprintf(
+					/* translators: %d: blog ID */
+					__( 'blog ID %d はこのネットワークに存在しません。', 'wp-maintenance-audit-reporter' ),
+					$target_blog_id
+				);
+			}
+		}
+
+		return array(
+			'same_setting'   => $same_setting,
+			'target_blog_id' => $target_blog_id,
+		);
 	}
 }
