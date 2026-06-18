@@ -1,8 +1,13 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC8**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC9**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
+
+## What v1.0.0-RC9 fixes (checksum directory exclusions; "プラグイン除外パス" label)
+
+- **Directory exclusions in checksum exclude lists** — Both the core and plugin exclude lists now support directory prefixes. Append `/` or `/*` to exclude all files under a directory (e.g. `wp-admin/` or `wp-admin/*` for core; `akismet:some-dir/` for a plugin). Previously only exact file paths were matched. The internal `normalize_path_set` helper has been replaced by `build_exclude_set` + `is_excluded`. The settings page description has been updated to document the new syntax.
+- **Checksum settings label fix** — "プラグイン除外" renamed to "プラグイン除外パス" for consistency with "コア除外パス".
 
 ## What v1.0.0-RC8 adds (network run-scope selector UI; CLI --same-setting and --id flags)
 
