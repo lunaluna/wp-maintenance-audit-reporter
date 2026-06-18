@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC8] - 2026-06-12
+
+### Added
+
+- **WP-CLI `--same-setting` flag (network)** — `wp maintenance-audit run --network --same-setting` audits the main site only instead of all target sites. Useful when all sites in the network share identical plugins, themes, and configuration.
+- **WP-CLI `--id=<blog_id>` flag (network)** — `wp maintenance-audit run --network --id=2` audits a single specified blog ID only. Takes precedence over `--same-setting` when both flags are provided. An error is raised if the blog ID does not exist on the network.
+- **Network admin — "実行範囲" run-scope selector** — A radio-button group above the snapshot checkbox in the network settings page lets operators choose the audit scope for both "ドライラン" and "今すぐ実行": (1) すべての対象サイト（デフォルト）, (2) 親サイトのみ（`--same-setting` 相当）, (3) 特定のサイトのみ（`--id=<blog_id>` 相当、blog ID 数値入力付き）. Invalid or non-existent blog IDs are validated before execution with an error notice.
+
+### Fixed
+
+- **`WPMAR_Network_Runner::resolve_blog_ids()` — nonexistent blog ID guard** — When `target_blog_id` is set to a blog ID that does not exist (e.g. via a direct runner call or a stale WP-Cron payload), `resolve_blog_ids()` now returns an empty array instead of passing the ghost ID to `switch_to_blog()`. The run completes safely with zero segments audited.
+
 ## [1.0.0-RC7] - 2026-06-12
 
 ### Changed
