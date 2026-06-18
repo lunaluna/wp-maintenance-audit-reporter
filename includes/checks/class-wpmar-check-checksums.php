@@ -105,7 +105,7 @@ class WPMAR_Check_Checksums {
 		}
 
 		$out['manifest_ok'] = true;
-		$exclude_set        = $this->normalize_path_set( $excludes );
+		$exclude_set        = $this->build_exclude_set( $excludes );
 
 		foreach ( $json['checksums'] as $rel_path => $expected_md5 ) {
 			if ( ! is_scalar( $rel_path ) || ! is_string( $expected_md5 ) ) {
@@ -120,7 +120,7 @@ class WPMAR_Check_Checksums {
 				continue;
 			}
 
-			if ( isset( $exclude_set[ $key ] ) ) {
+			if ( $this->is_excluded( $key, $exclude_set ) ) {
 				++$out['skipped_files'];
 				continue;
 			}
@@ -300,7 +300,7 @@ class WPMAR_Check_Checksums {
 			$slug_excludes = isset( $exclude_rules[ $slug ] ) && is_array( $exclude_rules[ $slug ] )
 				? $exclude_rules[ $slug ]
 				: array();
-			$ex_set        = $this->normalize_path_set( $slug_excludes );
+			$ex_set        = $this->build_exclude_set( $slug_excludes );
 
 			$chunk = array(
 				'version'        => $version,
@@ -318,7 +318,7 @@ class WPMAR_Check_Checksums {
 				}
 
 				$key = $this->normalize_rel_path( (string) $rel );
-				if ( isset( $ex_set[ $key ] ) ) {
+				if ( $this->is_excluded( $key, $ex_set ) ) {
 					++$chunk['skipped_files'];
 					continue;
 				}
@@ -503,20 +503,53 @@ class WPMAR_Check_Checksums {
 	}
 
 	/**
-	 * Converts a list of paths into a lookup map.
+	 * Converts a list of paths into a lookup structure for exclusion checks.
+	 *
+	 * Entries ending in '/' or '/*' are treated as directory prefixes (all
+	 * files under that directory are excluded). All other entries are treated
+	 * as exact file matches.
 	 *
 	 * @param string[] $paths Relative paths.
-	 * @return array<string,bool>
+	 * @return array{exact: array<string,bool>, dirs: list<string>}
 	 */
-	protected function normalize_path_set( array $paths ) {
-		$set = array();
+	protected function build_exclude_set( array $paths ) {
+		$exact = array();
+		$dirs  = array();
 		foreach ( $paths as $path ) {
-			$key = $this->normalize_rel_path( (string) $path );
-			if ( '' !== $key ) {
-				$set[ $key ] = true;
+			$normalized = $this->normalize_rel_path( rtrim( (string) $path, '*' ) );
+			if ( '' === $normalized ) {
+				continue;
+			}
+			if ( '/' === substr( $normalized, -1 ) ) {
+				$dirs[] = $normalized;
+			} else {
+				$exact[ $normalized ] = true;
 			}
 		}
 
-		return $set;
+		return array(
+			'exact' => $exact,
+			'dirs'  => $dirs,
+		);
+	}
+
+	/**
+	 * Returns true if the normalised $key matches an exclusion entry.
+	 *
+	 * @param string                                               $key Normalised relative path.
+	 * @param array{exact: array<string,bool>, dirs: list<string>} $set Output of build_exclude_set().
+	 * @return bool
+	 */
+	protected function is_excluded( $key, array $set ) {
+		if ( isset( $set['exact'][ $key ] ) ) {
+			return true;
+		}
+		foreach ( $set['dirs'] as $prefix ) {
+			if ( 0 === strpos( $key, $prefix ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

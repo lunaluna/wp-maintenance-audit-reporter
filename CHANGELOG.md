@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC9] - 2026-06-18
+
+### Fixed
+
+- **Checksum settings — "プラグイン除外" label** — Renamed to "プラグイン除外パス" to match the existing "コア除外パス" label.
+
+### Added
+
+- **Directory exclusions in checksum exclude lists** — Both core and plugin exclude lists now support directory prefixes. Append `/` or `/*` to exclude all files under a directory (e.g. `wp-admin/` or `wp-admin/*` for core; `akismet:views/` for a plugin). Previously only exact file paths were matched. The `normalize_path_set` helper has been replaced by `build_exclude_set` (returns separate `exact` and `dirs` buckets) and `is_excluded` (exact match + prefix match). The settings page description has been updated to document the new syntax.
+
 ## [1.0.0-RC8] - 2026-06-12
 
 ### Added

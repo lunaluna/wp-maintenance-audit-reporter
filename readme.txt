@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC8
+Stable tag: 1.0.0-RC9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,13 +42,17 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 
 = Is this production-ready? =
 
-v1.0.0-RC8 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC9 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC9 =
+* Added: Directory exclusions in checksum exclude lists — both core and plugin exclude lists now support directory prefixes. Append `/` or `/*` to exclude all files under a directory (e.g. `wp-admin/` or `wp-admin/*` for core; `akismet:some-dir/` for a plugin). Previously only exact file paths were matched. The settings panel description has been updated to document the new syntax.
+* Fixed: Checksum settings label — "プラグイン除外" renamed to "プラグイン除外パス" for consistency with "コア除外パス".
 
 = 1.0.0-RC8 =
 * Added: WP-CLI `--same-setting` flag (network) — `wp maintenance-audit run --network --same-setting` audits the main site only. Useful when all network sites share identical plugins, themes, and configuration.
