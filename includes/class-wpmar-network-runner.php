@@ -63,7 +63,8 @@ class WPMAR_Network_Runner {
 	protected static function resolve_blog_ids( array $exec, $network_settings = null ) {
 		$target_id = absint( $exec['target_blog_id'] ?? 0 );
 		if ( $target_id > 0 ) {
-			return array( $target_id );
+			// Return empty array for a nonexistent blog ID to prevent switch_to_blog on a ghost site (e.g. via Cron path that bypasses UI validation).
+			return get_blog_details( $target_id ) ? array( $target_id ) : array();
 		}
 
 		if ( ! empty( $exec['same_setting'] ) ) {
