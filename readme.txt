@@ -38,6 +38,15 @@ Use WP-CLI for unattended runs and CI-style checks where available.
 2. Activate the plugin through the **Plugins** menu in WordPress
 3. If PDF output is needed, click **"PDF ライブラリをインストール"** in the **"PDF ライブラリ（mPDF）"** panel on the settings page. The plugin downloads and extracts `vendor-pdf.zip` (~94 MB) from GitHub Releases automatically.
 
+== Git Management ==
+
+If you manage this plugin in a project under Git version control, it is recommended to add the following two directories to your `.gitignore`, as they are generated on demand and should not be committed:
+
+  wp-content/plugins/wp-maintenance-audit-reporter/fonts/
+  wp-content/plugins/wp-maintenance-audit-reporter/vendor/
+
+`fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
 == Frequently Asked Questions ==
 
 = Is this production-ready? =

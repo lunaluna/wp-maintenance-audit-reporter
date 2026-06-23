@@ -4,6 +4,17 @@ WordPress plugin: scheduled maintenance audits for core, themes, and plugins —
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
+## Git Management
+
+If you manage this plugin in a project under Git version control, it is recommended to add the following two directories to your `.gitignore`, as they are generated on demand and should not be committed:
+
+```gitignore
+wp-content/plugins/wp-maintenance-audit-reporter/fonts/
+wp-content/plugins/wp-maintenance-audit-reporter/vendor/
+```
+
+`fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
 ## What v1.0.0-RC9 fixes (checksum directory exclusions; "プラグイン除外パス" label)
 
 - **Directory exclusions in checksum exclude lists** — Both the core and plugin exclude lists now support directory prefixes. Append `/` or `/*` to exclude all files under a directory (e.g. `wp-admin/` or `wp-admin/*` for core; `akismet:some-dir/` for a plugin). Previously only exact file paths were matched. The internal `normalize_path_set` helper has been replaced by `build_exclude_set` + `is_excluded`. The settings page description has been updated to document the new syntax.

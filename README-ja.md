@@ -6,6 +6,17 @@ WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-
 
 English: [README.md](README.md).
 
+## Git 管理
+
+このプラグインをプロジェクト内で Git 管理している場合、以下の2ディレクトリはオンデマンドで生成されるため `.gitignore` に追加することを推奨します。
+
+```gitignore
+wp-content/plugins/wp-maintenance-audit-reporter/fonts/
+wp-content/plugins/wp-maintenance-audit-reporter/vendor/
+```
+
+`fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
 ## v1.0.0-RC9 の修正内容（チェックサム除外のディレクトリ指定対応・「プラグイン除外パス」ラベル修正）
 
 - **チェックサム除外リストでディレクトリ指定に対応** — コア・プラグインどちらの除外リストでも、末尾に `/` または `/*` を付けることでディレクトリ以下のファイルをまとめて除外できるようになりました（例: コアは `wp-admin/` や `wp-admin/*`、プラグインは `akismet:some-dir/`）。これまでは完全一致のファイルパスのみ有効でした。内部的には `normalize_path_set` を `build_exclude_set`（`exact` と `dirs` を分けて返す）と `is_excluded`（完全一致＋プレフィックスマッチ）に置き換えました。設定ページの説明文にも新しい指定方法を追記しました。
