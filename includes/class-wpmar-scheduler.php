@@ -106,7 +106,13 @@ class WPMAR_Scheduler {
 	}
 
 	/**
-	 * Dispatches the runner for WP‑Cron.
+	 * Dispatches the monthly audit for WP‑Cron.
+	 *
+	 * Enqueues the audit as an Action Scheduler job so a long run cannot exceed the
+	 * cron request's PHP time limit; the chained monthly event is rescheduled here so
+	 * the cadence continues regardless of when the queued job actually executes. When
+	 * Action Scheduler is unavailable (not yet shipped) the run falls back to the legacy
+	 * synchronous path, which reschedules itself via {@see WPMAR_Runner::run()}.
 	 *
 	 * @return void
 	 */
@@ -115,37 +121,36 @@ class WPMAR_Scheduler {
 			return;
 		}
 
-		if ( WPMAR_Network_Settings::is_network_audit_enabled() ) {
-			update_site_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
-			$runner = new WPMAR_Network_Runner();
+		$is_network = WPMAR_Network_Settings::is_network_audit_enabled();
 
-			try {
-				$runner->run(
-					array(
-						'dry'          => false,
-						'triggered_by' => 'cron_network',
-					)
-				);
-			} catch ( Exception $exception ) {
-				if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
-					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
-					error_log( 'WPMAR network cron error: ' . $exception->getMessage() );
-				}
-			}
+		if ( $is_network ) {
+			update_site_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
+		} else {
+			update_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
+		}
+
+		$args = array(
+			'dry'          => false,
+			'triggered_by' => $is_network ? 'cron_network' : 'cron',
+		);
+
+		$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job( $args, $is_network ? 'network' : 'single' );
+
+		if ( ! is_wp_error( $enqueued ) ) {
+			// Keep the monthly chain alive independently of the queued job executing.
+			self::reschedule();
 
 			return;
 		}
 
-		update_option( 'wpmar_wp_cron_last_fired_at', gmdate( 'c' ), false );
-		$runner = new WPMAR_Runner();
-
+		// Fallback: Action Scheduler unavailable → run synchronously (legacy behaviour).
 		try {
-			$runner->run(
-				array(
-					'dry'          => false,
-					'triggered_by' => 'cron',
-				)
-			);
+			if ( $is_network ) {
+				$runner = new WPMAR_Network_Runner();
+			} else {
+				$runner = new WPMAR_Runner();
+			}
+			$runner->run( $args );
 		} catch ( Exception $exception ) {
 			if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
