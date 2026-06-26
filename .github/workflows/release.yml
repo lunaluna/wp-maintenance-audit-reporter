@@ -82,6 +82,21 @@ jobs:
             --exclude='vendor' \
             --exclude='vendor-pdf.zip' \
             ./ "$STAGE/${SLUG}/"
+          # Bundle mandatory libraries into lib/ (Action Scheduler). vendor/ is
+          # excluded (mPDF ships on-demand), so anything required from first
+          # activation must be copied into lib/ explicitly.
+          AS_SRC="vendor/woocommerce/action-scheduler"
+          if [ ! -d "$AS_SRC" ]; then
+            echo "::error::$AS_SRC not found. composer install must provide Action Scheduler to bundle into lib/."
+            exit 1
+          fi
+          mkdir -p "$STAGE/${SLUG}/lib/action-scheduler"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='tests' \
+            --exclude='docs' \
+            "$AS_SRC/" "$STAGE/${SLUG}/lib/action-scheduler/"
           ZIP_NAME="${SLUG}.${{ steps.tag.outputs.version }}.zip"
           (cd "$STAGE" && zip -rq "$ZIP_NAME" "${SLUG}")
           mv "$STAGE/$ZIP_NAME" "$GITHUB_WORKSPACE/$ZIP_NAME"

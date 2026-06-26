@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC9
+Stable tag: 1.0.0-RC10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,13 +51,21 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 = Is this production-ready? =
 
-v1.0.0-RC9 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC10 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC10 =
+* Added: Asynchronous audit jobs via Action Scheduler — "今すぐ実行" (single-site and network) enqueues a background job and returns immediately, eliminating CloudFront 504 timeouts on long audits. New `WPMAR_Job_Dispatcher`, a `wpmar_jobs` tracking table (`WPMAR_Jobs_Repository`), and Action Scheduler bundled in `lib/action-scheduler/`.
+* Added: REST endpoint `GET /wpmar/v1/jobs/<id>` (manage_options) returning job status and, on completion, the report URL + nonce-signed download links.
+* Added: Admin polling UI — a flash notice + "レポート生成ジョブ" panel poll for status (queued -> running -> completed) and show preview/download links; the job id is carried via redirect so the panel survives reloads.
+* Added: WP-CLI `wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]` — synchronous, CloudFront-bypassing fallback. Existing `wp maintenance-audit run` unchanged.
+* Changed: Monthly WP-Cron audit and network "今すぐ実行" now route through the Action Scheduler job system (synchronous / legacy single-event fallback when the library is absent).
+* Note: Action Scheduler's `actionscheduler_*` tables are left intact on uninstall (may be shared with other plugins).
 
 = 1.0.0-RC9 =
 * Added: Directory exclusions in checksum exclude lists — both core and plugin exclude lists now support directory prefixes. Append `/` or `/*` to exclude all files under a directory (e.g. `wp-admin/` or `wp-admin/*` for core; `akismet:some-dir/` for a plugin). Previously only exact file paths were matched. The settings panel description has been updated to document the new syntax.

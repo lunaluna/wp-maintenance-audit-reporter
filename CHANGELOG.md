@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC10] - 2026-06-26
+
+### Added
+
+- **Asynchronous audit jobs (Action Scheduler)** — "今すぐ実行" (single-site and network) now enqueues a background job and returns immediately, eliminating the CloudFront 504 gateway timeout on long audits. Adds `WPMAR_Job_Dispatcher` (`enqueue_audit_job()` / `run_audit_job()`), a `{$wpdb->prefix}wpmar_jobs` tracking table with `WPMAR_Jobs_Repository` (queued → running → done|failed), and bundles Action Scheduler in `lib/action-scheduler/`. The library is loaded at plugin-file inclusion time (before `plugins_loaded`) so its queue API initialises; managed via Composer (`woocommerce/action-scheduler`) and copied into `lib/` at build time.
+- **Job-status REST endpoint** — `GET /wpmar/v1/jobs/<id>` (requires `manage_options`) returns the job's lifecycle state and, on completion, the report URL plus nonce-signed Markdown/PDF download links.
+- **Admin polling UI** — After "今すぐ実行", a top flash notice and a "レポート生成ジョブ" panel poll the REST endpoint (~2.5 s) showing queued → running → completed, then render preview/download links. The job id is carried via a post/redirect/get parameter so the panel survives page reloads.
+- **WP-CLI `wp wpmar audit run --sync`** — Synchronous, CloudFront-bypassing fallback (`[--dry-run] [--network] [--no-snapshot]`) for production debugging and manual operation. The existing `wp maintenance-audit run` command is unchanged.
+- **Unit tests** — `WPMAR_Jobs_Repository` id/scope sanitisers and `WPMAR_Job_Dispatcher` (Action-Scheduler-unavailable degradation; `run_audit_job()` unknown-id / non-queued idempotency guards).
+
+### Changed
+
+- **Monthly WP-Cron audit** — `WPMAR_Scheduler::handle_event()` now enqueues the audit through Action Scheduler (synchronous fallback when the library is absent) and reschedules the monthly chain immediately, so cadence is preserved regardless of when the queued job runs.
+- **Network "今すぐ実行"** — Migrated from the `wpmar_run_network_audit_manual` single-event path to the unified Action Scheduler job system with the shared polling UI. The legacy single-event path is retained as a fallback when Action Scheduler is unavailable.
+- On completion the queued flash notice text flips to "レポートが生成されました。" (error notice on failure).
+
+### Note
+
+- Action Scheduler's `actionscheduler_*` tables are intentionally left intact on uninstall, as the library may be shared with other plugins (e.g. WooCommerce).
+
 ## [1.0.0-RC9] - 2026-06-18
 
 ### Fixed

@@ -119,6 +119,36 @@
 	flex-shrink: 0;
 }
 
+.wpmar-job-panel .wpmar-job-status {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 14px;
+}
+
+.wpmar-job-panel .wpmar-spinner {
+	width: 18px;
+	height: 18px;
+	border-width: 2px;
+}
+
+.wpmar-job-panel.wpmar-job-panel--failed .wpmar-job-status {
+	color: #d63638;
+}
+
+.wpmar-job-links {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.wpmar-job-links li {
+	margin: 0;
+}
+
 .wpmar-domain-gate-feedback {
 	margin-top: 8px;
 	padding: 10px 12px;

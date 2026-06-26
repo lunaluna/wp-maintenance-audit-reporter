@@ -182,6 +182,162 @@
 		});
 	}
 
+	/**
+	 * Polls the job-status REST endpoint and renders progress / download links.
+	 *
+	 * Activated when the settings (or network) screen prints a panel marked with
+	 * [data-wpmar-job-poll]; reads the job id and REST config from wpmarAdminBusy.
+	 */
+	function initJobPoller() {
+		const panel = document.querySelector('[data-wpmar-job-poll]');
+		if (!panel) {
+			return;
+		}
+
+		const cfg = busyStrings();
+		const jobId = panel.getAttribute('data-wpmar-job-id') || '';
+		const base = cfg.restBase || '';
+
+		if (!jobId || !base) {
+			return;
+		}
+
+		const messageEl = panel.querySelector('[data-wpmar-job-message]');
+		const spinnerEl = panel.querySelector('[data-wpmar-job-spinner]');
+		const linksEl = panel.querySelector('[data-wpmar-job-links]');
+		const flashEl = document.querySelector('[data-wpmar-job-flash]');
+
+		function setFlash(text, isError) {
+			if (!flashEl || !text) {
+				return;
+			}
+			flashEl.className = isError
+				? 'notice notice-error'
+				: 'notice notice-success';
+			const p = flashEl.querySelector('p');
+			if (p) {
+				p.textContent = text;
+			}
+		}
+
+		const POLL_MS = 2500;
+		let timer = null;
+		let stopped = false;
+
+		function setMessage(text) {
+			if (messageEl && text) {
+				messageEl.textContent = text;
+			}
+		}
+
+		function stopSpinner() {
+			if (spinnerEl) {
+				spinnerEl.hidden = true;
+				spinnerEl.style.display = 'none';
+			}
+		}
+
+		function stop() {
+			stopped = true;
+			if (timer) {
+				window.clearTimeout(timer);
+				timer = null;
+			}
+		}
+
+		function addLink(href, label) {
+			if (!linksEl || !href || !label) {
+				return;
+			}
+			const li = document.createElement('li');
+			const a = document.createElement('a');
+			a.className = 'button';
+			a.href = href;
+			a.textContent = label;
+			li.appendChild(a);
+			linksEl.appendChild(li);
+		}
+
+		function renderDone(data) {
+			stopSpinner();
+			setMessage(cfg.pollDone || '');
+			setFlash(cfg.flashDone || '', false);
+			const result = data && data.result ? data.result : null;
+			if (!result) {
+				return;
+			}
+			if (result.report_url) {
+				addLink(result.report_url, cfg.linkReport || result.report_url);
+			}
+			const dl = result.downloads || {};
+			if (dl.md) {
+				addLink(dl.md, cfg.linkMd || 'Markdown');
+			}
+			if (dl.pdf) {
+				addLink(dl.pdf, cfg.linkPdf || 'PDF');
+			}
+			if (dl.client_md) {
+				addLink(dl.client_md, cfg.linkClient || 'Markdown');
+			}
+			if (linksEl) {
+				linksEl.hidden = false;
+			}
+		}
+
+		function renderFailed(data) {
+			stopSpinner();
+			const detail = data && data.error ? ' ' + data.error : '';
+			setMessage((cfg.pollFailed || '') + detail);
+			setFlash((cfg.pollFailed || '') + detail, true);
+			panel.classList.add('wpmar-job-panel--failed');
+		}
+
+		function tick() {
+			if (stopped) {
+				return;
+			}
+
+			window
+				.fetch(base + encodeURIComponent(jobId), {
+					method: 'GET',
+					credentials: 'same-origin',
+					headers: {
+						'X-WP-Nonce': cfg.restNonce || '',
+						Accept: 'application/json'
+					}
+				})
+				.then(function (res) {
+					return res.json();
+				})
+				.then(function (data) {
+					const status = data && data.status ? data.status : '';
+
+					if (status === 'queued') {
+						setMessage(cfg.pollQueued || '');
+					} else if (status === 'running') {
+						setMessage(cfg.pollRunning || '');
+					} else if (status === 'done') {
+						renderDone(data);
+						stop();
+						return;
+					} else if (status === 'failed') {
+						renderFailed(data);
+						stop();
+						return;
+					}
+
+					timer = window.setTimeout(tick, POLL_MS);
+				})
+				.catch(function () {
+					// Transient network/REST error: keep polling rather than giving up.
+					setMessage(cfg.pollError || '');
+					timer = window.setTimeout(tick, POLL_MS);
+				});
+		}
+
+		tick();
+	}
+
 	function bootAdminUi() {
 		document.addEventListener(
 			'submit',
@@ -192,6 +348,7 @@
 		);
 
 		initReportsDeleteModal();
+		initJobPoller();
 	}
 
 	if ( document.readyState === 'loading' ) {

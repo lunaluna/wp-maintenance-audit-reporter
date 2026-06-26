@@ -21,11 +21,18 @@ function wpmar_uninstall_drop_tables( $wp_db ) {
 
 	$reports_table   = sprintf( '`%s`', esc_sql( $wp_db->prefix . 'wpmar_reports' ) );
 	$snapshots_table = sprintf( '`%s`', esc_sql( $wp_db->prefix . 'wpmar_snapshots' ) );
+	$jobs_table      = sprintf( '`%s`', esc_sql( $wp_db->prefix . 'wpmar_jobs' ) );
 
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.DirectDatabaseQuery.DirectQuery -- uninstall cleanup.
 	$wp_db->query( "DROP TABLE IF EXISTS {$reports_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.DirectDatabaseQuery.DirectQuery -- uninstall cleanup.
 	$wp_db->query( "DROP TABLE IF EXISTS {$snapshots_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange,WordPress.DB.DirectDatabaseQuery.DirectQuery -- uninstall cleanup.
+	$wp_db->query( "DROP TABLE IF EXISTS {$jobs_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+	// Action Scheduler's own tables (actionscheduler_*) are intentionally left intact:
+	// the library may be shared with other plugins (e.g. WooCommerce) and manages its
+	// own teardown.
 }
 
 /**

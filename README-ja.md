@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC9**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC10**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -16,6 +16,14 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
+## v1.0.0-RC10 の追加内容（監査の非同期ジョブ化・「今すぐ実行」の 504 修正・進捗ポーリングUI・CLI --sync）
+
+- **監査の非同期ジョブ化（Action Scheduler）** — シングルサイト／ネットワーク双方の「今すぐ実行」が、監査をバックグラウンドジョブとして登録し即座（数百ms）に応答するようになりました。長時間の同期監査が引き起こしていた CloudFront の 504 ゲートウェイタイムアウトを解消します。`WPMAR_Job_Dispatcher`（`enqueue_audit_job()` / `run_audit_job()`）、`{$wpdb->prefix}wpmar_jobs` ジョブ管理テーブル（`WPMAR_Jobs_Repository`、queued → running → done|failed）を追加し、Action Scheduler を `lib/action-scheduler/` に同梱します。ライブラリはキューAPIを初期化するため `plugins_loaded` より前（プラグインファイル読込時）にロードされ、Composer（`woocommerce/action-scheduler`）で管理しビルド時に `lib/` へ配置します。
+- **ジョブ状態 REST エンドポイント** — `GET /wpmar/v1/jobs/<id>`（`manage_options` 権限が必要）。ジョブの状態と、完了時はレポートURL＋nonce 署名付きの Markdown/PDF ダウンロードリンクを返します。
+- **管理画面の進捗ポーリングUI** — 「今すぐ実行」後、上部のフラッシュ通知と「レポート生成ジョブ」パネルが REST を約2.5秒間隔でポーリングし、queued → running → 完了 と表示してプレビュー／ダウンロードリンクを描画します。完了時はフラッシュ通知が「レポートが生成されました。」に切り替わります（失敗時はエラー通知）。ジョブIDはリダイレクト（PRG）で引き継ぐため、ページを再読み込みしてもパネルが維持されます。
+- **WP-CLI `wp wpmar audit run --sync`** — CloudFront を経由しない同期実行のフォールバック（`--dry-run` / `--network` / `--no-snapshot`）。本番でのデバッグ・手動運用向け。既存の `wp maintenance-audit run` は変更ありません。
+- **月次 cron とネットワーク実行を Action Scheduler に統一** — `WPMAR_Scheduler::handle_event()` は Action Scheduler 経由でジョブ登録し（ライブラリ不在時は同期フォールバック）、月次チェーンを即時再スケジュールしてキュー実行のタイミングに依存せず周期を維持します。ネットワーク「今すぐ実行」も同じジョブ基盤を使用します（ライブラリ不在時は従来の単発イベントにフォールバック）。
 
 ## v1.0.0-RC9 の修正内容（チェックサム除外のディレクトリ指定対応・「プラグイン除外パス」ラベル修正）
 

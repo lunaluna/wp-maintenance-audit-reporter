@@ -49,6 +49,8 @@ class WPMAR_Plugin {
 		);
 
 		WPMAR_Scheduler::init();
+		WPMAR_Job_Dispatcher::init();
+		WPMAR_Jobs_REST::init();
 
 		if ( is_multisite() ) {
 			WPMAR_Network_Admin_Menu::init();
@@ -67,6 +69,7 @@ class WPMAR_Plugin {
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-command.php';
+			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-audit-command.php';
 		}
 
 		/**

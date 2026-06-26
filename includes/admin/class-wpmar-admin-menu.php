@@ -60,6 +60,103 @@ class WPMAR_Admin_Menu {
 	}
 
 	/**
+	 * Holds the job id enqueued by a 「今すぐ実行」 POST until {@see WPMAR_Settings_Page::render()}
+	 * renders the polling panel (same POST request only).
+	 *
+	 * @var string
+	 */
+	private static $queued_job_id = '';
+
+	/**
+	 * Returns (and clears) the job id queued during this request's full_run POST.
+	 *
+	 * @return string Empty string if none.
+	 */
+	public static function consume_queued_job_id() {
+		$id                  = self::$queued_job_id;
+		self::$queued_job_id = '';
+
+		return WPMAR_Jobs_Repository::sanitize_id( (string) $id );
+	}
+
+	/**
+	 * Shared localisation for the async-job poller (REST config + status/link strings).
+	 *
+	 * Merged into the `wpmarAdminBusy` object on both the single-site and network screens.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function polling_l10n() {
+		return array(
+			'restBase'    => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
+			'restNonce'   => wp_create_nonce( 'wp_rest' ),
+			'pollQueued'  => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
+			'pollRunning' => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'pollDone'    => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollFailed'  => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
+			'pollError'   => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
+			'flashDone'   => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
+			'linkReport'  => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
+			'linkMd'      => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
+			'linkPdf'     => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'linkClient'  => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+		);
+	}
+
+	/**
+	 * Outputs the top-of-screen flash notice for a queued job.
+	 *
+	 * Rendered just below the page heading (standard WordPress admin-notice position).
+	 * The poller (assets/js/admin.js) flips its text/class to "completed"/"failed" once
+	 * the job reaches a terminal state. Pairs with {@see self::render_job_status_panel()}.
+	 *
+	 * @param string $job_id Queued job id.
+	 * @return void
+	 */
+	public static function render_job_flash( $job_id ) {
+		$job_id = WPMAR_Jobs_Repository::sanitize_id( (string) $job_id );
+		if ( '' === $job_id ) {
+			return;
+		}
+		?>
+		<div id="wpmar-job-flash" class="notice notice-success" data-wpmar-job-flash>
+			<p><?php esc_html_e( 'レポート生成をキューに追加しました。バックグラウンドで実行され、完了するとこの画面にダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Outputs the async-job polling panel for a queued job.
+	 *
+	 * Shared by the single-site settings screen and the network rollup screen; the
+	 * client-side poller (assets/js/admin.js) reads the data attributes and updates
+	 * the message/links via the REST endpoint.
+	 *
+	 * @param string $job_id Queued job id.
+	 * @return void
+	 */
+	public static function render_job_status_panel( $job_id ) {
+		$job_id = WPMAR_Jobs_Repository::sanitize_id( (string) $job_id );
+		if ( '' === $job_id ) {
+			return;
+		}
+		?>
+		<div
+			class="wpmar-section-panel wpmar-job-panel"
+			data-wpmar-job-poll="1"
+			data-wpmar-job-id="<?php echo esc_attr( $job_id ); ?>"
+		>
+			<h2><?php esc_html_e( 'レポート生成ジョブ', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<p class="wpmar-job-status" aria-live="polite">
+				<span class="wpmar-spinner" data-wpmar-job-spinner aria-hidden="true"></span>
+				<span data-wpmar-job-message><?php esc_html_e( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ); ?></span>
+			</p>
+			<ul class="wpmar-job-links" data-wpmar-job-links hidden></ul>
+		</div>
+		<?php
+	}
+
+	/**
 	 * URL for a screen registered under admin.php?page=…
 	 *
 	 * @param string $page_slug {@see WPMAR_ADMIN_PAGE_SLUG} or {@see WPMAR_REPORTS_PAGE_SLUG}.
@@ -188,9 +285,12 @@ class WPMAR_Admin_Menu {
 			true
 		);
 
-		$wpmar_admin_l10n = array(
-			'dryRun'  => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-			'fullRun' => __( 'レポート生成を実行しています…', 'wp-maintenance-audit-reporter' ),
+		$wpmar_admin_l10n = array_merge(
+			array(
+				'dryRun'  => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
+				'fullRun' => __( 'レポート生成をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
+			),
+			self::polling_l10n()
 		);
 
 		wp_localize_script(
@@ -310,28 +410,50 @@ class WPMAR_Admin_Menu {
 					);
 					break;
 				}
-				// On-demand audit (same pathway as WP-Cron once domain gate passes).
+				// On-demand audit, now enqueued as a background job so the request returns
+				// immediately (avoids the CloudFront 504 the synchronous path produced).
 				$persist = ! empty( $input['wpmar_persist_snapshots'] );
 				$qa_mail = '';
 				if ( isset( $input['wpmar_qa_mail'] ) ) {
 					$qa_mail = sanitize_email( $input['wpmar_qa_mail'] );
 				}
-				$runner = new WPMAR_Runner();
-				$runner->run(
+
+				$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job(
 					array(
 						'dry'               => false,
 						'triggered_by'      => 'manual',
 						'persist_snapshots' => $persist,
 						'mail_qa_extra'     => $qa_mail,
+					),
+					'single'
+				);
+
+				if ( is_wp_error( $enqueued ) ) {
+					add_settings_error(
+						'wpmar_messages',
+						'wpmar_full',
+						sprintf(
+							/* translators: %s: reason the job could not be queued */
+							__( 'レポート生成をキューに追加できませんでした: %s WP-CLI（wp wpmar audit run --sync）での実行をご検討ください。', 'wp-maintenance-audit-reporter' ),
+							$enqueued->get_error_message()
+						),
+						'error'
+					);
+					break;
+				}
+
+				// PRG redirect carrying the job id so the polling panel survives reloads.
+				// The queued/completed messaging is rendered by the panel's flash notice.
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'page'      => WPMAR_ADMIN_PAGE_SLUG,
+							'wpmar_job' => WPMAR_Jobs_Repository::sanitize_id( $enqueued ),
+						),
+						admin_url( 'admin.php' )
 					)
 				);
-				add_settings_error(
-					'wpmar_messages',
-					'wpmar_full',
-					__( 'レポート生成を実行して完了しました。', 'wp-maintenance-audit-reporter' ),
-					'success'
-				);
-				break;
+				exit;
 			default:
 				break;
 		}
