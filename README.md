@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC9**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC10**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -14,6 +14,14 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
+## What v1.0.0-RC10 adds (asynchronous audit jobs; 504 fix for "今すぐ実行"; polling UI; CLI --sync)
+
+- **Asynchronous audit jobs (Action Scheduler)** — "今すぐ実行" on both the single-site and network screens now enqueues a background job and returns in a few hundred ms, eliminating the CloudFront 504 gateway timeout that long synchronous audits triggered. Adds `WPMAR_Job_Dispatcher` (`enqueue_audit_job()` / `run_audit_job()`), a `{$wpdb->prefix}wpmar_jobs` tracking table (`WPMAR_Jobs_Repository`), and bundles Action Scheduler in `lib/action-scheduler/` (loaded before `plugins_loaded`, managed via Composer and copied into `lib/` at build).
+- **Job-status REST endpoint** — `GET /wpmar/v1/jobs/<id>` (capability-gated) returns lifecycle state and, on completion, the report URL + nonce-signed Markdown/PDF download links.
+- **Admin polling UI** — A top flash notice plus a "レポート生成ジョブ" panel poll the endpoint (~2.5 s): queued → running → completed, then preview/download links. The flash flips to "レポートが生成されました。" on completion (error notice on failure). The job id is carried via a PRG redirect so the panel survives reloads.
+- **WP-CLI `wp wpmar audit run --sync`** — Synchronous, CloudFront-bypassing fallback (`--dry-run` / `--network` / `--no-snapshot`). Existing `wp maintenance-audit run` unchanged.
+- **Monthly cron + network run unified on Action Scheduler** — `WPMAR_Scheduler::handle_event()` enqueues via Action Scheduler (synchronous fallback) and reschedules the monthly chain immediately; network "今すぐ実行" uses the same job system (legacy single-event retained as fallback).
 
 ## What v1.0.0-RC9 fixes (checksum directory exclusions; "プラグイン除外パス" label)
 
