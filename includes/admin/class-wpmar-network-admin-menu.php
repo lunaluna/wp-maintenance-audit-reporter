@@ -96,9 +96,12 @@ class WPMAR_Network_Admin_Menu {
 		wp_localize_script(
 			'wpmar-admin',
 			'wpmarAdminBusy',
-			array(
-				'dryRun'  => __( 'ネットワークドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-				'fullRun' => __( 'ネットワーク実行をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
+			array_merge(
+				array(
+					'dryRun'  => __( 'ネットワークドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
+					'fullRun' => __( 'ネットワーク実行をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
+				),
+				WPMAR_Admin_Menu::polling_l10n()
 			)
 		);
 	}
@@ -117,6 +120,10 @@ class WPMAR_Network_Admin_Menu {
 
 		$action = isset( $_POST['wpmar_admin_action'] ) ? sanitize_key( wp_unslash( $_POST['wpmar_admin_action'] ) ) : 'save'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via sanitize_key.
 		$input  = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized in merge.
+
+		// Set when full_run enqueues an Action Scheduler job; forwarded via redirect so the
+		// next render can show the polling panel.
+		$queued_job_id = '';
 
 		switch ( $action ) {
 			case 'dry_run':
@@ -165,8 +172,19 @@ class WPMAR_Network_Admin_Menu {
 					'target_blog_id'    => $scope['target_blog_id'],
 				);
 
-				if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
-					// WP-Cron disabled: synchronous execution risks 504 on large networks, so refuse.
+				$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job( $run_options, 'network' );
+
+				if ( ! is_wp_error( $enqueued ) ) {
+					// Action Scheduler queue: tracked job + polling UI on the next render.
+					$queued_job_id = $enqueued;
+					add_settings_error(
+						'wpmar_network_messages',
+						'wpmar_network_full',
+						__( 'ネットワーク実行をキューに追加しました。バックグラウンドで実行され、完了するとこの画面に状態とダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ),
+						'success'
+					);
+				} elseif ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
+					// Fallback path (Action Scheduler unavailable) needs WP-Cron; refuse when disabled.
 					add_settings_error(
 						'wpmar_network_messages',
 						'wpmar_network_full',
@@ -174,6 +192,7 @@ class WPMAR_Network_Admin_Menu {
 						'error'
 					);
 				} else {
+					// Legacy single-event fallback while Action Scheduler is not yet shipped.
 					wp_schedule_single_event( time(), WPMAR_HOOK_NETWORK_MANUAL_RUN, array( $run_options ) );
 					spawn_cron();
 					add_settings_error(
@@ -224,12 +243,17 @@ class WPMAR_Network_Admin_Menu {
 
 		set_transient( 'settings_errors', get_settings_errors(), 30 );
 
+		$redirect_args = array(
+			'page'              => WPMAR_NETWORK_ADMIN_PAGE_SLUG,
+			'wpmar_network_msg' => '1',
+		);
+		if ( '' !== $queued_job_id ) {
+			$redirect_args['wpmar_job'] = WPMAR_Jobs_Repository::sanitize_id( $queued_job_id );
+		}
+
 		wp_safe_redirect(
 			add_query_arg(
-				array(
-					'page'              => WPMAR_NETWORK_ADMIN_PAGE_SLUG,
-					'wpmar_network_msg' => '1',
-				),
+				$redirect_args,
 				network_admin_url( 'admin.php' )
 			)
 		);

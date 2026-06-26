@@ -99,6 +99,15 @@ class WPMAR_Network_Settings_Page {
 				</ul>
 			</div>
 
+			<?php
+			// Async network run queued → render the polling panel (job id forwarded via redirect).
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only id from our own redirect; sanitised and used read-only.
+			$queued_job_id = isset( $_GET['wpmar_job'] ) ? WPMAR_Jobs_Repository::sanitize_id( sanitize_text_field( wp_unslash( $_GET['wpmar_job'] ) ) ) : '';
+			if ( '' !== $queued_job_id ) {
+				WPMAR_Admin_Menu::render_job_status_panel( $queued_job_id );
+			}
+			?>
+
 			<?php if ( is_string( $dry_note ) && '' !== trim( $dry_note ) ) : ?>
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'ドライラン要約', 'wp-maintenance-audit-reporter' ); ?></h2>

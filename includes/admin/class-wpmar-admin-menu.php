@@ -80,6 +80,29 @@ class WPMAR_Admin_Menu {
 	}
 
 	/**
+	 * Shared localisation for the async-job poller (REST config + status/link strings).
+	 *
+	 * Merged into the `wpmarAdminBusy` object on both the single-site and network screens.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function polling_l10n() {
+		return array(
+			'restBase'    => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
+			'restNonce'   => wp_create_nonce( 'wp_rest' ),
+			'pollQueued'  => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
+			'pollRunning' => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'pollDone'    => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollFailed'  => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
+			'pollError'   => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
+			'linkReport'  => __( 'レポート詳細を開く', 'wp-maintenance-audit-reporter' ),
+			'linkMd'      => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
+			'linkPdf'     => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'linkClient'  => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+		);
+	}
+
+	/**
 	 * Outputs the async-job polling panel for a queued job.
 	 *
 	 * Shared by the single-site settings screen and the network rollup screen; the
@@ -239,21 +262,12 @@ class WPMAR_Admin_Menu {
 			true
 		);
 
-		$wpmar_admin_l10n = array(
-			'dryRun'      => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
-			'fullRun'     => __( 'レポート生成をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
-			// Async job polling (settings + network screens).
-			'restBase'    => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
-			'restNonce'   => wp_create_nonce( 'wp_rest' ),
-			'pollQueued'  => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
-			'pollRunning' => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
-			'pollDone'    => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
-			'pollFailed'  => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
-			'pollError'   => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
-			'linkReport'  => __( 'レポート詳細を開く', 'wp-maintenance-audit-reporter' ),
-			'linkMd'      => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
-			'linkPdf'     => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
-			'linkClient'  => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+		$wpmar_admin_l10n = array_merge(
+			array(
+				'dryRun'  => __( 'ドライランを実行しています…', 'wp-maintenance-audit-reporter' ),
+				'fullRun' => __( 'レポート生成をキューに追加しています…', 'wp-maintenance-audit-reporter' ),
+			),
+			self::polling_l10n()
 		);
 
 		wp_localize_script(
