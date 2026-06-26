@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           1.0.0-RC9
+ * Version:           1.0.0-RC10
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Network:           true
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.0.0-RC9' );
+define( 'WPMAR_VERSION', '1.0.0-RC10' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -51,6 +51,7 @@ function wpmar_get_include_manifest() {
 		'includes/api/class-wpmar-wporg-client.php',
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
+		'includes/storage/class-wpmar-jobs-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
 		'includes/storage/class-wpmar-pdf-writer.php',
 		'includes/storage/class-wpmar-report-zip-export.php',

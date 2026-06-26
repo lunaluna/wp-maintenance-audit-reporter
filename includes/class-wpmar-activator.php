@@ -129,6 +129,7 @@ class WPMAR_Activator {
 		$charset_collate = $wpdb->get_charset_collate();
 		$reports_table   = $wpdb->prefix . 'wpmar_reports';
 		$snapshots_table = $wpdb->prefix . 'wpmar_snapshots';
+		$jobs_table      = $wpdb->prefix . 'wpmar_jobs';
 
 		$sql_reports = "CREATE TABLE {$reports_table} (
 	id bigint unsigned NOT NULL auto_increment,
@@ -158,8 +159,23 @@ class WPMAR_Activator {
 	KEY idx_type_captured (snapshot_type, captured_at)
 ) {$charset_collate};";
 
+		$sql_jobs = "CREATE TABLE {$jobs_table} (
+	id varchar(40) NOT NULL,
+	status varchar(20) NOT NULL default 'queued',
+	scope varchar(20) NOT NULL default 'single',
+	args_json longtext NULL,
+	result_json longtext NULL,
+	error text NULL,
+	created_at datetime NOT NULL,
+	updated_at datetime NOT NULL,
+	PRIMARY KEY (id),
+	KEY idx_status (status),
+	KEY idx_created_at (created_at)
+) {$charset_collate};";
+
 		dbDelta( $sql_reports );
 		dbDelta( $sql_snapshots );
+		dbDelta( $sql_jobs );
 	}
 
 	/**
