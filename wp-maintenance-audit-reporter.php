@@ -88,11 +88,57 @@ function wpmar_require_includes_once() {
 		require_once $autoload;
 	}
 
+	// Action Scheduler powers async audit jobs. It must be required on every request
+	// (it self-registers on `init` to process its queue), so it cannot rely on PSR-4
+	// autoloading. Loading is defensive: when the library is absent (it is shipped
+	// separately, like the on-demand PDF library), async features stay dormant and the
+	// plugin keeps working through the synchronous WP-CLI / cron paths.
+	wpmar_maybe_load_action_scheduler();
+
 	foreach ( wpmar_get_include_manifest() as $relative_path ) {
 		require_once WPMAR_PLUGIN_DIR . $relative_path;
 	}
 
 	$loaded = true;
+}
+
+/**
+ * Requires the Action Scheduler bootstrap if present in any known location.
+ *
+ * Candidate paths cover both delivery options kept open during design:
+ * a committed `lib/` copy and a Composer-managed `vendor/` install.
+ *
+ * @return void
+ */
+function wpmar_maybe_load_action_scheduler() {
+	if ( function_exists( 'as_enqueue_async_action' ) ) {
+		return; // Already loaded (e.g. by another plugin bundling Action Scheduler).
+	}
+
+	$candidates = array(
+		'lib/action-scheduler/action-scheduler.php',
+		'vendor/woocommerce/action-scheduler/action-scheduler.php',
+	);
+
+	foreach ( $candidates as $relative_path ) {
+		$absolute = WPMAR_PLUGIN_DIR . $relative_path;
+		if ( is_readable( $absolute ) ) {
+			require_once $absolute;
+			return;
+		}
+	}
+}
+
+/**
+ * Whether Action Scheduler is loaded and its async API is callable.
+ *
+ * Guards every enqueue call site so async features degrade gracefully when the
+ * library has not yet been shipped to this install.
+ *
+ * @return bool
+ */
+function wpmar_action_scheduler_available() {
+	return function_exists( 'as_enqueue_async_action' );
 }
 
 /**

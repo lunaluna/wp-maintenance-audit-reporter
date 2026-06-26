@@ -69,6 +69,30 @@ rsync -a \
   ./ "${STAGE}/${SLUG}/"
 
 # ---------------------------------------------------------------------------
+# 3b. Bundle mandatory libraries into lib/ (Action Scheduler).
+#
+# vendor/ is excluded from the zip (mPDF and its deps ship on-demand), so any
+# library required from first activation must be copied into lib/ explicitly.
+# Action Scheduler is self-contained (its own bootstrap loads its classes), so
+# the single package directory is all that needs shipping.
+# ---------------------------------------------------------------------------
+AS_SRC="vendor/woocommerce/action-scheduler"
+AS_DEST="${STAGE}/${SLUG}/lib/action-scheduler"
+if [ -d "$AS_SRC" ]; then
+  mkdir -p "$AS_DEST"
+  rsync -a \
+    --exclude='.git' \
+    --exclude='.github' \
+    --exclude='tests' \
+    --exclude='docs' \
+    "$AS_SRC/" "$AS_DEST/"
+  echo "Bundled Action Scheduler -> lib/action-scheduler"
+else
+  echo "Error: $AS_SRC not found. Run 'composer install' so Action Scheduler can be bundled into lib/." >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Create the zip
 # ---------------------------------------------------------------------------
 ZIP_NAME="${SLUG}.${VERSION}.zip"
