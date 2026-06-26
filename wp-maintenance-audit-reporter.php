@@ -49,6 +49,7 @@ function wpmar_get_include_manifest() {
 		'includes/checks/class-wpmar-check-security-ops.php',
 		'includes/checks/class-wpmar-check-performance.php',
 		'includes/api/class-wpmar-wporg-client.php',
+		'includes/api/class-wpmar-jobs-rest.php',
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
 		'includes/storage/class-wpmar-jobs-repository.php',
