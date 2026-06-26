@@ -205,6 +205,20 @@
 		const messageEl = panel.querySelector('[data-wpmar-job-message]');
 		const spinnerEl = panel.querySelector('[data-wpmar-job-spinner]');
 		const linksEl = panel.querySelector('[data-wpmar-job-links]');
+		const flashEl = document.querySelector('[data-wpmar-job-flash]');
+
+		function setFlash(text, isError) {
+			if (!flashEl || !text) {
+				return;
+			}
+			flashEl.className = isError
+				? 'notice notice-error'
+				: 'notice notice-success';
+			const p = flashEl.querySelector('p');
+			if (p) {
+				p.textContent = text;
+			}
+		}
 
 		const POLL_MS = 2500;
 		let timer = null;
@@ -247,6 +261,7 @@
 		function renderDone(data) {
 			stopSpinner();
 			setMessage(cfg.pollDone || '');
+			setFlash(cfg.flashDone || '', false);
 			const result = data && data.result ? data.result : null;
 			if (!result) {
 				return;
@@ -273,6 +288,7 @@
 			stopSpinner();
 			const detail = data && data.error ? ' ' + data.error : '';
 			setMessage((cfg.pollFailed || '') + detail);
+			setFlash((cfg.pollFailed || '') + detail, true);
 			panel.classList.add('wpmar-job-panel--failed');
 		}
 

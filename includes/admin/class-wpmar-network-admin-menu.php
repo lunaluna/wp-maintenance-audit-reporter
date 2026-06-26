@@ -175,14 +175,9 @@ class WPMAR_Network_Admin_Menu {
 				$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job( $run_options, 'network' );
 
 				if ( ! is_wp_error( $enqueued ) ) {
-					// Action Scheduler queue: tracked job + polling UI on the next render.
+					// Action Scheduler queue: tracked job + polling panel (with its own
+					// queued/completed flash notice) on the next render via wpmar_job.
 					$queued_job_id = $enqueued;
-					add_settings_error(
-						'wpmar_network_messages',
-						'wpmar_network_full',
-						__( 'ネットワーク実行をキューに追加しました。バックグラウンドで実行され、完了するとこの画面に状態とダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ),
-						'success'
-					);
 				} elseif ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
 					// Fallback path (Action Scheduler unavailable) needs WP-Cron; refuse when disabled.
 					add_settings_error(

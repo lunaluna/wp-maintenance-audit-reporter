@@ -95,11 +95,34 @@ class WPMAR_Admin_Menu {
 			'pollDone'    => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
 			'pollFailed'  => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
 			'pollError'   => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
-			'linkReport'  => __( 'レポート詳細を開く', 'wp-maintenance-audit-reporter' ),
+			'flashDone'   => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
+			'linkReport'  => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
 			'linkMd'      => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
 			'linkPdf'     => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
 			'linkClient'  => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
 		);
+	}
+
+	/**
+	 * Outputs the top-of-screen flash notice for a queued job.
+	 *
+	 * Rendered just below the page heading (standard WordPress admin-notice position).
+	 * The poller (assets/js/admin.js) flips its text/class to "completed"/"failed" once
+	 * the job reaches a terminal state. Pairs with {@see self::render_job_status_panel()}.
+	 *
+	 * @param string $job_id Queued job id.
+	 * @return void
+	 */
+	public static function render_job_flash( $job_id ) {
+		$job_id = WPMAR_Jobs_Repository::sanitize_id( (string) $job_id );
+		if ( '' === $job_id ) {
+			return;
+		}
+		?>
+		<div id="wpmar-job-flash" class="notice notice-success" data-wpmar-job-flash>
+			<p><?php esc_html_e( 'レポート生成をキューに追加しました。バックグラウンドで実行され、完了するとこの画面にダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ); ?></p>
+		</div>
+		<?php
 	}
 
 	/**
@@ -419,14 +442,18 @@ class WPMAR_Admin_Menu {
 					break;
 				}
 
-				self::$queued_job_id = $enqueued;
-				add_settings_error(
-					'wpmar_messages',
-					'wpmar_full',
-					__( 'レポート生成をキューに追加しました。バックグラウンドで実行され、完了するとこの画面にダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ),
-					'success'
+				// PRG redirect carrying the job id so the polling panel survives reloads.
+				// The queued/completed messaging is rendered by the panel's flash notice.
+				wp_safe_redirect(
+					add_query_arg(
+						array(
+							'page'      => WPMAR_ADMIN_PAGE_SLUG,
+							'wpmar_job' => WPMAR_Jobs_Repository::sanitize_id( $enqueued ),
+						),
+						admin_url( 'admin.php' )
+					)
 				);
-				break;
+				exit;
 			default:
 				break;
 		}
