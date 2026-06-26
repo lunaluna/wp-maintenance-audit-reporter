@@ -33,6 +33,16 @@ define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
 define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 define( 'WPMAR_NETWORK_ADMIN_PAGE_SLUG', 'wpmar-network-maintenance-report' );
 
+/*
+ * Action Scheduler must load at plugin-file inclusion time — before the
+ * `plugins_loaded` hook — so its own `plugins_loaded` (priority 0) bootstrap can
+ * register and define the `as_*` queue API. Requiring it later (e.g. inside our
+ * own `plugins_loaded` priority-5 bootstrap) is too late: the priority-0 slot has
+ * already passed and the API never initialises. Defensive by design: when the
+ * library is absent the plugin keeps working through the synchronous CLI/cron paths.
+ */
+wpmar_maybe_load_action_scheduler();
+
 /**
  * Includes loaded for activation hooks and runtime.
  *
@@ -90,13 +100,6 @@ function wpmar_require_includes_once() {
 	if ( is_readable( $autoload ) ) {
 		require_once $autoload;
 	}
-
-	// Action Scheduler powers async audit jobs. It must be required on every request
-	// (it self-registers on `init` to process its queue), so it cannot rely on PSR-4
-	// autoloading. Loading is defensive: when the library is absent (it is shipped
-	// separately, like the on-demand PDF library), async features stay dormant and the
-	// plugin keeps working through the synchronous WP-CLI / cron paths.
-	wpmar_maybe_load_action_scheduler();
 
 	foreach ( wpmar_get_include_manifest() as $relative_path ) {
 		require_once WPMAR_PLUGIN_DIR . $relative_path;

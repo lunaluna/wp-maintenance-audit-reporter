@@ -219,9 +219,9 @@ class WPMAR_Jobs_Repository {
 	/**
 	 * Applies a partial column update plus a refreshed `updated_at`.
 	 *
-	 * @param string               $id      Job id.
-	 * @param array<string,mixed>  $fields  Column => value map (excluding updated_at).
-	 * @param array<int,string>    $formats Placeholder formats matching $fields order.
+	 * @param string              $id      Job id.
+	 * @param array<string,mixed> $fields  Column => value map (excluding updated_at).
+	 * @param array<int,string>   $formats Placeholder formats matching $fields order.
 	 * @return bool
 	 */
 	protected function update_fields( $id, array $fields, array $formats ) {
