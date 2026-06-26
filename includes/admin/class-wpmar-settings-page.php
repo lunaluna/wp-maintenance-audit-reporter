@@ -154,6 +154,14 @@ class WPMAR_Settings_Page {
 				</ul>
 			</div>
 
+			<?php
+			// Async run queued in this request → render the polling panel above the form.
+			$queued_job_id = WPMAR_Admin_Menu::consume_queued_job_id();
+			if ( '' !== $queued_job_id ) {
+				WPMAR_Admin_Menu::render_job_status_panel( $queued_job_id );
+			}
+			?>
+
 			<?php if ( is_string( $dry_note ) && '' !== trim( $dry_note ) ) : ?>
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'ドライラン要約', 'wp-maintenance-audit-reporter' ); ?></h2>
