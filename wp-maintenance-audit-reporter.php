@@ -61,6 +61,7 @@ function wpmar_get_include_manifest() {
 		'includes/class-wpmar-cli-environment.php',
 		'includes/class-wpmar-runner.php',
 		'includes/class-wpmar-network-runner.php',
+		'includes/class-wpmar-job-dispatcher.php',
 		'includes/class-wpmar-scheduler.php',
 		'includes/admin/class-wpmar-admin-menu.php',
 		'includes/admin/class-wpmar-settings-page.php',

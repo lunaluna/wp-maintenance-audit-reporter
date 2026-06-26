@@ -49,6 +49,7 @@ class WPMAR_Plugin {
 		);
 
 		WPMAR_Scheduler::init();
+		WPMAR_Job_Dispatcher::init();
 
 		if ( is_multisite() ) {
 			WPMAR_Network_Admin_Menu::init();
