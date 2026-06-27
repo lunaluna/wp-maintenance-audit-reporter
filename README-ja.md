@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC11**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC12**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -16,6 +16,13 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
+## v1.0.0-RC12 の変更内容（ドライランも非同期化・モード対応ポーリング・vendor-pdf.zip から Action Scheduler を除外）
+
+- **ドライランも非同期化** — シングルサイト／ネットワーク双方の「ドライラン」を、「今すぐ実行」と同様に Action Scheduler 経由で登録し即座に応答するようにしました。PDF 生成ではなく**データ収集フェーズ自体が遅い**場合の CloudFront 504 タイムアウトに対応します。Action Scheduler が利用できない場合は、従来の同期実行＋インラインプレビューにフォールバックします。
+- **ジョブのモード対応ポーリング** — `WPMAR_Admin_Menu::render_job_flash()` / `render_job_status_panel()` が `mode`（`full` / `dry`）引数を取り、フラッシュ通知・パネル見出し・完了文言がモードに応じて切り替わります（`data-wpmar-job-mode` 属性で JS が判定）。完了時、ドライランはダウンロードリンクではなく要約（`dry_brevity`）を表示し、フルランは従来どおりレポート／プレビュー／ダウンロードリンクを表示します。
+- **ドライラン時の REST ペイロード軽量化** — `WPMAR_Jobs_REST` はドライランジョブに対して compact な `dry_brevity` 要約のみを返し、巨大な `dry_preview` データは除外します。
+- **`vendor-pdf.zip` から Action Scheduler を除外** — `bin/build-vendor-pdf-zip.sh` が zip 化前に `vendor/woocommerce` を削除するため、オンデマンドの PDF バンドルには mPDF＋Parsedown（＋依存）のみが含まれます。Action Scheduler は本体パッケージの `lib/` のみで配布され、二重同梱を回避します。
 
 ## v1.0.0-RC11 の修正内容（管理画面「更新」が誤ったリリースアセットを選択する不具合）
 
