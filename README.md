@@ -21,6 +21,7 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 - **Mode-aware job polling** — `WPMAR_Admin_Menu::render_job_flash()` / `render_job_status_panel()` take a `mode` argument (`full` | `dry`); the flash notice, panel heading, and completion text adapt accordingly (via a `data-wpmar-job-mode` attribute). On completion a dry-run job renders its compact `dry_brevity` summary instead of download links, while a full run shows the report/preview/download links as before.
 - **Leaner REST payload for dry runs** — `WPMAR_Jobs_REST` returns only the compact `dry_brevity` summary for dry-run jobs and drops the bulky `dry_preview` dataset.
 - **`vendor-pdf.zip` no longer bundles Action Scheduler** — `bin/build-vendor-pdf-zip.sh` removes `vendor/woocommerce` before packaging, so the on-demand PDF bundle ships only mPDF + Parsedown (+ deps). Action Scheduler ships solely in the plugin package under `lib/`, avoiding double-shipping.
+- **Fixed: "new version available" notice persisting after updating** — `check_for_update()` now clears any stale `response` entry when the installed version is current, and `after_update()` clears the `update_plugins` transient, so the dashboard notice disappears immediately once you are on the latest version.
 
 ## What v1.0.0-RC11 fixes (dashboard one-click update selecting the wrong release asset)
 
