@@ -78,6 +78,14 @@ curl -fsSL \
   -o "${TMP_DIR}/fonts/BIZUDGothic-Bold.ttf"
 
 # ---------------------------------------------------------------------------
+# Drop Action Scheduler from the on-demand bundle.
+# It is a mandatory library shipped inside the plugin package under lib/
+# (see bin/build-zip.sh), so including it here too would double-ship it and
+# bloat vendor-pdf.zip. The PDF feature does not depend on it.
+# ---------------------------------------------------------------------------
+rm -rf "${TMP_DIR}/vendor/woocommerce"
+
+# ---------------------------------------------------------------------------
 # Package vendor/ and fonts/ into a zip
 # Both sit at the zip root so ZipArchive::extractTo(PLUGIN_DIR) is enough.
 # -X suppresses macOS resource-fork entries (__MACOSX/).

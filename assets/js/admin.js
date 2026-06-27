@@ -202,9 +202,11 @@
 			return;
 		}
 
+		const mode = panel.getAttribute('data-wpmar-job-mode') || 'full';
 		const messageEl = panel.querySelector('[data-wpmar-job-message]');
 		const spinnerEl = panel.querySelector('[data-wpmar-job-spinner]');
 		const linksEl = panel.querySelector('[data-wpmar-job-links]');
+		const previewEl = panel.querySelector('[data-wpmar-job-preview]');
 		const flashEl = document.querySelector('[data-wpmar-job-flash]');
 
 		function setFlash(text, isError) {
@@ -260,9 +262,22 @@
 
 		function renderDone(data) {
 			stopSpinner();
+			const result = data && data.result ? data.result : null;
+			const isDry = mode === 'dry' || !!(result && result.dry_brevity);
+
+			if (isDry) {
+				// Dry run: show the brevity summary, no download links.
+				setMessage(cfg.pollDoneDry || cfg.pollDone || '');
+				setFlash(cfg.flashDoneDry || cfg.flashDone || '', false);
+				if (previewEl && result && result.dry_brevity) {
+					previewEl.textContent = result.dry_brevity;
+					previewEl.hidden = false;
+				}
+				return;
+			}
+
 			setMessage(cfg.pollDone || '');
 			setFlash(cfg.flashDone || '', false);
-			const result = data && data.result ? data.result : null;
 			if (!result) {
 				return;
 			}
