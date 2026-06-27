@@ -21,6 +21,9 @@ class WPMAR_GitHub_Updater {
 	/** GitHub repository identifier (owner/repo). */
 	private const GITHUB_REPO = 'lunaluna/wp-maintenance-audit-reporter';
 
+	/** Plugin slug (also the prefix of the distributed plugin zip asset name). */
+	private const PLUGIN_SLUG = 'wp-maintenance-audit-reporter';
+
 	/** Transient key used to cache the latest release response. */
 	private const CACHE_KEY = 'wpmar_github_release_cache';
 
@@ -88,7 +91,7 @@ class WPMAR_GitHub_Updater {
 			return $result;
 		}
 
-		if ( ! isset( $args->slug ) || 'wp-maintenance-audit-reporter' !== $args->slug ) {
+		if ( ! isset( $args->slug ) || self::PLUGIN_SLUG !== $args->slug ) {
 			return $result;
 		}
 
@@ -99,7 +102,7 @@ class WPMAR_GitHub_Updater {
 
 		return (object) array(
 			'name'          => 'WP Maintenance Audit Reporter',
-			'slug'          => 'wp-maintenance-audit-reporter',
+			'slug'          => self::PLUGIN_SLUG,
 			'version'       => $release['version'],
 			'author'        => '<a href="https://profiles.wordpress.org/lunaluna_dev/">lunaluna_dev</a>',
 			'homepage'      => 'https://github.com/' . self::GITHUB_REPO,
@@ -217,21 +220,28 @@ class WPMAR_GitHub_Updater {
 	/**
 	 * Extracts the distribution zip URL from the GitHub release payload.
 	 *
-	 * Prefers the explicitly uploaded release asset (built by release.yml)
-	 * over the auto-generated zipball so that the zip's inner directory name
-	 * matches the plugin directory and WordPress's upgrader unpacks it cleanly.
+	 * A release carries more than one zip asset (e.g. the on-demand
+	 * `vendor-pdf.zip`), so the asset must be matched by name rather than just
+	 * content type — otherwise WordPress may try to install the wrong archive
+	 * and fail with "package could not be installed". Only the plugin asset,
+	 * whose name starts with the plugin slug (built by release.yml as
+	 * `wp-maintenance-audit-reporter.<version>.zip`), is selected. Its inner
+	 * directory name matches the plugin directory so the upgrader unpacks it
+	 * cleanly.
 	 *
 	 * @param  array $body Decoded GitHub API response body.
 	 * @return string|null
 	 */
 	private static function extract_zip_url( array $body ) {
-		// Look for the release asset uploaded by release.yml.
+		// Look for the plugin zip asset uploaded by release.yml, matched by name
+		// so sibling assets (e.g. vendor-pdf.zip) are never selected.
 		if ( ! empty( $body['assets'] ) && is_array( $body['assets'] ) ) {
 			foreach ( $body['assets'] as $asset ) {
+				$name = isset( $asset['name'] ) ? (string) $asset['name'] : '';
 				if (
-					isset( $asset['browser_download_url'] ) &&
-					isset( $asset['content_type'] ) &&
-					false !== strpos( (string) $asset['content_type'], 'zip' )
+					! empty( $asset['browser_download_url'] ) &&
+					0 === strpos( $name, self::PLUGIN_SLUG ) &&
+					'.zip' === substr( $name, -4 )
 				) {
 					return $asset['browser_download_url'];
 				}
@@ -252,7 +262,7 @@ class WPMAR_GitHub_Updater {
 	private static function build_plugin_update_object( array $release ) {
 		return (object) array(
 			'id'            => 'github.com/' . self::GITHUB_REPO,
-			'slug'          => 'wp-maintenance-audit-reporter',
+			'slug'          => self::PLUGIN_SLUG,
 			'plugin'        => WPMAR_PLUGIN_BASENAME,
 			'new_version'   => $release['version'],
 			'url'           => 'https://github.com/' . self::GITHUB_REPO,
