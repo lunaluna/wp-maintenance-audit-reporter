@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC11] - 2026-06-27
+
+### Fixed
+
+- **Dashboard one-click update failing with "パッケージをインストールできませんでした。" (package could not be installed)** — `WPMAR_GitHub_Updater::extract_zip_url()` selected the first release asset whose content type was a zip. Because a release carries more than one zip asset (the on-demand `vendor-pdf.zip` alongside the plugin zip) and the GitHub API does not guarantee asset order — `vendor-pdf.zip` is in fact returned first — WordPress tried to install `vendor-pdf.zip` (mPDF/fonts only, no plugin header) and failed. Manual installation of the plugin zip worked because it targets the correct archive directly. The asset is now matched by name (must start with the plugin slug `wp-maintenance-audit-reporter` and end in `.zip`), so the plugin zip is always selected regardless of asset order; the `zipball_url` fallback is unchanged. The plugin slug is now shared via a `PLUGIN_SLUG` class constant.
+
 ## [1.0.0-RC10] - 2026-06-26
 
 ### Added
