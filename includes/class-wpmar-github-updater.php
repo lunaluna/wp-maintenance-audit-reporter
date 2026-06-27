@@ -70,8 +70,11 @@ class WPMAR_GitHub_Updater {
 		if ( version_compare( $latest_version, WPMAR_VERSION, '>' ) ) {
 			$transient->response[ WPMAR_PLUGIN_BASENAME ] = self::build_plugin_update_object( $release );
 		} else {
-			// Tell WordPress this plugin is up-to-date so it doesn't linger in the
-			// "no update" bucket with stale data.
+			// Up-to-date: actively remove any stale "update available" entry left
+			// in the persisted transient (e.g. set before the last update), so the
+			// "new version available" notice clears once we are on the latest
+			// version. Then record it in the "no update" bucket.
+			unset( $transient->response[ WPMAR_PLUGIN_BASENAME ] );
 			$transient->no_update[ WPMAR_PLUGIN_BASENAME ] = self::build_plugin_update_object( $release );
 		}
 
@@ -136,6 +139,11 @@ class WPMAR_GitHub_Updater {
 		$plugins = $options['plugins'] ?? array();
 		if ( in_array( WPMAR_PLUGIN_BASENAME, $plugins, true ) ) {
 			delete_transient( self::CACHE_KEY );
+			// Force WordPress to rebuild the plugin update transient on the next
+			// load so the stale "update available" entry is recomputed (and
+			// dropped by check_for_update()) immediately after updating, rather
+			// than lingering until the next throttled update check.
+			delete_site_transient( 'update_plugins' );
 		}
 	}
 
