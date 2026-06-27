@@ -121,9 +121,10 @@ class WPMAR_Network_Admin_Menu {
 		$action = isset( $_POST['wpmar_admin_action'] ) ? sanitize_key( wp_unslash( $_POST['wpmar_admin_action'] ) ) : 'save'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized via sanitize_key.
 		$input  = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized in merge.
 
-		// Set when full_run enqueues an Action Scheduler job; forwarded via redirect so the
-		// next render can show the polling panel.
-		$queued_job_id = '';
+		// Set when full_run / dry_run enqueues an Action Scheduler job; forwarded via redirect
+		// so the next render can show the polling panel.
+		$queued_job_id   = '';
+		$queued_job_mode = 'full';
 
 		switch ( $action ) {
 			case 'dry_run':
@@ -132,15 +133,26 @@ class WPMAR_Network_Admin_Menu {
 					add_settings_error( 'wpmar_network_messages', 'wpmar_network_dry', $scope_error, 'error' );
 					break;
 				}
-				$runner = new WPMAR_Network_Runner();
-				$result = $runner->run(
-					array(
-						'dry'            => true,
-						'triggered_by'   => 'manual_network',
-						'same_setting'   => $scope['same_setting'],
-						'target_blog_id' => $scope['target_blog_id'],
-					)
+
+				$dry_options = array(
+					'dry'            => true,
+					'triggered_by'   => 'manual_network',
+					'same_setting'   => $scope['same_setting'],
+					'target_blog_id' => $scope['target_blog_id'],
 				);
+
+				$enqueued_dry = WPMAR_Job_Dispatcher::enqueue_audit_job( $dry_options, 'network' );
+
+				if ( ! is_wp_error( $enqueued_dry ) ) {
+					$queued_job_id   = $enqueued_dry;
+					$queued_job_mode = 'dry';
+					break;
+				}
+
+				// Fallback (Action Scheduler unavailable): run synchronously and stash the
+				// inline preview for this same render.
+				$runner = new WPMAR_Network_Runner();
+				$result = $runner->run( $dry_options );
 				if ( isset( $result['dry_brevity'] ) && is_string( $result['dry_brevity'] ) ) {
 					self::$dry_run_brevity_inline = $result['dry_brevity'];
 				}
@@ -243,7 +255,8 @@ class WPMAR_Network_Admin_Menu {
 			'wpmar_network_msg' => '1',
 		);
 		if ( '' !== $queued_job_id ) {
-			$redirect_args['wpmar_job'] = WPMAR_Jobs_Repository::sanitize_id( $queued_job_id );
+			$redirect_args['wpmar_job']      = WPMAR_Jobs_Repository::sanitize_id( $queued_job_id );
+			$redirect_args['wpmar_job_mode'] = ( 'dry' === $queued_job_mode ) ? 'dry' : 'full';
 		}
 
 		wp_safe_redirect(

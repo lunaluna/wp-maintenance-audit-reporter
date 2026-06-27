@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC11
+Stable tag: 1.0.0-RC12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,13 +51,19 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 = Is this production-ready? =
 
-v1.0.0-RC11 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC12 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC12 =
+* Changed: Dry run is now asynchronous — "ドライラン" (single-site and network) is enqueued via Action Scheduler like "今すぐ実行" and returns immediately, addressing 504 timeouts when data collection itself (not PDF) is the slow phase. Falls back to the previous synchronous inline preview when Action Scheduler is unavailable.
+* Changed: Mode-aware polling — the flash notice, panel heading, and completion text adapt to the job mode (full/dry). A dry run shows its `dry_brevity` summary on completion; a full run shows preview/download links.
+* Changed: Leaner REST payload — dry-run job results return only the compact `dry_brevity` summary (the bulky `dry_preview` dataset is dropped).
+* Changed: `vendor-pdf.zip` no longer bundles Action Scheduler (`bin/build-vendor-pdf-zip.sh` removes `vendor/woocommerce` before packaging); the on-demand PDF bundle ships only mPDF + Parsedown, and Action Scheduler ships solely under `lib/`.
 
 = 1.0.0-RC11 =
 * Fixed: Dashboard one-click update failing with "パッケージをインストールできませんでした。" — `WPMAR_GitHub_Updater::extract_zip_url()` selected the first zip release asset, which could be the sibling `vendor-pdf.zip` (mPDF/fonts, not a valid plugin) instead of the plugin zip, because the GitHub API does not guarantee asset order (`vendor-pdf.zip` is returned first). WordPress then failed to install the wrong archive (manual upload of the plugin zip still worked). The asset is now matched by name — it must start with the plugin slug `wp-maintenance-audit-reporter` and end in `.zip` — so the correct plugin zip is always chosen regardless of order. The `zipball_url` fallback is unchanged.

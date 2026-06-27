@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC12] - 2026-06-27
+
+### Changed
+
+- **Dry run is now asynchronous** — "ドライラン" (single-site and network) is enqueued through Action Scheduler like "今すぐ実行" and returns immediately, addressing the CloudFront 504 timeout when the data-collection phase itself (not PDF) is the slow part. When Action Scheduler is unavailable the run falls back to the previous synchronous path with its inline preview.
+- **Mode-aware job polling** — `WPMAR_Admin_Menu::render_job_flash()` / `render_job_status_panel()` take a `mode` argument ('full' | 'dry'). The flash notice, panel heading, and completion text adapt to the mode (a `data-wpmar-job-mode` attribute drives the poller). On completion a dry-run job renders its compact `dry_brevity` summary instead of download links; a full run shows the report/preview/download links as before. New localized strings `pollDoneDry` / `flashDoneDry`.
+- **Leaner REST payload for dry runs** — `WPMAR_Jobs_REST` returns only the compact `dry_brevity` summary for dry-run jobs and drops the bulky `dry_preview` dataset.
+- **`vendor-pdf.zip` no longer bundles Action Scheduler** — `bin/build-vendor-pdf-zip.sh` removes `vendor/woocommerce` before packaging, so the on-demand PDF bundle ships only mPDF + Parsedown (+ deps). Action Scheduler ships solely in the plugin package under `lib/`, avoiding double-shipping.
+
 ## [1.0.0-RC11] - 2026-06-27
 
 ### Fixed

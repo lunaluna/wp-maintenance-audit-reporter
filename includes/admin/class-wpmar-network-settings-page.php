@@ -50,10 +50,12 @@ class WPMAR_Network_Settings_Page {
 		// Async network run queued → track the job (id forwarded via the redirect).
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only id from our own redirect; sanitised and used read-only.
 		$queued_job_id = isset( $_GET['wpmar_job'] ) ? WPMAR_Jobs_Repository::sanitize_id( sanitize_text_field( wp_unslash( $_GET['wpmar_job'] ) ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only mode flag from our own redirect.
+		$queued_job_mode = ( isset( $_GET['wpmar_job_mode'] ) && 'dry' === sanitize_key( wp_unslash( $_GET['wpmar_job_mode'] ) ) ) ? 'dry' : 'full';
 		?>
 		<div class="wrap wpmar-maintenance-settings">
 			<h1><?php esc_html_e( 'Maintenance Audit — ネットワーク', 'wp-maintenance-audit-reporter' ); ?></h1>
-			<?php WPMAR_Admin_Menu::render_job_flash( $queued_job_id ); ?>
+			<?php WPMAR_Admin_Menu::render_job_flash( $queued_job_id, $queued_job_mode ); ?>
 			<?php if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) : ?>
 				<div class="notice notice-error">
 					<p>
@@ -108,7 +110,7 @@ class WPMAR_Network_Settings_Page {
 			// Polling panel sits below the status readout; the flash notice (above) shares
 			// the same $queued_job_id computed near the top of render().
 			if ( '' !== $queued_job_id ) {
-				WPMAR_Admin_Menu::render_job_status_panel( $queued_job_id );
+				WPMAR_Admin_Menu::render_job_status_panel( $queued_job_id, $queued_job_mode );
 			}
 			?>
 

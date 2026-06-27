@@ -111,10 +111,18 @@ class WPMAR_Jobs_REST {
 	 * @return array<string,mixed>
 	 */
 	protected static function build_result_links( array $result ) {
+		// Dry runs carry a compact `dry_brevity` summary plus the full `dry_preview`
+		// dataset; only the brevity string is needed by the poller, so drop the bulky
+		// preview to keep the REST payload small.
+		if ( isset( $result['dry_brevity'] ) ) {
+			unset( $result['dry_preview'] );
+			return $result;
+		}
+
 		$report_id = isset( $result['report_id'] ) ? absint( $result['report_id'] ) : 0;
 
 		if ( $report_id <= 0 ) {
-			// Network rollups (and dry runs) may not map to a single report row.
+			// Network rollups may not map to a single report row.
 			return $result;
 		}
 

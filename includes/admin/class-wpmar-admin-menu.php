@@ -88,18 +88,21 @@ class WPMAR_Admin_Menu {
 	 */
 	public static function polling_l10n() {
 		return array(
-			'restBase'    => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
-			'restNonce'   => wp_create_nonce( 'wp_rest' ),
-			'pollQueued'  => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
-			'pollRunning' => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
-			'pollDone'    => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
-			'pollFailed'  => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
-			'pollError'   => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
-			'flashDone'   => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
-			'linkReport'  => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
-			'linkMd'      => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
-			'linkPdf'     => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
-			'linkClient'  => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'restBase'        => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
+			'restNonce'       => wp_create_nonce( 'wp_rest' ),
+			'pollQueued'      => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
+			'pollRunning'     => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'pollDone'        => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollDoneDry'     => __( 'ドライランが完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollFailed'      => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
+			'pollError'       => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
+			'flashDone'       => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
+			'flashDoneDry'    => __( 'ドライランが完了しました（保存・通知なし）。', 'wp-maintenance-audit-reporter' ),
+			'dryPreviewLabel' => __( 'ドライラン要約', 'wp-maintenance-audit-reporter' ),
+			'linkReport'      => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
+			'linkMd'          => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
+			'linkPdf'         => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'linkClient'      => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 
@@ -111,16 +114,21 @@ class WPMAR_Admin_Menu {
 	 * the job reaches a terminal state. Pairs with {@see self::render_job_status_panel()}.
 	 *
 	 * @param string $job_id Queued job id.
+	 * @param string $mode   'full' (report generation) or 'dry' (dry run).
 	 * @return void
 	 */
-	public static function render_job_flash( $job_id ) {
+	public static function render_job_flash( $job_id, $mode = 'full' ) {
 		$job_id = WPMAR_Jobs_Repository::sanitize_id( (string) $job_id );
 		if ( '' === $job_id ) {
 			return;
 		}
+		$is_dry  = ( 'dry' === $mode );
+		$message = $is_dry
+			? __( 'ドライランをキューに追加しました。バックグラウンドで実行され、完了するとこの画面に要約が表示されます。', 'wp-maintenance-audit-reporter' )
+			: __( 'レポート生成をキューに追加しました。バックグラウンドで実行され、完了するとこの画面にダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' );
 		?>
 		<div id="wpmar-job-flash" class="notice notice-success" data-wpmar-job-flash>
-			<p><?php esc_html_e( 'レポート生成をキューに追加しました。バックグラウンドで実行され、完了するとこの画面にダウンロードリンクが表示されます。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<p><?php echo esc_html( $message ); ?></p>
 		</div>
 		<?php
 	}
@@ -133,25 +141,32 @@ class WPMAR_Admin_Menu {
 	 * the message/links via the REST endpoint.
 	 *
 	 * @param string $job_id Queued job id.
+	 * @param string $mode   'full' (report generation) or 'dry' (dry run).
 	 * @return void
 	 */
-	public static function render_job_status_panel( $job_id ) {
+	public static function render_job_status_panel( $job_id, $mode = 'full' ) {
 		$job_id = WPMAR_Jobs_Repository::sanitize_id( (string) $job_id );
 		if ( '' === $job_id ) {
 			return;
 		}
+		$is_dry  = ( 'dry' === $mode );
+		$heading = $is_dry
+			? __( 'ドライランジョブ', 'wp-maintenance-audit-reporter' )
+			: __( 'レポート生成ジョブ', 'wp-maintenance-audit-reporter' );
 		?>
 		<div
 			class="wpmar-section-panel wpmar-job-panel"
 			data-wpmar-job-poll="1"
 			data-wpmar-job-id="<?php echo esc_attr( $job_id ); ?>"
+			data-wpmar-job-mode="<?php echo esc_attr( $is_dry ? 'dry' : 'full' ); ?>"
 		>
-			<h2><?php esc_html_e( 'レポート生成ジョブ', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<h2><?php echo esc_html( $heading ); ?></h2>
 			<p class="wpmar-job-status" aria-live="polite">
 				<span class="wpmar-spinner" data-wpmar-job-spinner aria-hidden="true"></span>
 				<span data-wpmar-job-message><?php esc_html_e( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ); ?></span>
 			</p>
 			<ul class="wpmar-job-links" data-wpmar-job-links hidden></ul>
+			<pre class="wpmar-dry-run-summary" data-wpmar-job-preview hidden></pre>
 		</div>
 		<?php
 	}
@@ -382,7 +397,33 @@ class WPMAR_Admin_Menu {
 					);
 					break;
 				}
-				// Collect-only path: skips DB artefacts; preview is rendered in the same POST response.
+				// Dry run is enqueued too: data collection itself can exceed the CloudFront
+				// timeout, so the request returns immediately and the result is polled.
+				$enqueued_dry = WPMAR_Job_Dispatcher::enqueue_audit_job(
+					array(
+						'dry'          => true,
+						'triggered_by' => 'manual',
+					),
+					'single'
+				);
+
+				if ( ! is_wp_error( $enqueued_dry ) ) {
+					// PRG redirect carrying the job id + mode so the polling panel survives reloads.
+					wp_safe_redirect(
+						add_query_arg(
+							array(
+								'page'           => WPMAR_ADMIN_PAGE_SLUG,
+								'wpmar_job'      => WPMAR_Jobs_Repository::sanitize_id( $enqueued_dry ),
+								'wpmar_job_mode' => 'dry',
+							),
+							admin_url( 'admin.php' )
+						)
+					);
+					exit;
+				}
+
+				// Fallback (Action Scheduler unavailable): run synchronously and show the
+				// inline preview in this same POST response (legacy behaviour).
 				$runner = new WPMAR_Runner();
 				$result = $runner->run(
 					array(

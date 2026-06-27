@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC11**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC12**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -14,6 +14,13 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
+## What v1.0.0-RC12 changes (dry run is asynchronous too; mode-aware polling; vendor-pdf.zip excludes Action Scheduler)
+
+- **Dry run is now asynchronous** — "ドライラン" on both the single-site and network screens is enqueued through Action Scheduler like "今すぐ実行" and returns immediately. This addresses the CloudFront 504 timeout in cases where the data-collection phase itself (not PDF rendering) is the slow part. When Action Scheduler is unavailable, the run falls back to the previous synchronous path with its inline preview.
+- **Mode-aware job polling** — `WPMAR_Admin_Menu::render_job_flash()` / `render_job_status_panel()` take a `mode` argument (`full` | `dry`); the flash notice, panel heading, and completion text adapt accordingly (via a `data-wpmar-job-mode` attribute). On completion a dry-run job renders its compact `dry_brevity` summary instead of download links, while a full run shows the report/preview/download links as before.
+- **Leaner REST payload for dry runs** — `WPMAR_Jobs_REST` returns only the compact `dry_brevity` summary for dry-run jobs and drops the bulky `dry_preview` dataset.
+- **`vendor-pdf.zip` no longer bundles Action Scheduler** — `bin/build-vendor-pdf-zip.sh` removes `vendor/woocommerce` before packaging, so the on-demand PDF bundle ships only mPDF + Parsedown (+ deps). Action Scheduler ships solely in the plugin package under `lib/`, avoiding double-shipping.
 
 ## What v1.0.0-RC11 fixes (dashboard one-click update selecting the wrong release asset)
 
