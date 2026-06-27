@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC10
+Stable tag: 1.0.0-RC11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,13 +51,16 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 = Is this production-ready? =
 
-v1.0.0-RC10 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC11 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC11 =
+* Fixed: Dashboard one-click update failing with "パッケージをインストールできませんでした。" — `WPMAR_GitHub_Updater::extract_zip_url()` selected the first zip release asset, which could be the sibling `vendor-pdf.zip` (mPDF/fonts, not a valid plugin) instead of the plugin zip, because the GitHub API does not guarantee asset order (`vendor-pdf.zip` is returned first). WordPress then failed to install the wrong archive (manual upload of the plugin zip still worked). The asset is now matched by name — it must start with the plugin slug `wp-maintenance-audit-reporter` and end in `.zip` — so the correct plugin zip is always chosen regardless of order. The `zipball_url` fallback is unchanged.
 
 = 1.0.0-RC10 =
 * Added: Asynchronous audit jobs via Action Scheduler — "今すぐ実行" (single-site and network) enqueues a background job and returns immediately, eliminating CloudFront 504 timeouts on long audits. New `WPMAR_Job_Dispatcher`, a `wpmar_jobs` tracking table (`WPMAR_Jobs_Repository`), and Action Scheduler bundled in `lib/action-scheduler/`.

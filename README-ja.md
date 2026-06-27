@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC10**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC11**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -16,6 +16,10 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
+## v1.0.0-RC11 の修正内容（管理画面「更新」が誤ったリリースアセットを選択する不具合）
+
+- **管理画面「更新」が「パッケージをインストールできませんでした。」で失敗する不具合を修正** — GitHub アップデーターが最初の zip リリースアセットを選んでいたため、プラグイン本体 zip ではなく同梱の `vendor-pdf.zip`（mPDF／フォントのみで、有効なプラグインではない）を選んでしまうことがありました（GitHub API はアセットの並び順を保証しません）。その結果 WordPress がインストールに失敗していました（本体 zip を手動アップロードした場合は成功）。`WPMAR_GitHub_Updater::extract_zip_url()` でアセットを**名前**で判定するよう変更し、プラグインスラッグ `wp-maintenance-audit-reporter` で始まり `.zip` で終わるアセットのみを選択することで、並び順に関わらず常に正しい本体 zip を選ぶようにしました。`zipball_url` へのフォールバックは従来どおりです。
 
 ## v1.0.0-RC10 の追加内容（監査の非同期ジョブ化・「今すぐ実行」の 504 修正・進捗ポーリングUI・CLI --sync）
 

@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC10**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC11**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -14,6 +14,10 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
+## What v1.0.0-RC11 fixes (dashboard one-click update selecting the wrong release asset)
+
+- **Dashboard "update now" failing with "パッケージをインストールできませんでした。"** — The GitHub updater picked the first zip release asset, which could be the sibling `vendor-pdf.zip` (mPDF/fonts, not a valid plugin) rather than the plugin zip, since the GitHub API does not guarantee asset order. WordPress then failed to install it (manual upload of the plugin zip still worked). `WPMAR_GitHub_Updater::extract_zip_url()` now matches the asset by name — it must start with the plugin slug `wp-maintenance-audit-reporter` and end in `.zip` — so the correct plugin zip is always chosen regardless of asset order. The `zipball_url` fallback is unchanged.
 
 ## What v1.0.0-RC10 adds (asynchronous audit jobs; 504 fix for "今すぐ実行"; polling UI; CLI --sync)
 
