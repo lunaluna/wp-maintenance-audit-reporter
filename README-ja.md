@@ -23,6 +23,7 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 - **ジョブのモード対応ポーリング** — `WPMAR_Admin_Menu::render_job_flash()` / `render_job_status_panel()` が `mode`（`full` / `dry`）引数を取り、フラッシュ通知・パネル見出し・完了文言がモードに応じて切り替わります（`data-wpmar-job-mode` 属性で JS が判定）。完了時、ドライランはダウンロードリンクではなく要約（`dry_brevity`）を表示し、フルランは従来どおりレポート／プレビュー／ダウンロードリンクを表示します。
 - **ドライラン時の REST ペイロード軽量化** — `WPMAR_Jobs_REST` はドライランジョブに対して compact な `dry_brevity` 要約のみを返し、巨大な `dry_preview` データは除外します。
 - **`vendor-pdf.zip` から Action Scheduler を除外** — `bin/build-vendor-pdf-zip.sh` が zip 化前に `vendor/woocommerce` を削除するため、オンデマンドの PDF バンドルには mPDF＋Parsedown（＋依存）のみが含まれます。Action Scheduler は本体パッケージの `lib/` のみで配布され、二重同梱を回避します。
+- **修正: 最新版へ更新後も「新バージョンが利用できます」通知が残る不具合** — `check_for_update()` が最新版のとき古い `response` エントリを削除し、`after_update()` が `update_plugins` トランジェントをクリアするようにしたことで、最新版になると通知が即座に消えるようになりました。
 
 ## v1.0.0-RC11 の修正内容（管理画面「更新」が誤ったリリースアセットを選択する不具合）
 

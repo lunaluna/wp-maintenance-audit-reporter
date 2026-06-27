@@ -18,6 +18,10 @@ _No pending notes._
 - **Leaner REST payload for dry runs** — `WPMAR_Jobs_REST` returns only the compact `dry_brevity` summary for dry-run jobs and drops the bulky `dry_preview` dataset.
 - **`vendor-pdf.zip` no longer bundles Action Scheduler** — `bin/build-vendor-pdf-zip.sh` removes `vendor/woocommerce` before packaging, so the on-demand PDF bundle ships only mPDF + Parsedown (+ deps). Action Scheduler ships solely in the plugin package under `lib/`, avoiding double-shipping.
 
+### Fixed
+
+- **"New version available" notice persisting after updating to the latest version** — `check_for_update()` now unsets any stale `response` entry when the installed version is current (in addition to recording `no_update`), and `after_update()` clears the `update_plugins` site transient so the dashboard notice disappears immediately instead of lingering until the next throttled update check.
+
 ## [1.0.0-RC11] - 2026-06-27
 
 ### Fixed

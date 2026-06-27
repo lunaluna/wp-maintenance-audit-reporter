@@ -64,6 +64,7 @@ v0.2 以降、管理 UI は専用のトップレベル **Maintenance Audit** メ
 * 変更: モード対応ポーリング — フラッシュ通知・パネル見出し・完了文言がジョブのモード（full/dry）に応じて切り替わります。ドライランは完了時に要約（`dry_brevity`）を表示し、フルランはプレビュー／ダウンロードリンクを表示。
 * 変更: REST ペイロード軽量化 — ドライランジョブの結果は compact な `dry_brevity` 要約のみを返し、巨大な `dry_preview` データを除外。
 * 変更: `vendor-pdf.zip` から Action Scheduler を除外（`bin/build-vendor-pdf-zip.sh` が zip 化前に `vendor/woocommerce` を削除）。オンデマンドの PDF バンドルは mPDF＋Parsedown のみ、Action Scheduler は `lib/` のみで配布。
+* 修正: 最新版へ更新後も「新バージョンが利用できます」通知が残る不具合 — `check_for_update()` が最新版時に古い `response` エントリを削除し、`after_update()` が `update_plugins` トランジェントをクリアすることで、最新版になると通知が即座に消えるようにしました。
 
 = 1.0.0-RC11 =
 * 修正: 管理画面「更新」が「パッケージをインストールできませんでした。」で失敗する不具合 — `WPMAR_GitHub_Updater::extract_zip_url()` が最初の zip リリースアセットを選んでいたため、プラグイン本体 zip ではなく同梱の `vendor-pdf.zip`（mPDF／フォントのみで有効なプラグインではない）を選ぶことがありました（GitHub API はアセットの並び順を保証しません。実際 `vendor-pdf.zip` が先頭で返ります）。その結果 WordPress が誤ったアーカイブのインストールに失敗していました（本体 zip の手動アップロードは成功）。アセットを**名前**で判定するよう変更し、プラグインスラッグ `wp-maintenance-audit-reporter` で始まり `.zip` で終わるアセットのみを選択することで、並び順に関わらず常に正しい本体 zip を選ぶようにしました。`zipball_url` へのフォールバックは従来どおりです。
