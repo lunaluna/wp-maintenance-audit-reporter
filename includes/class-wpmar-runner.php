@@ -76,7 +76,9 @@ class WPMAR_Runner {
 				$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
 			}
 
-			list( $changelog_counts, $changelog_md ) = $this->difference_summary( $prior_snap, $pairs );
+			$display_names = self::build_display_name_maps( $dataset );
+
+			list( $changelog_counts, $changelog_md, $changelog_md_client ) = $this->difference_summary( $prior_snap, $pairs, $display_names );
 
 			if ( ! $domain_gate_ok ) {
 				$pairs = array(); // Prevent polluting snapshots from unauthorised hosts.
@@ -97,7 +99,7 @@ class WPMAR_Runner {
 
 			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
-			$client_body = self::render_client_markup( $dataset, $changelog_md, $changelog_counts, $domain_gate_ok );
+			$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
 			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
@@ -258,7 +260,9 @@ class WPMAR_Runner {
 			$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
 		}
 
-		list( $changelog_counts, $changelog_md ) = $this->difference_summary( $prior_snap, $pairs );
+		$display_names = self::build_display_name_maps( $dataset );
+
+		list( $changelog_counts, $changelog_md, $changelog_md_client ) = $this->difference_summary( $prior_snap, $pairs, $display_names );
 
 		if ( ! $domain_gate_ok ) {
 			$pairs = array();
@@ -273,7 +277,7 @@ class WPMAR_Runner {
 
 		$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
-		$client_body = self::render_client_markup( $dataset, $changelog_md, $changelog_counts, $domain_gate_ok );
+		$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
 		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
 
 		return array(
@@ -485,15 +489,53 @@ class WPMAR_Runner {
 	}
 
 	/**
+	 * Builds slug => display-name maps from the live inventory.
+	 *
+	 * Client-facing copy prefers human display names; snapshots stay slug-keyed for compact diffing.
+	 *
+	 * @param array<string,mixed> $facts Fresh dataset envelope from {@see WPMAR_Data_Collector::gather()}.
+	 * @return array{themes:array<string,string>,plugins:array<string,string>}
+	 */
+	protected static function build_display_name_maps( array $facts ) {
+		$themes  = array();
+		$plugins = array();
+
+		if ( ! empty( $facts['themes']['inventory'] ) && is_array( $facts['themes']['inventory'] ) ) {
+			foreach ( $facts['themes']['inventory'] as $e ) {
+				if ( is_array( $e ) && ! empty( $e['slug'] ) && ! empty( $e['name'] ) ) {
+					$themes[ sanitize_key( $e['slug'] ) ] = sanitize_text_field( $e['name'] );
+				}
+			}
+		}
+
+		if ( ! empty( $facts['plugins']['inventory'] ) && is_array( $facts['plugins']['inventory'] ) ) {
+			foreach ( $facts['plugins']['inventory'] as $e ) {
+				if ( is_array( $e ) && ! empty( $e['slug'] ) && ! empty( $e['title'] ) ) {
+					$plugins[ sanitize_key( $e['slug'] ) ] = sanitize_text_field( $e['title'] );
+				}
+			}
+		}
+
+		return array(
+			'themes'  => $themes,
+			'plugins' => $plugins,
+		);
+	}
+
+	/**
 	 * Produces changelog markdown + aggregated counter.
+	 *
+	 * Returns two markdown bodies: one slug-keyed for operators, one display-name-keyed for clients.
 	 *
 	 * @param array<string,?array<mixed,string>> $before Prior canonical maps.
 	 * @param array<string,array<string,mixed>>  $fresh  Incoming canonical snapshots.
-	 * @return array{0:int,1:string}
+	 * @param array{themes:array<string,string>,plugins:array<string,string>} $names slug => display-name maps.
+	 * @return array{0:int,1:string,2:string}
 	 */
-	protected function difference_summary( array $before, array $fresh ) {
-		$tally     = 0;
-		$fragments = array();
+	protected function difference_summary( array $before, array $fresh, array $names = array() ) {
+		$tally            = 0;
+		$fragments        = array();
+		$client_fragments = array();
 
 		// Without any historical JSON we defer meaningful arithmetic diffs until the second run.
 		$has_prior = false;
@@ -506,10 +548,12 @@ class WPMAR_Runner {
 
 		if ( ! $has_prior ) {
 			$prior_message = __( '初めての収集です。次回実行時に差分が比較されます。', 'wp-maintenance-audit-reporter' );
+			$prior_line    = '* ' . $prior_message . "\n";
 
 			return array(
 				0,
-				'* ' . $prior_message . "\n",
+				$prior_line,
+				$prior_line,
 			);
 		}
 
@@ -520,12 +564,15 @@ class WPMAR_Runner {
 
 		if ( '' !== $core_before && '' !== $core_after && $core_before !== $core_after ) {
 			++$tally;
-			$fragments[] = '* ' . sprintf(
+			$core_line = '* ' . sprintf(
 				/* translators: 1 before version, 2 after version */
 				__( 'WordPress コア: %1$s → %2$s', 'wp-maintenance-audit-reporter' ),
 				$core_before,
 				$core_after
 			) . "\n";
+
+			$fragments[]        = $core_line;
+			$client_fragments[] = $core_line;
 		}
 
 		foreach ( array( 'themes', 'plugins' ) as $entity ) {
@@ -536,45 +583,41 @@ class WPMAR_Runner {
 			$combined_ids = array_unique( array_merge( array_keys( $historic ), array_keys( $newmap ) ) );
 			sort( $combined_ids );
 
+			$name_map = isset( $names[ $entity ] ) && is_array( $names[ $entity ] ) ? $names[ $entity ] : array();
+
 			foreach ( $combined_ids as $slug ) {
 				$historical_version = isset( $historic[ $slug ] ) ? (string) $historic[ $slug ] : '';
 				$freshest_version   = isset( $newmap[ $slug ] ) ? (string) $newmap[ $slug ] : '';
 				$item_label         = 'themes' === $entity ? __( 'テーマ', 'wp-maintenance-audit-reporter' ) : __( 'プラグイン', 'wp-maintenance-audit-reporter' );
 
+				$slug_safe = sanitize_text_field( $slug );
+				// Client copy prefers the display name; falls back to slug (e.g. removed items absent from inventory).
+				$display = isset( $name_map[ $slug ] ) && '' !== $name_map[ $slug ] ? $name_map[ $slug ] : $slug_safe;
+
 				if ( '' === $historical_version ) {
 					++$tally;
-					$fragments[] = '* ' . sprintf(
-						/* translators: 1 item type, 2 slug, 3 version */
-						__( '新規 %1$s: %2$s (version %3$s)', 'wp-maintenance-audit-reporter' ),
-						$item_label,
-						sanitize_text_field( $slug ),
-						sanitize_text_field( $freshest_version )
-					) . "\n";
+					/* translators: 1 item type, 2 slug/name, 3 version */
+					$tmpl               = __( '新規 %1$s: %2$s (version %3$s)', 'wp-maintenance-audit-reporter' );
+					$fragments[]        = '* ' . sprintf( $tmpl, $item_label, $slug_safe, sanitize_text_field( $freshest_version ) ) . "\n";
+					$client_fragments[] = '* ' . sprintf( $tmpl, $item_label, $display, sanitize_text_field( $freshest_version ) ) . "\n";
 					continue;
 				}
 
 				if ( '' === $freshest_version ) {
 					++$tally;
-					$fragments[] = '* ' . sprintf(
-						/* translators: 1 item type, 2 slug, 3 old version */
-						__( '削除済み %1$s: %2$s (旧 version %3$s)', 'wp-maintenance-audit-reporter' ),
-						$item_label,
-						sanitize_text_field( $slug ),
-						sanitize_text_field( $historical_version )
-					) . "\n";
+					/* translators: 1 item type, 2 slug/name, 3 old version */
+					$tmpl               = __( '削除済み %1$s: %2$s (旧 version %3$s)', 'wp-maintenance-audit-reporter' );
+					$fragments[]        = '* ' . sprintf( $tmpl, $item_label, $slug_safe, sanitize_text_field( $historical_version ) ) . "\n";
+					$client_fragments[] = '* ' . sprintf( $tmpl, $item_label, $display, sanitize_text_field( $historical_version ) ) . "\n";
 					continue;
 				}
 
 				if ( $historical_version !== $freshest_version ) {
 					++$tally;
-					$fragments[] = '* ' . sprintf(
-						/* translators: 1 type, 2 slug, 3 old, 4 new */
-						__( '%1$s %2$s: %3$s → %4$s', 'wp-maintenance-audit-reporter' ),
-						$item_label,
-						sanitize_text_field( $slug ),
-						sanitize_text_field( $historical_version ),
-						sanitize_text_field( $freshest_version )
-					) . "\n";
+					/* translators: 1 type, 2 slug/name, 3 old, 4 new */
+					$tmpl               = __( '%1$s %2$s: %3$s → %4$s', 'wp-maintenance-audit-reporter' );
+					$fragments[]        = '* ' . sprintf( $tmpl, $item_label, $slug_safe, sanitize_text_field( $historical_version ), sanitize_text_field( $freshest_version ) ) . "\n";
+					$client_fragments[] = '* ' . sprintf( $tmpl, $item_label, $display, sanitize_text_field( $historical_version ), sanitize_text_field( $freshest_version ) ) . "\n";
 				}
 			}
 		}
@@ -599,7 +642,8 @@ class WPMAR_Runner {
 						__( 'ユーザー追加: #%d', 'wp-maintenance-audit-reporter' ),
 						absint( $user_id_slug )
 					);
-					$fragments[] = '* ' . $delta_user . "\n";
+					$fragments[]        = '* ' . $delta_user . "\n";
+					$client_fragments[] = '* ' . $delta_user . "\n";
 					continue;
 				}
 
@@ -610,7 +654,8 @@ class WPMAR_Runner {
 						__( 'ユーザー削除: #%d', 'wp-maintenance-audit-reporter' ),
 						absint( $user_id_slug )
 					);
-					$fragments[] = '* ' . $delta_user . "\n";
+					$fragments[]        = '* ' . $delta_user . "\n";
+					$client_fragments[] = '* ' . $delta_user . "\n";
 					continue;
 				}
 
@@ -620,18 +665,22 @@ class WPMAR_Runner {
 					__( 'ユーザー更新: #%d', 'wp-maintenance-audit-reporter' ),
 					absint( $user_id_slug )
 				);
-				$fragments[] = '* ' . $delta_user . "\n";
+				$fragments[]        = '* ' . $delta_user . "\n";
+				$client_fragments[] = '* ' . $delta_user . "\n";
 			}
 		}
 
 		if ( empty( $fragments ) ) {
-			$delta_none  = __( '差分は検出されませんでした。', 'wp-maintenance-audit-reporter' );
-			$fragments[] = sprintf( "* %s\n", $delta_none );
+			$delta_none         = __( '差分は検出されませんでした。', 'wp-maintenance-audit-reporter' );
+			$delta_none_line    = sprintf( "* %s\n", $delta_none );
+			$fragments[]        = $delta_none_line;
+			$client_fragments[] = $delta_none_line;
 		}
 
 		return array(
 			$tally,
 			implode( '', $fragments ),
+			implode( '', $client_fragments ),
 		);
 	}
 
@@ -658,8 +707,13 @@ class WPMAR_Runner {
 
 		$body .= self::render_client_publishers_shell_style( $facts );
 
+		$client_name_maps = self::build_display_name_maps( $facts );
+
 		$body .= '## ' . __( 'ファイル改ざんチェック', 'wp-maintenance-audit-reporter' ) . "\n\n";
-		$body .= self::render_checksum_client_section( isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array() );
+		$body .= self::render_checksum_client_section(
+			isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array(),
+			$client_name_maps['plugins']
+		);
 		$body .= "\n\n";
 
 		$body .= '## ' . __( '運用・セキュリティ', 'wp-maintenance-audit-reporter' ) . "\n\n";
@@ -1115,10 +1169,11 @@ class WPMAR_Runner {
 	/**
 	 * Human-readable checksum bullets for stakeholder mail.
 	 *
-	 * @param array<string,mixed> $checksum Envelope produced by {@see WPMAR_Check_Checksums::collect()}.
+	 * @param array<string,mixed>  $checksum     Envelope produced by {@see WPMAR_Check_Checksums::collect()}.
+	 * @param array<string,string> $plugin_names slug => display-name map for client-facing labels.
 	 * @return string
 	 */
-	protected static function render_checksum_client_section( array $checksum ) {
+	protected static function render_checksum_client_section( array $checksum, array $plugin_names = array() ) {
 		$core    = isset( $checksum['core'] ) && is_array( $checksum['core'] ) ? $checksum['core'] : array();
 		$plugins = isset( $checksum['plugins'] ) && is_array( $checksum['plugins'] ) ? $checksum['plugins'] : array();
 
@@ -1162,12 +1217,14 @@ class WPMAR_Runner {
 
 				$slug_safe = sanitize_key( (string) $slug );
 				$status    = isset( $row['status'] ) ? sanitize_key( (string) $row['status'] ) : '';
+				// Client copy prefers the display name; falls back to slug when the name is unavailable.
+				$label = isset( $plugin_names[ $slug_safe ] ) && '' !== $plugin_names[ $slug_safe ] ? $plugin_names[ $slug_safe ] : $slug_safe;
 
 				if ( 'no_checksums' === $status ) {
 					$lines[] = '* ' . sprintf(
-						/* translators: %s: plugin slug */
+						/* translators: %s: plugin name */
 						__( 'プラグイン %s: 元データと照合できませんでした（公式ディレクトリ外の可能性）', 'wp-maintenance-audit-reporter' ),
-						$slug_safe
+						$label
 					);
 
 					continue;
@@ -1175,9 +1232,9 @@ class WPMAR_Runner {
 
 				if ( 'error' === $status && ! empty( $row['error'] ) ) {
 					$lines[] = '* ' . sprintf(
-						/* translators: 1 slug, 2 error */
+						/* translators: 1 plugin name, 2 error */
 						__( 'プラグイン %1$s: エラー (%2$s)', 'wp-maintenance-audit-reporter' ),
-						$slug_safe,
+						$label,
 						sanitize_text_field( (string) $row['error'] )
 					);
 
@@ -1187,15 +1244,15 @@ class WPMAR_Runner {
 				$mismatch_n = isset( $row['mismatches'] ) && is_array( $row['mismatches'] ) ? count( $row['mismatches'] ) : 0;
 				if ( 'ok' === $status && 0 === $mismatch_n ) {
 					$lines[] = '* ' . sprintf(
-						/* translators: %s slug */
+						/* translators: %s plugin name */
 						__( 'プラグイン %s: OK', 'wp-maintenance-audit-reporter' ),
-						$slug_safe
+						$label
 					);
 				} else {
 					$lines[] = '* ' . sprintf(
-						/* translators: 1 slug, 2 count */
+						/* translators: 1 plugin name, 2 count */
 						__( 'プラグイン %1$s: 不一致 %2$d 件', 'wp-maintenance-audit-reporter' ),
-						$slug_safe,
+						$label,
 						absint( $mismatch_n )
 					);
 
