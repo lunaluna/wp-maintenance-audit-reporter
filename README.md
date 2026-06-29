@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC12**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC13**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -14,6 +14,10 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
+## What v1.0.0-RC13 changes (client reports show theme/plugin display names instead of slugs)
+
+- **Client-facing reports now show display names instead of slugs** — The change-history section and the file-integrity (checksum) section in the client email and PDF now render human-readable display names (e.g. `Snow Monkey`, `Advanced Query Loop`) instead of slugs (`snow-monkey`, `advanced-query-loop`). Snapshot data stays slug-keyed for compact diffing; the conversion happens only at the output layer, so operator-facing email and the Markdown export keep slugs unchanged. A new `WPMAR_Runner::build_display_name_maps()` helper derives slug→display-name maps from the live inventory (theme `name` / plugin `title`); `difference_summary()` emits two changelog bodies (slug for operators, display name for clients); and `render_checksum_client_section()` takes a slug→display-name map. When a display name is unavailable (e.g. a removed plugin no longer in the inventory) it falls back to the slug.
 
 ## What v1.0.0-RC12 changes (dry run is asynchronous too; mode-aware polling; vendor-pdf.zip excludes Action Scheduler)
 

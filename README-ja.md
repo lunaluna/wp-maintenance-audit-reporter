@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC12**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC13**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -16,6 +16,10 @@ wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
 `fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
+## v1.0.0-RC13 の変更内容（クライアント向けレポートでテーマ・プラグイン名をスラッグから表示名に変更）
+
+- **クライアント向けレポートで表示名を表示** — クライアント向けメール・PDF の変更履歴セクションとファイル改ざんチェック（チェックサム）セクションで、スラッグ（`snow-monkey`、`advanced-query-loop`）ではなく人間が読みやすい表示名（例: `Snow Monkey`、`Advanced Query Loop`）を表示するようにしました。スナップショットデータは差分比較のためスラッグのまま保持し、変換は出力層でのみ行うため、管理者向けメールと Markdown エクスポートは従来どおりスラッグを維持します。新しいヘルパー `WPMAR_Runner::build_display_name_maps()` がライブインベントリ（テーマ `name` / プラグイン `title`）から slug→表示名マップを構築し、`difference_summary()` は2系統の変更履歴（管理者向け＝スラッグ、クライアント向け＝表示名）を出力、`render_checksum_client_section()` は slug→表示名マップを受け取ります。表示名が取得できない場合（例: 削除済みでインベントリに無いプラグイン）はスラッグにフォールバックします。
 
 ## v1.0.0-RC12 の変更内容（ドライランも非同期化・モード対応ポーリング・vendor-pdf.zip から Action Scheduler を除外）
 

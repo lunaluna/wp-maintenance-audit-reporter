@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC12
+Stable tag: 1.0.0-RC13
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,13 +51,16 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 = Is this production-ready? =
 
-v1.0.0-RC12 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC13 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC13 =
+* Changed: Client-facing reports now show theme/plugin display names instead of slugs — the change-history section and the file-integrity (checksum) section in the client email and PDF render display names (e.g. `Snow Monkey`, `Advanced Query Loop`) instead of slugs. Snapshot data stays slug-keyed; conversion happens only at the output layer. Operator email and the Markdown export keep slugs. Falls back to the slug when a display name is unavailable (e.g. a removed plugin).
 
 = 1.0.0-RC12 =
 * Changed: Dry run is now asynchronous — "ドライラン" (single-site and network) is enqueued via Action Scheduler like "今すぐ実行" and returns immediately, addressing 504 timeouts when data collection itself (not PDF) is the slow phase. Falls back to the previous synchronous inline preview when Action Scheduler is unavailable.

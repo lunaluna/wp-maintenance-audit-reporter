@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC13] - 2026-06-29
+
+### Changed
+
+- **Client-facing reports now show theme/plugin display names instead of slugs** — In the client email and PDF, the change-history section ("変更履歴") and the file-integrity (checksum) section now render human-readable display names (e.g. `Snow Monkey`, `Advanced Query Loop`) instead of slugs (`snow-monkey`, `advanced-query-loop`). Snapshot data stays slug-keyed for compact diffing; the conversion happens only at the output layer. Operator-facing email and the Markdown export keep slugs unchanged. A new `WPMAR_Runner::build_display_name_maps()` helper derives slug→display-name maps from the live inventory (theme `name` / plugin `title`), `difference_summary()` now emits two changelog bodies (slug for operators, display name for clients), and `render_checksum_client_section()` accepts a slug→display-name map. When a display name is unavailable (e.g. a removed plugin no longer in the inventory) it falls back to the slug.
+
 ## [1.0.0-RC12] - 2026-06-27
 
 ### Changed
