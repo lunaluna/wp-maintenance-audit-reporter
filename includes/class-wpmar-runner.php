@@ -529,7 +529,7 @@ class WPMAR_Runner {
 	 *
 	 * @param array<string,?array<mixed,string>> $before Prior canonical maps.
 	 * @param array<string,array<string,mixed>>  $fresh  Incoming canonical snapshots.
-	 * @param array{themes:array<string,string>,plugins:array<string,string>} $names slug => display-name maps.
+	 * @param array<string,array<string,string>> $names  slug => display-name maps (themes, plugins).
 	 * @return array{0:int,1:string,2:string}
 	 */
 	protected function difference_summary( array $before, array $fresh, array $names = array() ) {
