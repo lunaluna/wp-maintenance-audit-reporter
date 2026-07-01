@@ -100,12 +100,12 @@ class WPMAR_PDF_Writer {
 		$parsedown = new \Parsedown();
 		$fragment  = $parsedown->text( $markdown );
 
-		$font_dir  = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
-		$has_bizud = is_dir( $font_dir )
-			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'BIZUDGothic-Regular.ttf' )
-			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'BIZUDGothic-Bold.ttf' );
+		$font_dir   = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
+		$has_notojp = is_dir( $font_dir )
+			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP-Regular.ttf' )
+			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP-Bold.ttf' );
 
-		$body_font = $has_bizud ? 'bizudgothic,dejavusans,sans-serif' : 'sun-exta,dejavusans,sans-serif';
+		$body_font = $has_notojp ? 'notosansjp,dejavusans,sans-serif' : 'sun-exta,dejavusans,sans-serif';
 		$html      = '<!DOCTYPE html><html><head><meta charset="UTF-8" />'
 			. '<style>body{font-family:' . $body_font . ';font-size:10pt;line-height:1.35;color:#111;}pre,code{font-family:dejavusansmono,monospace;font-size:8pt;}h1{font-size:14pt;}h2{font-size:12pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:4px;}</style>'
 			. '</head><body>' . $fragment . '</body></html>';
@@ -116,16 +116,16 @@ class WPMAR_PDF_Writer {
 			'mode'          => 'utf-8',
 			'format'        => 'A4',
 			'tempDir'       => $temp_dir,
-			'default_font'  => $has_bizud ? 'bizudgothic' : 'sun-exta',
+			'default_font'  => $has_notojp ? 'notosansjp' : 'sun-exta',
 			'margin_top'    => 12,
 			'margin_bottom' => 12,
 		);
-		if ( $has_bizud ) {
+		if ( $has_notojp ) {
 			$mpdf_config['fontDir']  = array( $font_dir );
 			$mpdf_config['fontdata'] = array(
-				'bizudgothic' => array(
-					'R' => 'BIZUDGothic-Regular.ttf',
-					'B' => 'BIZUDGothic-Bold.ttf',
+				'notosansjp' => array(
+					'R' => 'NotoSansJP-Regular.ttf',
+					'B' => 'NotoSansJP-Bold.ttf',
 				),
 			);
 		}
