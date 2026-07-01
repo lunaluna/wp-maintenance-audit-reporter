@@ -90,9 +90,13 @@ curl -fsSL \
   -o "$NOTO_VF"
 
 echo "Instancing static Regular (400) and Bold (700) with fonttools ..."
-python3 -m fontTools.varLib.instancer "$NOTO_VF" wght=400 \
+# --update-name-table rewrites the name table / OS-2 / head from the STAT axis
+# values so each instance identifies correctly (family "Noto Sans JP",
+# subfamily Regular/Bold, distinct PostScript names, bold bits on the 700 file);
+# without it both files keep the variable font's default "Thin" naming.
+python3 -m fontTools.varLib.instancer --update-name-table "$NOTO_VF" wght=400 \
   -o "${TMP_DIR}/fonts/NotoSansJP-Regular.ttf"
-python3 -m fontTools.varLib.instancer "$NOTO_VF" wght=700 \
+python3 -m fontTools.varLib.instancer --update-name-table "$NOTO_VF" wght=700 \
   -o "${TMP_DIR}/fonts/NotoSansJP-Bold.ttf"
 rm -f "$NOTO_VF"
 

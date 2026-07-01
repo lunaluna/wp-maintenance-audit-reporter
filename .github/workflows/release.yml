@@ -113,9 +113,11 @@ jobs:
           curl -fsSL \
             "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
             -o /tmp/NotoSansJP-VF.ttf
-          python3 -m fontTools.varLib.instancer /tmp/NotoSansJP-VF.ttf wght=400 \
+          # --update-name-table fixes each instance's naming/bold bits from STAT
+          # (family "Noto Sans JP", Regular/Bold subfamily, distinct PS names).
+          python3 -m fontTools.varLib.instancer --update-name-table /tmp/NotoSansJP-VF.ttf wght=400 \
             -o fonts/NotoSansJP-Regular.ttf
-          python3 -m fontTools.varLib.instancer /tmp/NotoSansJP-VF.ttf wght=700 \
+          python3 -m fontTools.varLib.instancer --update-name-table /tmp/NotoSansJP-VF.ttf wght=700 \
             -o fonts/NotoSansJP-Bold.ttf
           rm -f /tmp/NotoSansJP-VF.ttf
 
