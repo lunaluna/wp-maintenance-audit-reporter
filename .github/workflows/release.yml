@@ -103,15 +103,21 @@ jobs:
           echo "zip_path=$GITHUB_WORKSPACE/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Download BIZ UDGothic fonts
+      - name: Build Noto Sans JP static fonts (Regular + Bold)
+        # mPDF cannot embed CFF/OpenType outlines, and Noto Sans JP ships as a
+        # single variable TTF (no distinct bold). Pin the weight axis into static
+        # Regular (400) / Bold (700) TrueType instances with fontTools.
         run: |
+          python3 -m pip install --quiet fonttools brotli
           mkdir -p fonts
           curl -fsSL \
-            "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Regular.ttf" \
-            -o fonts/BIZUDGothic-Regular.ttf
-          curl -fsSL \
-            "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Bold.ttf" \
-            -o fonts/BIZUDGothic-Bold.ttf
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
+            -o /tmp/NotoSansJP-VF.ttf
+          python3 -m fontTools.varLib.instancer /tmp/NotoSansJP-VF.ttf wght=400 \
+            -o fonts/NotoSansJP-Regular.ttf
+          python3 -m fontTools.varLib.instancer /tmp/NotoSansJP-VF.ttf wght=700 \
+            -o fonts/NotoSansJP-Bold.ttf
+          rm -f /tmp/NotoSansJP-VF.ttf
 
       - name: Create vendor-pdf.zip
         id: vendor_zip

@@ -65,17 +65,36 @@ composer install \
   --no-progress
 
 # ---------------------------------------------------------------------------
-# Download BIZ UDGothic fonts (Regular + Bold)
+# Bundle Noto Sans JP (Regular + Bold) as static TrueType instances.
+#
+# mPDF cannot embed CFF/OpenType (postscript) outlines, and Google distributes
+# Noto Sans JP as a single variable TTF (no distinct bold weight). So we pin the
+# weight axis into static Regular (400) and Bold (700) TrueType instances with
+# fontTools. Full glyph coverage is kept — mPDF subsets per generated PDF.
 # ---------------------------------------------------------------------------
 echo ""
-echo "Downloading BIZ UDGothic fonts ..."
+if ! command -v python3 &>/dev/null; then
+  echo "Error: python3 not found. Install Python 3 and fonttools (python3 -m pip install fonttools brotli) and retry." >&2
+  exit 1
+fi
+if ! python3 -c "import fontTools" &>/dev/null; then
+  echo "Error: fonttools not found. Run: python3 -m pip install fonttools brotli" >&2
+  exit 1
+fi
+
+echo "Downloading Noto Sans JP variable font ..."
 mkdir -p "${TMP_DIR}/fonts"
+NOTO_VF="${TMP_DIR}/NotoSansJP-VF.ttf"
 curl -fsSL \
-  "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Regular.ttf" \
-  -o "${TMP_DIR}/fonts/BIZUDGothic-Regular.ttf"
-curl -fsSL \
-  "https://raw.githubusercontent.com/googlefonts/morisawa-biz-ud-gothic/main/fonts/ttf/BIZUDGothic-Bold.ttf" \
-  -o "${TMP_DIR}/fonts/BIZUDGothic-Bold.ttf"
+  "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
+  -o "$NOTO_VF"
+
+echo "Instancing static Regular (400) and Bold (700) with fonttools ..."
+python3 -m fontTools.varLib.instancer "$NOTO_VF" wght=400 \
+  -o "${TMP_DIR}/fonts/NotoSansJP-Regular.ttf"
+python3 -m fontTools.varLib.instancer "$NOTO_VF" wght=700 \
+  -o "${TMP_DIR}/fonts/NotoSansJP-Bold.ttf"
+rm -f "$NOTO_VF"
 
 # ---------------------------------------------------------------------------
 # Drop Action Scheduler from the on-demand bundle.
