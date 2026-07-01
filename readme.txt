@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC13
+Stable tag: 1.0.0-RC14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,19 +45,23 @@ If you manage this plugin in a project under Git version control, it is recommen
   wp-content/plugins/wp-maintenance-audit-reporter/fonts/
   wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 
-`fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+`fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Frequently Asked Questions ==
 
 = Is this production-ready? =
 
-v1.0.0-RC13 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
+v1.0.0-RC14 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
 
 = Where did the Settings submenu go? =
 
 From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
 
 == Changelog ==
+
+= 1.0.0-RC14 =
+* Changed: PDF embedded font — replaced BIZ UDGothic with Noto Sans JP (Regular + Bold). mPDF cannot embed CFF/OpenType outlines and Noto Sans JP ships only as a variable TTF (no distinct bold), so the release build instances the weight axis into static Regular (400)/Bold (700) TrueType fonts with fontTools (`bin/build-vendor-pdf-zip.sh`, `.github/workflows/release.yml`). Full glyph coverage is kept (mPDF subsets each PDF). `WPMAR_PDF_Writer` registers `notosansjp` (`NotoSansJP-Regular.ttf`/`NotoSansJP-Bold.ttf`) with a `sun-exta` fallback.
+* Changed: PDF library settings panel detects a stale bundle (mPDF present but Noto fonts missing, via `WPMAR_PDF_Installer::fonts_present()`) and prompts a re-install that re-downloads the current `vendor-pdf.zip` — a plugin update alone does not refresh the fonts. `maybe_cleanup_legacy_fonts()` also removes the superseded `BIZUDGothic-Regular.ttf`/`BIZUDGothic-Bold.ttf`.
 
 = 1.0.0-RC13 =
 * Changed: Client-facing reports now show theme/plugin display names instead of slugs — the change-history section and the file-integrity (checksum) section in the client email and PDF render display names (e.g. `Snow Monkey`, `Advanced Query Loop`) instead of slugs. Snapshot data stays slug-keyed; conversion happens only at the output layer. Operator email and the Markdown export keep slugs. Falls back to the slug when a display name is unavailable (e.g. a removed plugin).

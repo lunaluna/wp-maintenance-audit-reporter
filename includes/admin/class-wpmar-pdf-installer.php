@@ -191,20 +191,34 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
-	 * Removes the legacy Noto Sans JP variable font file left by previous versions.
+	 * Removes superseded bundled font files left by previous versions.
 	 *
-	 * Runs once per plugin load when the old file is found. The overhead is a single
-	 * is_file() check, which is negligible. No option flag is needed because the
-	 * file disappears after the first successful cleanup.
+	 * Runs once per plugin load. Cleans up:
+	 *  - `NotoSansJP.ttf`        — the pre-BIZUD variable font (single file, no bold).
+	 *  - `BIZUDGothic-*.ttf`     — superseded by the Noto Sans JP static instances
+	 *                             (Regular/Bold) that the current version bundles.
+	 *
+	 * The overhead is a handful of is_file() checks, which is negligible. No option
+	 * flag is needed because each file disappears after the first successful cleanup.
+	 * The current fonts (`NotoSansJP-Regular.ttf` / `NotoSansJP-Bold.ttf`) are never
+	 * listed here, so they are left untouched.
 	 *
 	 * @since 1.1.0
 	 * @return void
 	 */
 	private static function maybe_cleanup_legacy_fonts() {
-		$legacy = WPMAR_PLUGIN_DIR . 'fonts' . DIRECTORY_SEPARATOR . 'NotoSansJP.ttf';
-		if ( is_file( $legacy ) ) {
-			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
-			@unlink( $legacy );
+		$font_dir = WPMAR_PLUGIN_DIR . 'fonts' . DIRECTORY_SEPARATOR;
+		$legacy   = array(
+			'NotoSansJP.ttf',
+			'BIZUDGothic-Regular.ttf',
+			'BIZUDGothic-Bold.ttf',
+		);
+		foreach ( $legacy as $file ) {
+			$path = $font_dir . $file;
+			if ( is_file( $path ) ) {
+				// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink
+				@unlink( $path );
+			}
 		}
 	}
 
@@ -266,6 +280,37 @@ class WPMAR_PDF_Installer {
 	 */
 	public static function is_installed() {
 		return (bool) apply_filters( 'wpmar_pdf_is_installed', WPMAR_PDF_Writer::is_available() );
+	}
+
+	/**
+	 * Font files the current version expects to find in `fonts/`.
+	 *
+	 * Kept in sync with the bundled fonts declared in {@see WPMAR_PDF_Writer::write_pdf_from_markdown()}.
+	 *
+	 * @return string[]
+	 */
+	private static function expected_font_files() {
+		return array( 'NotoSansJP-Regular.ttf', 'NotoSansJP-Bold.ttf' );
+	}
+
+	/**
+	 * Whether every expected bundled font is present and readable.
+	 *
+	 * Used to detect installs that carry an OLD vendor-pdf.zip (e.g. one that still
+	 * bundled BIZ UDGothic): mPDF is present but the Noto Sans JP fonts this version
+	 * needs are missing, so the admin should re-download the current bundle. PDF
+	 * generation still works meanwhile via mPDF's built-in `sun-exta` fallback.
+	 *
+	 * @return bool
+	 */
+	public static function fonts_present() {
+		$font_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
+		foreach ( self::expected_font_files() as $file ) {
+			if ( ! is_readable( $font_dir . DIRECTORY_SEPARATOR . $file ) ) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -533,19 +578,30 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function render_panel() {
-		$installed = self::is_installed();
+		$installed   = self::is_installed();
+		$fonts_ready = self::fonts_present();
+		// mPDF is present but the fonts this version bundles are missing (stale bundle
+		// from a previous version) — offer a re-install using the same download flow.
+		$fonts_stale = $installed && ! $fonts_ready;
 		?>
 		<div class="wpmar-section-panel" id="wpmar-pdf-library-panel">
 			<h2><?php esc_html_e( 'PDF ライブラリ（mPDF）', 'wp-maintenance-audit-reporter' ); ?></h2>
-			<?php if ( $installed ) : ?>
+			<?php if ( $installed && $fonts_ready ) : ?>
 				<p>
 					<span style="color:#0a7c00;font-weight:bold;">&#10003;</span>
 					<?php esc_html_e( 'mPDF ライブラリはインストール済みです。PDF 出力が有効です。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
 			<?php else : ?>
-				<p>
-					<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、このプラグインの vendor/ ディレクトリ配下に自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
-				</p>
+				<?php if ( $fonts_stale ) : ?>
+					<p style="padding:0.75em 1em;background:#fff8e1;border-left:4px solid #f0b849;">
+						<span style="color:#b26a00;font-weight:bold;">&#9888;</span>
+						<?php esc_html_e( '同梱フォントが差し替えられたため、PDF ライブラリの再インストールが必要です。ボタンを押すと最新のライブラリ（新しいフォントを含む）を再ダウンロードします。再インストールするまで、日本語 PDF は代替フォントで出力されます。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+				<?php else : ?>
+					<p>
+						<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、このプラグインの vendor/ ディレクトリ配下に自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+				<?php endif; ?>
 				<p>
 					<button type="button" class="button button-primary" id="wpmar-install-pdf-btn">
 						<?php esc_html_e( 'PDF ライブラリをインストール', 'wp-maintenance-audit-reporter' ); ?>
