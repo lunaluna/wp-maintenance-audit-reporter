@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC13**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.0.0-RC14**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -15,7 +15,12 @@ wp-content/plugins/wp-maintenance-audit-reporter/fonts/
 wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
-`fonts/` は mPDF が PDF 生成時に書き込むフォントキャッシュです。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+`fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+
+## v1.0.0-RC14 の変更内容（PDF フォントを BIZ UDGothic から Noto Sans JP に変更）
+
+- **PDF 埋め込みフォントを BIZ UDGothic から Noto Sans JP に変更** — 同梱する PDF フォントを BIZ UDGothic から Noto Sans JP（Regular + Bold）に変更しました。mPDF は CFF/OpenType（PostScript）アウトラインを埋め込めず、Google の Noto Sans JP は可変フォント（1ファイル・太字の区別なし）でのみ配布されているため、リリースビルド（`bin/build-vendor-pdf-zip.sh` および `.github/workflows/release.yml`）で fontTools によりウェイト軸を静的な Regular（400）/ Bold（700）の TrueType フォントにインスタンス化します。グリフはフル収録のまま（mPDF が PDF ごとにサブセット化するため、任意の日本語＝サイト名・プラグイン名等でも豆腐になりません）。`WPMAR_PDF_Writer` は `notosansjp`（`NotoSansJP-Regular.ttf` / `NotoSansJP-Bold.ttf`）を登録し、フォントが無い場合は `sun-exta` にフォールバックします。
+- **古いバンドル向けの再インストール導線** — フォントはオンデマンドの `vendor-pdf.zip` に同梱されており、プラグイン更新では再ダウンロードされません（アップグレードフックが既存の `fonts/` を保持するため）。BIZ UDGothic 同梱のままの環境は `sun-exta` にフォールバックしてしまうため、PDF ライブラリ設定パネルが Noto フォントの欠落を検知（`WPMAR_PDF_Installer::fonts_present()`）し、最新バンドルを取得する再インストール導線を表示します。`maybe_cleanup_legacy_fonts()` は旧 `BIZUDGothic-Regular.ttf` / `BIZUDGothic-Bold.ttf` も削除します。
 
 ## v1.0.0-RC13 の変更内容（クライアント向けレポートでテーマ・プラグイン名をスラッグから表示名に変更）
 

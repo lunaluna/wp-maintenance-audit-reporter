@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC13**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0-RC14**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -13,7 +13,12 @@ wp-content/plugins/wp-maintenance-audit-reporter/fonts/
 wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
-`fonts/` is the font cache written by mPDF during PDF generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+`fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) together with the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+
+## What v1.0.0-RC14 changes (PDF font switched from BIZ UDGothic to Noto Sans JP)
+
+- **PDF embedded font — BIZ UDGothic → Noto Sans JP** — The bundled PDF font is now Noto Sans JP (Regular + Bold) instead of BIZ UDGothic. mPDF cannot embed CFF/OpenType (postscript) outlines and Google distributes Noto Sans JP only as a variable TTF (no distinct bold weight), so the release build (`bin/build-vendor-pdf-zip.sh` and `.github/workflows/release.yml`) instances the weight axis into static Regular (400) / Bold (700) TrueType fonts with fontTools. Full glyph coverage is kept — mPDF subsets each generated PDF, so arbitrary Japanese (site/plugin names) still renders without missing glyphs. `WPMAR_PDF_Writer` registers `notosansjp` (`NotoSansJP-Regular.ttf` / `NotoSansJP-Bold.ttf`) and falls back to `sun-exta` when the fonts are absent.
+- **Re-install prompt for stale bundles** — Fonts ship inside the on-demand `vendor-pdf.zip`, which a plugin update does not re-download (the upgrade hooks preserve the existing `fonts/`). Installs still carrying the BIZ UDGothic bundle would otherwise fall back to `sun-exta`; the PDF library settings panel now detects the missing Noto fonts (`WPMAR_PDF_Installer::fonts_present()`) and shows a re-install prompt that fetches the current bundle. `maybe_cleanup_legacy_fonts()` also removes the superseded `BIZUDGothic-Regular.ttf` / `BIZUDGothic-Bold.ttf`.
 
 ## What v1.0.0-RC13 changes (client reports show theme/plugin display names instead of slugs)
 

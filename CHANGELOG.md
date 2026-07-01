@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0-RC14] - 2026-07-01
+
+### Changed
+
+- **PDF embedded font — BIZ UDGothic → Noto Sans JP** — The bundled PDF font has been replaced from BIZ UDGothic (Regular + Bold) to Noto Sans JP (Regular + Bold). Because mPDF cannot embed CFF/OpenType (postscript) outlines and Google distributes Noto Sans JP only as a single variable TTF (no distinct bold weight), the release build now instances the weight axis into static Regular (400) and Bold (700) TrueType fonts with fontTools (`bin/build-vendor-pdf-zip.sh` and `.github/workflows/release.yml`). Full glyph coverage is kept — mPDF subsets each generated PDF, so arbitrary Japanese (site/plugin names) still renders without missing glyphs. `WPMAR_PDF_Writer` now registers `notosansjp` (`NotoSansJP-Regular.ttf` / `NotoSansJP-Bold.ttf`) with the same `sun-exta` fallback when the fonts are absent.
+
+### Migration
+
+- **Re-install prompt when the bundled font is stale** — Fonts ship inside the on-demand `vendor-pdf.zip`, which a plugin update does not re-download (the upgrade hooks preserve the existing `fonts/`). Installs carrying the previous BIZ UDGothic bundle would otherwise silently fall back to `sun-exta`. The PDF library settings panel now detects this (mPDF present but the expected Noto fonts missing via `WPMAR_PDF_Installer::fonts_present()`) and shows a "再インストールが必要" state that re-downloads the current `vendor-pdf.zip`. `maybe_cleanup_legacy_fonts()` additionally removes the superseded `BIZUDGothic-Regular.ttf` / `BIZUDGothic-Bold.ttf`.
+
 ## [1.0.0-RC13] - 2026-06-29
 
 ### Changed
