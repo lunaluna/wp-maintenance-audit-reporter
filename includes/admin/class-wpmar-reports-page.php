@@ -267,16 +267,17 @@ class WPMAR_Reports_Page {
 			return;
 		}
 
-		$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
-		if ( ! wp_verify_nonce( $nonce, 'bulk-reports' ) ) {
-			return;
-		}
-
-		if ( empty( $_POST['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== sanitize_key( wp_unslash( $_POST['page'] ) ) ) {
+		// Identify the request (which screen), then gate on capability, then verify the nonce.
+		if ( empty( $_POST['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== sanitize_key( wp_unslash( $_POST['page'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- routing check; nonce verified below before any action.
 			return;
 		}
 
 		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'bulk-reports' ) ) {
 			return;
 		}
 
