@@ -360,11 +360,11 @@ class WPMAR_Admin_Menu {
 			return;
 		}
 
-		check_admin_referer( 'wpmar_settings_save', 'wpmar_settings_nonce' );
-
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'wp-maintenance-audit-reporter' ) );
 		}
+
+		check_admin_referer( 'wpmar_settings_save', 'wpmar_settings_nonce' );
 
 		if ( ! isset( $_POST['wpmar_admin_action'] ) ) {
 			return;

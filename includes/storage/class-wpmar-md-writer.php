@@ -110,6 +110,12 @@ class WPMAR_MD_Writer {
 			return '';
 		}
 
+		// Resolve symlinks: if the target exists, its real location must remain inside
+		// the uploads root (a symlink placed under uploads must not escape it).
+		if ( false === self::real_path_within_uploads( $full, $uploads['basedir'] ) ) {
+			return '';
+		}
+
 		return $full;
 	}
 
@@ -138,8 +144,39 @@ class WPMAR_MD_Writer {
 			return;
 		}
 
+		// Never follow a symlink out of the uploads root when deleting.
+		if ( false === self::real_path_within_uploads( $full, $uploads['basedir'] ) ) {
+			return;
+		}
+
 		if ( file_exists( $full ) && is_file( $full ) ) {
 			wp_delete_file( $full );
 		}
+	}
+
+	/**
+	 * Whether $full, once symlinks are resolved, stays inside the uploads root.
+	 *
+	 * @param string $full    Absolute candidate path (already prefix-checked as a string).
+	 * @param string $basedir Uploads base directory.
+	 * @return bool|null True when contained, false when it escapes the root, null when the
+	 *                   target does not yet exist (nothing to resolve — the string prefix
+	 *                   check already guards the logical path for not-yet-written files).
+	 */
+	private static function real_path_within_uploads( $full, $basedir ) {
+		$real_full = realpath( $full );
+		if ( false === $real_full ) {
+			return null;
+		}
+
+		$real_base = realpath( $basedir );
+		if ( false === $real_base ) {
+			return false;
+		}
+
+		$real_base_n = wp_normalize_path( trailingslashit( $real_base ) );
+		$real_full_n = wp_normalize_path( $real_full );
+
+		return 0 === strpos( $real_full_n, $real_base_n );
 	}
 }

@@ -334,7 +334,7 @@ class WPMAR_PDF_Installer {
 	public static function handle_preflight_ajax() {
 		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
@@ -358,7 +358,7 @@ class WPMAR_PDF_Installer {
 	public static function handle_ajax() {
 		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
@@ -386,7 +386,7 @@ class WPMAR_PDF_Installer {
 	public static function handle_manual_upload_ajax() {
 		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
@@ -420,8 +420,31 @@ class WPMAR_PDF_Installer {
 			);
 		}
 
-		// Verify the ZIP magic bytes (PK header) to reject non-zip files with a .zip extension.
 		$tmp_path = isset( $_FILES['vendor_zip']['tmp_name'] ) ? sanitize_text_field( wp_unslash( $_FILES['vendor_zip']['tmp_name'] ) ) : '';
+
+		// Ensure the path is a genuine PHP HTTP upload, not an arbitrary server-side path.
+		if ( '' === $tmp_path || ! is_uploaded_file( $tmp_path ) ) {
+			wp_send_json_error(
+				array( 'message' => __( 'アップロードされたファイルを検証できませんでした。', 'wp-maintenance-audit-reporter' ) )
+			);
+		}
+
+		// Cap the upload size (the official bundle is ~30 MB); reject oversized archives early.
+		$max_upload = 80 * 1024 * 1024;
+		$reported   = isset( $_FILES['vendor_zip']['size'] ) ? (int) $_FILES['vendor_zip']['size'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( $reported > $max_upload || (int) filesize( $tmp_path ) > $max_upload ) {
+			wp_send_json_error(
+				array(
+					'message' => sprintf(
+						/* translators: %s: maximum allowed upload size */
+						__( 'ファイルサイズが上限（%s）を超えています。', 'wp-maintenance-audit-reporter' ),
+						size_format( $max_upload )
+					),
+				)
+			);
+		}
+
+		// Verify the ZIP magic bytes (PK header) to reject non-zip files with a .zip extension.
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reading 2 bytes from a server-side temp file; no HTTP request involved.
 		$header = file_get_contents( $tmp_path, false, null, 0, 2 );
 		if ( 'PK' !== $header ) {
@@ -436,17 +459,13 @@ class WPMAR_PDF_Installer {
 			wp_send_json_error( array( 'message' => $preflight->get_error_message() ) );
 		}
 
-		$result = self::extract_zip( $tmp_path, WPMAR_PLUGIN_DIR );
+		$result = self::install_bundle_from_zip( $tmp_path );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ) );
 		}
 
-		// Register newly extracted classes in the current request.
-		$autoload = WPMAR_PLUGIN_DIR . 'vendor/autoload.php';
-		if ( is_readable( $autoload ) && ! class_exists( '\Mpdf\Mpdf', false ) ) {
-			require_once $autoload;
-		}
-
+		// The freshly-installed library is intentionally NOT require_once'd here; the
+		// admin page reloads on success and mPDF loads via the normal plugin bootstrap.
 		wp_send_json_success(
 			array( 'message' => __( 'PDF ライブラリのインストールが完了しました。ページを再読み込みします…', 'wp-maintenance-audit-reporter' ) )
 		);
@@ -512,7 +531,7 @@ class WPMAR_PDF_Installer {
 			);
 		}
 
-		$result = self::extract_zip( $tmp, WPMAR_PLUGIN_DIR );
+		$result = self::install_bundle_from_zip( $tmp );
 
 		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.unlink_unlink -- temp file cleanup after download_url().
 		@unlink( $tmp );
@@ -521,24 +540,123 @@ class WPMAR_PDF_Installer {
 			return $result;
 		}
 
-		// Register newly extracted classes in the current request.
-		$autoload = WPMAR_PLUGIN_DIR . 'vendor/autoload.php';
-		if ( is_readable( $autoload ) && ! class_exists( '\Mpdf\Mpdf', false ) ) {
-			require_once $autoload;
+		// mPDF is intentionally not require_once'd here; the admin page reloads on
+		// success and the library loads via the normal plugin bootstrap next request.
+		return true;
+	}
+
+	/**
+	 * Top-level directory names the vendor bundle is allowed to contain.
+	 *
+	 * @return string[]
+	 */
+	private static function allowed_top_level() {
+		return array( 'vendor', 'fonts' );
+	}
+
+	/**
+	 * Expected SHA-256 of the official vendor-pdf.zip, if pinned.
+	 *
+	 * Empty by default (no enforcement). Set the `WPMAR_PDF_VENDOR_ZIP_SHA256`
+	 * constant or the `wpmar_pdf_vendor_zip_sha256` filter to a lowercase hex
+	 * digest to require the archive to match before it is extracted.
+	 *
+	 * @return string
+	 */
+	private static function expected_sha256() {
+		$pinned = defined( 'WPMAR_PDF_VENDOR_ZIP_SHA256' ) ? (string) WPMAR_PDF_VENDOR_ZIP_SHA256 : '';
+		return strtolower( trim( (string) apply_filters( 'wpmar_pdf_vendor_zip_sha256', $pinned ) ) );
+	}
+
+	/**
+	 * Verifies the archive digest when a checksum is pinned; a no-op otherwise.
+	 *
+	 * @param string $zip_path Absolute path to the archive.
+	 * @return true|WP_Error
+	 */
+	private static function verify_checksum( $zip_path ) {
+		$expected = self::expected_sha256();
+		if ( '' === $expected ) {
+			return true;
+		}
+
+		$actual = hash_file( 'sha256', $zip_path );
+		if ( ! is_string( $actual ) || ! hash_equals( $expected, strtolower( $actual ) ) ) {
+			return new WP_Error(
+				'wpmar_zip_checksum',
+				__( 'ダウンロードしたファイルのチェックサムが一致しませんでした。ファイルが破損しているか改ざんされている可能性があります。', 'wp-maintenance-audit-reporter' )
+			);
 		}
 
 		return true;
 	}
 
 	/**
-	 * Extracts a zip archive to a destination directory.
-	 * Prefers ZipArchive; falls back to WP's unzip_file().
+	 * Safely installs the vendor bundle from a zip archive.
 	 *
-	 * @param string $zip_path    Absolute path to the zip file.
-	 * @param string $destination Absolute directory to extract into.
+	 * Extraction happens in an isolated staging directory with per-entry
+	 * validation (no absolute paths, no `..` traversal, no symlinks, and only the
+	 * expected `vendor/` and `fonts/` top-level directories). Only after the whole
+	 * archive validates are the directories moved into the plugin. This never
+	 * relies on `ZipArchive::extractTo()` writing directly into the plugin tree,
+	 * so a malicious archive cannot plant files elsewhere or execute code.
+	 *
+	 * @param string $zip_path Absolute path to the archive to install.
 	 * @return true|WP_Error
 	 */
-	private static function extract_zip( $zip_path, $destination ) {
+	private static function install_bundle_from_zip( $zip_path ) {
+		$checksum = self::verify_checksum( $zip_path );
+		if ( is_wp_error( $checksum ) ) {
+			return $checksum;
+		}
+
+		$staging = self::make_staging_dir();
+		if ( is_wp_error( $staging ) ) {
+			return $staging;
+		}
+
+		$extracted = self::safe_extract_to_staging( $zip_path, $staging );
+		if ( is_wp_error( $extracted ) ) {
+			self::remove_dir( $staging );
+			return $extracted;
+		}
+
+		$moved = self::move_bundle_into_place( $staging );
+		self::remove_dir( $staging );
+
+		return $moved;
+	}
+
+	/**
+	 * Creates a clean, empty staging directory under wp-content.
+	 *
+	 * Kept on the same filesystem as the plugin directory so the validated
+	 * directories can be moved into place with a rename rather than a copy.
+	 *
+	 * @return string|WP_Error Absolute staging path, or an error.
+	 */
+	private static function make_staging_dir() {
+		$staging = WP_CONTENT_DIR . '/wpmar-vendor-staging';
+		if ( is_dir( $staging ) ) {
+			self::remove_dir( $staging );
+		}
+		if ( ! wp_mkdir_p( $staging ) ) {
+			return new WP_Error(
+				'wpmar_staging_failed',
+				__( '一時展開ディレクトリを作成できませんでした。', 'wp-maintenance-audit-reporter' )
+			);
+		}
+		return $staging;
+	}
+
+	/**
+	 * Extracts the archive into the staging directory after validating every entry.
+	 *
+	 * @param string $zip_path Absolute path to the archive.
+	 * @param string $staging  Absolute path to the (empty) staging directory.
+	 * @return true|WP_Error
+	 */
+	private static function safe_extract_to_staging( $zip_path, $staging ) {
 		if ( class_exists( 'ZipArchive' ) ) {
 			$zip = new ZipArchive();
 			if ( true !== $zip->open( $zip_path ) ) {
@@ -547,17 +665,56 @@ class WPMAR_PDF_Installer {
 					__( 'ZIP ファイルを開けませんでした。', 'wp-maintenance-audit-reporter' )
 				);
 			}
-			$zip->extractTo( $destination );
+
+			$total_uncompressed = 0;
+			$max_uncompressed   = 300 * 1024 * 1024; // Guard against decompression bombs.
+			$count              = $zip->numFiles; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- ZipArchive core property.
+
+			for ( $i = 0; $i < $count; $i++ ) {
+				$name  = $zip->getNameIndex( $i );
+				$valid = self::validate_entry_name( $name );
+				if ( is_wp_error( $valid ) ) {
+					$zip->close();
+					return $valid;
+				}
+				if ( self::entry_is_symlink( $zip, $i ) ) {
+					$zip->close();
+					return new WP_Error(
+						'wpmar_zip_symlink',
+						__( 'アーカイブにシンボリックリンクが含まれているため展開を中止しました。', 'wp-maintenance-audit-reporter' )
+					);
+				}
+				$stat = $zip->statIndex( $i );
+				if ( is_array( $stat ) && isset( $stat['size'] ) ) {
+					$total_uncompressed += (int) $stat['size'];
+				}
+			}
+
+			if ( $total_uncompressed > $max_uncompressed ) {
+				$zip->close();
+				return new WP_Error(
+					'wpmar_zip_too_large',
+					__( 'アーカイブの展開後サイズが大きすぎます。', 'wp-maintenance-audit-reporter' )
+				);
+			}
+
+			if ( ! $zip->extractTo( $staging ) ) {
+				$zip->close();
+				return new WP_Error(
+					'wpmar_zip_extract',
+					__( 'ZIP の展開に失敗しました。', 'wp-maintenance-audit-reporter' )
+				);
+			}
 			$zip->close();
-			return true;
+
+			return self::assert_staging_top_level( $staging );
 		}
 
-		// Fallback: WordPress built-in (requires WP_Filesystem).
-		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
-		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
+		// Fallback: WordPress built-in unzip_file() carries its own traversal guard.
+		require_once ABSPATH . 'wp-admin/includes/file.php';
 		WP_Filesystem();
 
-		$unzip_result = unzip_file( $zip_path, $destination );
+		$unzip_result = unzip_file( $zip_path, $staging );
 		if ( is_wp_error( $unzip_result ) ) {
 			return new WP_Error(
 				'wpmar_zip_extract',
@@ -567,6 +724,141 @@ class WPMAR_PDF_Installer {
 					$unzip_result->get_error_message()
 				)
 			);
+		}
+
+		return self::assert_staging_top_level( $staging );
+	}
+
+	/**
+	 * Validates a single archive entry name against traversal and layout rules.
+	 *
+	 * @param string $name Raw entry name from the archive.
+	 * @return true|WP_Error
+	 */
+	private static function validate_entry_name( $name ) {
+		$normalized = str_replace( '\\', '/', (string) $name );
+
+		if ( '' === $normalized ) {
+			return new WP_Error( 'wpmar_zip_bad_entry', __( 'アーカイブに不正なエントリが含まれています。', 'wp-maintenance-audit-reporter' ) );
+		}
+		// Absolute paths (POSIX or Windows drive letter).
+		if ( '/' === $normalized[0] || preg_match( '#^[A-Za-z]:#', $normalized ) ) {
+			return new WP_Error( 'wpmar_zip_absolute', __( 'アーカイブに絶対パスのエントリが含まれているため展開を中止しました。', 'wp-maintenance-audit-reporter' ) );
+		}
+
+		$segments = explode( '/', trim( $normalized, '/' ) );
+		foreach ( $segments as $segment ) {
+			if ( '..' === $segment ) {
+				return new WP_Error( 'wpmar_zip_traversal', __( 'アーカイブにディレクトリトラバーサルのエントリが含まれているため展開を中止しました。', 'wp-maintenance-audit-reporter' ) );
+			}
+		}
+
+		if ( ! in_array( $segments[0], self::allowed_top_level(), true ) ) {
+			return new WP_Error(
+				'wpmar_zip_unexpected_top',
+				sprintf(
+					/* translators: %s: unexpected top-level entry name */
+					__( 'アーカイブに想定外のエントリ（%s）が含まれているため展開を中止しました。', 'wp-maintenance-audit-reporter' ),
+					esc_html( $segments[0] )
+				)
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether the given archive entry is a Unix symbolic link.
+	 *
+	 * @param ZipArchive $zip   Open archive.
+	 * @param int        $index Entry index.
+	 * @return bool
+	 */
+	private static function entry_is_symlink( $zip, $index ) {
+		if ( ! method_exists( $zip, 'getExternalAttributesIndex' ) ) {
+			return false;
+		}
+		$opsys = 0;
+		$attr  = 0;
+		if ( ! $zip->getExternalAttributesIndex( $index, $opsys, $attr ) ) {
+			return false;
+		}
+		if ( defined( 'ZipArchive::OPSYS_UNIX' ) && ZipArchive::OPSYS_UNIX === $opsys ) {
+			$mode = ( $attr >> 16 ) & 0xFFFF;
+			// S_IFLNK (0xA000) in the file-type bits (0xF000).
+			return 0xA000 === ( $mode & 0xF000 );
+		}
+		return false;
+	}
+
+	/**
+	 * Confirms the staging directory contains only the allowed top-level directories.
+	 *
+	 * Belt-and-suspenders for the unzip_file() fallback path, which does not run the
+	 * per-entry validation above.
+	 *
+	 * @param string $staging Absolute staging path.
+	 * @return true|WP_Error
+	 */
+	private static function assert_staging_top_level( $staging ) {
+		$entries = scandir( $staging );
+		if ( false === $entries ) {
+			return new WP_Error( 'wpmar_staging_unreadable', __( '一時展開ディレクトリを確認できませんでした。', 'wp-maintenance-audit-reporter' ) );
+		}
+		foreach ( $entries as $entry ) {
+			if ( '.' === $entry || '..' === $entry ) {
+				continue;
+			}
+			if ( ! in_array( $entry, self::allowed_top_level(), true ) ) {
+				return new WP_Error(
+					'wpmar_zip_unexpected_top',
+					sprintf(
+						/* translators: %s: unexpected top-level entry name */
+						__( 'アーカイブに想定外のエントリ（%s）が含まれているため展開を中止しました。', 'wp-maintenance-audit-reporter' ),
+						esc_html( $entry )
+					)
+				);
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Moves the validated vendor/ (and optional fonts/) from staging into the plugin.
+	 *
+	 * @param string $staging Absolute staging path.
+	 * @return true|WP_Error
+	 */
+	private static function move_bundle_into_place( $staging ) {
+		$src_vendor = $staging . '/vendor';
+		if ( ! is_dir( $src_vendor ) ) {
+			return new WP_Error(
+				'wpmar_bundle_no_vendor',
+				__( 'アーカイブに vendor/ ディレクトリが見つかりませんでした。正しい vendor-pdf.zip か確認してください。', 'wp-maintenance-audit-reporter' )
+			);
+		}
+
+		$plugin_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . '/';
+		$dst_vendor = $plugin_dir . 'vendor';
+		if ( is_dir( $dst_vendor ) ) {
+			self::remove_dir( $dst_vendor );
+		}
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- move within the same filesystem; WP_Filesystem has no equivalent.
+		if ( ! @rename( $src_vendor, $dst_vendor ) ) {
+			return new WP_Error(
+				'wpmar_bundle_move_failed',
+				__( 'ライブラリの配置に失敗しました。', 'wp-maintenance-audit-reporter' )
+			);
+		}
+
+		$src_fonts = $staging . '/fonts';
+		if ( is_dir( $src_fonts ) ) {
+			$dst_fonts = $plugin_dir . 'fonts';
+			if ( is_dir( $dst_fonts ) ) {
+				self::remove_dir( $dst_fonts );
+			}
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- move within the same filesystem.
+			@rename( $src_fonts, $dst_fonts );
 		}
 
 		return true;
@@ -583,6 +875,9 @@ class WPMAR_PDF_Installer {
 		// mPDF is present but the fonts this version bundles are missing (stale bundle
 		// from a previous version) — offer a re-install using the same download flow.
 		$fonts_stale = $installed && ! $fonts_ready;
+		// Installing/replacing library code requires the plugin-install capability
+		// (super admins only on multisite), matching the AJAX handler gate.
+		$can_install = current_user_can( 'install_plugins' );
 		?>
 		<div class="wpmar-section-panel" id="wpmar-pdf-library-panel">
 			<h2><?php esc_html_e( 'PDF ライブラリ（mPDF）', 'wp-maintenance-audit-reporter' ); ?></h2>
@@ -602,6 +897,7 @@ class WPMAR_PDF_Installer {
 						<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、このプラグインの vendor/ ディレクトリ配下に自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
 					</p>
 				<?php endif; ?>
+				<?php if ( $can_install ) : ?>
 				<p>
 					<button type="button" class="button button-primary" id="wpmar-install-pdf-btn">
 						<?php esc_html_e( 'PDF ライブラリをインストール', 'wp-maintenance-audit-reporter' ); ?>
@@ -651,7 +947,12 @@ class WPMAR_PDF_Installer {
 						<span id="wpmar-manual-upload-status" style="display:none;margin-left:10px;vertical-align:middle;"></span>
 					</p>
 				</div>
-				<?php self::render_install_script(); ?>
+					<?php self::render_install_script(); ?>
+				<?php else : ?>
+				<p class="description">
+					<?php esc_html_e( 'このライブラリのインストールにはプラグインインストール権限が必要です（マルチサイトではネットワーク管理者）。権限のある管理者に依頼してください。', 'wp-maintenance-audit-reporter' ); ?>
+				</p>
+				<?php endif; ?>
 			<?php endif; ?>
 		</div>
 		<?php

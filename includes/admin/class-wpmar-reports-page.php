@@ -146,7 +146,7 @@ class WPMAR_Reports_Page {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce checked after capability gate; download route is read-only besides optional PDF regeneration.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce checked after the capability gate; download route makes no durable state change (any on-the-fly PDF is streamed then removed).
 		if ( ! isset( $_GET['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== $_GET['page'] ) {
 			return;
 		}
@@ -210,15 +210,27 @@ class WPMAR_Reports_Page {
 
 		$rel = (string) ( $row['pdf_file_path'] ?? '' );
 
-		$pdf_md = WPMAR_PDF_Writer::markdown_body_for_client_pdf( $row );
+		// Upload-relative path of an on-the-fly copy to remove after streaming, if any.
+		$transient_rel = '';
 
-		if ( '' === $rel && '' !== $pdf_md && WPMAR_PDF_Writer::is_available() ) {
-			$written = WPMAR_PDF_Writer::write_pdf_from_markdown( $pdf_md, 'wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id );
-			if ( ! is_wp_error( $written ) && is_string( $written ) && '' !== $written ) {
-				$repository->update_pdf_file_path( $id, $written );
-				$rel = $written;
-			} elseif ( is_wp_error( $written ) ) {
-				wp_die( esc_html( $written->get_error_message() ) );
+		if ( '' === $rel ) {
+			// No persisted PDF (e.g. the report predates the PDF library being installed).
+			// Render a transient copy for THIS download only: a GET must not mutate durable
+			// state, so the path is neither persisted to the DB nor kept on disk. PDFs are
+			// persisted at audit-run time; this is only a read-time fallback.
+			$pdf_md = WPMAR_PDF_Writer::markdown_body_for_client_pdf( $row );
+			if ( '' !== $pdf_md && WPMAR_PDF_Writer::is_available() ) {
+				$written = WPMAR_PDF_Writer::write_pdf_from_markdown(
+					$pdf_md,
+					'wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id . '-tmp-' . wp_rand( 100000, 999999 )
+				);
+				if ( is_wp_error( $written ) ) {
+					wp_die( esc_html( $written->get_error_message() ) );
+				}
+				if ( is_string( $written ) && '' !== $written ) {
+					$rel           = $written;
+					$transient_rel = $written;
+				}
 			}
 		}
 
@@ -228,11 +240,17 @@ class WPMAR_Reports_Page {
 
 		$abs = WPMAR_MD_Writer::absolute_path_from_upload_relative( $rel );
 		if ( '' === $abs || ! is_readable( $abs ) ) {
+			if ( '' !== $transient_rel ) {
+				WPMAR_MD_Writer::delete_if_upload_relative( $transient_rel );
+			}
 			wp_die( esc_html__( 'PDF ファイルを読み込めませんでした。', 'wp-maintenance-audit-reporter' ) );
 		}
 
 		$size = filesize( $abs );
 		if ( false === $size ) {
+			if ( '' !== $transient_rel ) {
+				WPMAR_MD_Writer::delete_if_upload_relative( $transient_rel );
+			}
 			wp_die( esc_html__( 'PDF サイズを取得できませんでした。', 'wp-maintenance-audit-reporter' ) );
 		}
 
@@ -243,6 +261,12 @@ class WPMAR_Reports_Page {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streams binary PDF artefact.
 		$bytes = readfile( $abs );
+
+		// Remove the transient copy: the download GET leaves no persisted file or DB change.
+		if ( '' !== $transient_rel ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( $transient_rel );
+		}
+
 		if ( false === $bytes ) {
 			wp_die( esc_html__( 'PDF の送信中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ) );
 		}
@@ -267,16 +291,17 @@ class WPMAR_Reports_Page {
 			return;
 		}
 
-		$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
-		if ( ! wp_verify_nonce( $nonce, 'bulk-reports' ) ) {
-			return;
-		}
-
-		if ( empty( $_POST['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== sanitize_key( wp_unslash( $_POST['page'] ) ) ) {
+		// Identify the request (which screen), then gate on capability, then verify the nonce.
+		if ( empty( $_POST['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== sanitize_key( wp_unslash( $_POST['page'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- routing check; nonce verified below before any action.
 			return;
 		}
 
 		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'bulk-reports' ) ) {
 			return;
 		}
 

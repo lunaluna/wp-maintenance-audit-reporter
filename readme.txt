@@ -2,9 +2,9 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 7.0
+Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.0.0-RC14
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,31 +12,160 @@ Scheduled maintenance reports for WordPress (core, themes, plugins, checksums, d
 
 == Description ==
 
-**v1.0.0-RC3** is the release candidate, promoted from the `0.x` development series after end-to-end testing of all major subsystems. **v0.11.0** added a **GitHub Releases update checker**: the plugin now hooks into WordPress's standard update pipeline so new releases published on GitHub appear as available updates in the dashboard and can be applied via the one-click updater — no WordPress.org listing required. The GitHub API response is cached for 6 hours (`wpmar_github_release_cache` transient). **v0.10.0** fixes administrator-facing report rendering (semver comparison against WordPress.org directory now uses `version_compare`; surfaces `データが正しく取得できませんでした。` when installed > directory; de-duplicates the "non-official plugin" message; deeper indent for checksum diff file lines; hides the unimplemented backup section) and ships a tag-driven release pipeline (`.github/workflows/release.yml`) that builds `wp-maintenance-audit-reporter.<version>.zip` with runtime-only vendors. CI workflow indentation also corrected (tabs → spaces). **v0.9.0** hardens security and improves reliability: nonce verification order fixed in admin handlers; path traversal prevention in file storage; timezone input whitelisted against `timezone_identifiers_list()`; SSL probe uses two-pass approach (verified first, unverified fallback for expired certs); data collector errors isolated per-collector. 28 new unit tests added. See Changelog for full details. **v0.8.0** adds **Multisite network rollup**: network-activate the plugin, then enable rollup under **Network Admin → Maintenance Audit** to audit all target sites via `switch_to_blog`, merge reports, and dispatch one mail pair from the main site. **v0.7.0** adds **「スナップショットを保存する（差分比較用）」** on **設定・実行** for **今すぐ実行** (manual): when checked, manual runs persist snapshot rows for longitudinal diffs; when unchecked, the report still compares the live scan to the latest saved snapshot without overwriting `wpmar_snapshots`. Optional **テストメール上書き先** on **今すぐ実行** sends **up to two extra mails** (duplicate **client** + duplicate **admin**) when filled — normal `client_to` / `admin_to` deliveries are unchanged; skips a duplicate when the QA address already appears in the corresponding list. **WP-Cron** and **WP-CLI** always persist snapshots.
+Generates monthly maintenance reports automatically and delivers them by mail, Markdown, and PDF.
 
-* **Mail (client)** — HTML body when Parsedown is present (`composer install`); plain-text alternative for legacy clients. Filter `wpmar_client_mail_html_enabled` to force plaintext only.
-* **PDF (client-facing, optional)** — Persists `uploads/wpmar/pdf/*.pdf` on audit runs when enabled; built from stored **client-facing** Markdown (`body_client_md`). Install the PDF library on-demand via the **"PDF ライブラリ（mPDF）"** panel in the settings page.
-* **ZIP bulk download** — From the report list, export selected rows as a ZIP of **administrator-facing** `.md` files plus any saved **client-facing** `.pdf` peers.
-* **CLI export** — `wp maintenance-audit export <id> --format=markdown|json|pdf`; `markdown` streams the **administrator-facing** body, `pdf` the **client-facing** artefact. Optional `--file=<path>` writes to disk instead of STDOUT (recommended for PDF when another plugin prints bootstrap notices).
-* **Empty storage notice** — On **設定・実行** and **レポート**, an info notice when there are no report rows and no snapshot rows yet.
-* **Manual snapshot save (v0.7)** — Checkbox **「スナップショットを保存する（差分比較用）」** gates DB updates for **今すぐ実行** only; changelog still compares latest stored snapshot to this run when unchecked. **WP-Cron** / **WP-CLI** always persist.
-* **Test mailbox (v0.7)** — Optional **テストメール上書き先** on **今すぐ実行**: duplicate **client-facing** mail and duplicate **admin** mail to that address when it is not already in the respective configured list (does not replace configured recipients).
+* **Scheduled monthly audits** — run on a configurable day/time/timezone (asynchronous jobs via Action Scheduler, on top of WP-Cron).
+* **Inventory and change history (deltas)** — snapshots core/theme/plugin state and reports additions, updates, and removals since the previous run.
+* **Checksum verification** — core and plugin file-integrity checks against the WordPress.org API (exclude lists supported; falls back to the en_US manifest when the site locale has none).
+* **Security ops** — TLS certificate expiry, PHP EOL, stale administrator sessions, `wp-config.php` permissions, `WP_DEBUG` warnings in production, and more.
+* **Stale plugin detection** — flags plugins whose WordPress.org `last_updated` is 180+ / 365+ days old.
+* **Two mail streams** — client-facing (HTML with plaintext alternative) and administrator-facing (structured plaintext).
+* **Markdown / PDF output** — administrator-facing Markdown and client-facing PDF (mPDF + Noto Sans JP; library installed on demand from the settings page).
+* **Reports admin** — list, detail preview, downloads, ZIP bulk export, retention-based cleanup.
+* **Multisite** — network rollup audits (visits all target sites, stores merged reports on the main site).
+* **WP-CLI** — run audits and export reports from the command line.
+* **GitHub Releases updater** — one-click dashboard updates without WordPress.org listing.
 
-* **Scheduling** — Monthly WP-Cron anchor plus optional server cron via WP-CLI.
-* **Inventory & deltas** — Core, themes, and plugins; change detection between snapshots.
-* **Checksums** — Core and plugin verification against WordPress.org manifests; configurable exclude lists; locale fallback when the API returns no checksum map for the site language.
-* **Domain gate** — Skip snapshot/report side effects when the host does not match the configured allowlist (e.g. staging).
-* **Outputs** — Verbose **administrator-facing** Markdown (saved under uploads) and optional paired emails (**client-facing** HTML or text + **administrator-facing** plaintext).
-* **Report storage** — Database table plus companion Markdown paths; **retention** (no auto-delete / 12 / 24 months) purges older rows and files after successful runs.
-* **Admin UI** — Top-level **Maintenance Audit** menu (`admin.php` screens) with **設定・実行** (schedule, mail, exclusions, retention, runs) and **レポート** (list table, 20 items per page, detail view, Markdown **(administrator-facing)** / PDF **(client-facing)** download, ZIP bulk export, row + bulk delete without confirmation dialog; success notices use one-shot transients, not sticky query arguments).
+For detailed per-version changes, see CHANGELOG.md (bundled with the plugin) or the Changelog section below.
 
-Use WP-CLI for unattended runs and CI-style checks where available.
+== Usage ==
+
+Activating the plugin adds a top-level **Maintenance Audit** menu with two screens: **設定・実行** (Settings & Run) and **レポート** (Reports).
+
+Minimal setup: on **設定・実行**, enable mail notification and enter recipients, click **変更を保存** (Save), run **ドライラン** (Dry run) to inspect the output, then **今すぐ実行** (Run now).
+
+= 設定・実行 (Settings & Run) screen =
+
+**ステータス (Status)** — read-only panel showing current state:
+
+* **次回 WP-Cron** — next scheduled run.
+* **直近の完了時刻 (UTC 保存)** — when the last audit completed.
+* **WP-CLI** — whether CLI usage has been detected (version and last run); shows "未取得" until a CLI command is run once.
+
+**スケジュール (Schedule):**
+
+* **実行日 (1〜31)** — day of month for the run.
+* **時刻 (時 / 分)** — hour and minute.
+* **タイムゾーン** — e.g. `Asia/Tokyo`; any identifier PHP understands. Invalid values fall back to `Asia/Tokyo`.
+
+**ドメインゲート (Domain gate):**
+
+* **許可ホスト (Allowed host)** — matched against the host of the Site Address. The field shows the detected current host and match/mismatch feedback.
+  * **Empty** — the gate passes in every environment (permissive).
+  * **Match** — runs persist snapshots and send mail / write files normally.
+  * **Mismatch** (e.g. staging) — runs still execute, but snapshot persistence, mail, and file output are suppressed. Enter the production host to keep cloned environments from mailing or persisting.
+
+**セキュリティ診断（レポート） (Security checks):**
+
+* **SSL 証明書の期限確認** — when enabled (recommended), makes a short TLS connection to check certificate expiry, only on https sites.
+* **管理者「長期未ログイン」の日数** — administrators whose last session is older than this many days (30–730) are counted as stale in the report.
+
+**オプション：データベースサイズチェック (Optional: DB size check):**
+
+* **上位テーブルサイズを集計** — off by default; when checked, samples the largest tables via `information_schema` during the audit (may fail on some hosts).
+
+**メール通知 (Mail notification):**
+
+* **有効化** — enables report mail.
+* **クライアント向け宛先（改行区切り）** — recipients of the client-facing HTML report, one address per line.
+* **管理者向け宛先（改行区切り）** — recipients of the detailed plaintext report, one address per line.
+* **送信元メールアドレス（オプション）** — falls back to the site admin email when empty.
+* **送信元表示名（オプション）** — falls back to the site title when empty.
+
+When mail is enabled but a recipient list is empty, the settings screen shows a warning notice.
+
+**チェックサム除外リスト (Checksum exclude lists)** — excludes intentionally modified files from integrity checking. One entry per line; lines starting with `#` are comments.
+
+* **コア除外パス** — paths relative to ABSPATH (e.g. `wp-config.php`).
+* **プラグイン除外パス** — `slug:relative-path` entries (e.g. `akismet:readme.txt`).
+
+Append `/` or `/*` to exclude a whole directory (e.g. `wp-admin/`, `akismet:views/`).
+
+**保持期間 (Retention):**
+
+* **レポート保管期間** — keep forever, or delete reports older than 12 / 24 months. Cleanup removes both DB rows and generated Markdown/PDF files, counted from the latest run.
+
+**レポートをファイルとして自動保存 (Auto-save report files):**
+
+* **Markdown を uploads に書き出して保存（管理者向け）** — writes the administrator-facing `.md` to `wp-content/uploads/wpmar/` on each run.
+* **PDF を uploads に書き出して保存（クライアント向け）** — writes the client-facing PDF to `uploads/wpmar/pdf/`. A warning appears (and the setting has no effect) while the PDF library is not installed.
+
+**PDF ライブラリ（mPDF） (PDF library)** — shows the mPDF installation status. When absent, a one-click button downloads `vendor-pdf.zip` from GitHub Releases and extracts it (no server-side `composer install` needed). If the automatic download fails, a manual ZIP-upload fallback appears.
+
+Installing (both download and manual upload) requires the `install_plugins` capability (super admins only on multisite; disabled when `DISALLOW_FILE_MODS` is set). The archive is validated in an isolated staging directory — absolute paths, `..`, symlinks, and any top-level entry other than `vendor/` or `fonts/` are rejected — before it is moved into place.
+
+Optional checksum pinning: each release ships a `vendor-pdf.zip.sha256`. Set that value in the `WPMAR_PDF_VENDOR_ZIP_SHA256` constant (e.g. in `wp-config.php`) or return it from the `wpmar_pdf_vendor_zip_sha256` filter to require a SHA-256 match before extraction (no verification is performed when unset).
+
+**検証ツール (QA tools):**
+
+* **テストメール上書き先** — a single extra address. When mail is enabled and this is filled, **今すぐ実行** additionally sends one client copy and one admin copy (up to 2 mails) to this address, skipping any type whose recipient list already contains it.
+
+**Snapshot & run buttons:**
+
+* **スナップショットを保存する（差分比較用）** — only checked manual runs update the snapshot rows; unchecked manual runs produce the report only. Scheduled (WP-Cron) runs always persist snapshots. Deltas are always computed as "stored snapshot vs this run's collection".
+* **変更を保存** — saves settings.
+* **ドライラン** — collects data only and shows a summary; no snapshot, mail, or file output.
+* **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed), then render preview/download links.
+
+= レポート (Reports) screen =
+
+Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
+
+= Network admin (multisite) =
+
+Network-activate the plugin, then configure rollup audits under **Network Admin → Maintenance Audit**. All target sites are visited and one client-facing plus one administrator-facing merged report is stored on the main site, with a single mail dispatch. Settings mirror the single-site screen, plus site filters (max sites, excluded blog IDs) and a run-scope selector (all target sites / main site only / a specific site).
+
+= WP-CLI =
+
+    # Synchronous run (recommended; bypasses CloudFront-style timeouts)
+    wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]
+
+    # Legacy command (direct run, not via the async job system)
+    wp maintenance-audit run [--network] [--same-setting] [--id=<blog_id>] [--no-snapshot]
+
+    # Export a report
+    wp maintenance-audit export <id> --format=markdown|json|pdf [--file=<path>]
 
 == Installation ==
 
 1. Upload the plugin folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu in WordPress
-3. If PDF output is needed, click **"PDF ライブラリをインストール"** in the **"PDF ライブラリ（mPDF）"** panel on the settings page. The plugin downloads and extracts `vendor-pdf.zip` (~94 MB) from GitHub Releases automatically.
+3. If PDF output is needed, click **"PDF ライブラリをインストール"** in the **"PDF ライブラリ（mPDF）"** panel on the settings page. The plugin downloads and extracts `vendor-pdf.zip` (~94 MB) from GitHub Releases automatically. Installing requires the `install_plugins` capability.
+
+== Frequently Asked Questions ==
+
+= Is this production-ready? =
+
+Yes. 1.0.0 is the first stable release, promoted from the 1.0.0-RC series after end-to-end testing of all major subsystems. Tested up to WordPress 7.0.1.
+
+= Where did the Settings submenu go? =
+
+From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
+
+== Development ==
+
+WordPress/runtime target: **PHP 7.4+**. WordPress **6.0+**, tested up to **7.0.1**.
+
+Composer dev tooling and runtime libraries (mPDF, Parsedown) for PDF and client HTML mail need **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
+
+The `vendor/` directory is not committed (see `.gitignore`); third-party libraries are listed in `composer.json` and locked in `composer.lock`. After cloning, run `composer install` once:
+
+    cd wp-content/plugins/wp-maintenance-audit-reporter
+    composer install
+
+Coding standards and tests:
+
+    composer run phpcs
+    composer run phpunit
+
+**Distribution ZIP (GitHub Releases)** — implemented as `.github/workflows/release.yml`, triggered by pushing a `v*` or bare-semver tag (or manual `workflow_dispatch`):
+
+1. The tag is asserted to match the `Version:` header of `wp-maintenance-audit-reporter.php` (mismatch fails the job).
+2. `composer install --no-dev --optimize-autoloader` installs production dependencies.
+3. The plugin tree is staged (excluding `.git`, `.github`, `tests/`, `vendor/`, `phpunit.xml.dist`, `phpcs.xml.dist`, and similar dev paths) and zipped as `wp-maintenance-audit-reporter.<version>.zip`.
+4. A separate `vendor-pdf.zip` (plus its `vendor-pdf.zip.sha256`) is built from the installed `vendor/` directory and attached for on-demand installation via the admin UI.
+5. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md`.
+6. `gh release create` publishes the GitHub Release with the assets attached.
 
 == Git Management ==
 
@@ -47,17 +176,13 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
-== Frequently Asked Questions ==
-
-= Is this production-ready? =
-
-v1.0.0-RC14 is the release candidate. Treat as stable for testing; the final 1.0.0 tag will follow.
-
-= Where did the Settings submenu go? =
-
-From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level admin menu (submenus **設定・実行** and **レポート**). URLs use `wp-admin/admin.php?page=…` instead of `options-general.php?page=…`.
-
 == Changelog ==
+
+= 1.0.0 =
+* First stable release. Promoted from the 1.0.0-RC series with no functional changes to the audit/report feature set. Tested up to WordPress 7.0.1.
+* Security: PDF library installer hardened against arbitrary code execution — the vendor bundle is now validated in an isolated staging directory (absolute paths, `..` traversal, symlinks, and unexpected top-level entries are rejected) and moved into place instead of being extracted directly into the plugin, and freshly-installed code is no longer executed in the upload request. The installer now requires the `install_plugins` capability, verifies the upload with `is_uploaded_file()` and a size cap, and supports optional SHA-256 pinning (`WPMAR_PDF_VENDOR_ZIP_SHA256` / `wpmar_pdf_vendor_zip_sha256`).
+* Security (defense-in-depth): capability checks now run before nonce verification in the settings/bulk handlers; uploads-relative paths resolve symlinks and stay within the uploads root; the report-download GET no longer mutates the database.
+* See CHANGELOG.md for full details.
 
 = 1.0.0-RC14 =
 * Changed: PDF embedded font — replaced BIZ UDGothic with Noto Sans JP (Regular + Bold). mPDF cannot embed CFF/OpenType outlines and Noto Sans JP ships only as a variable TTF (no distinct bold), so the release build instances the weight axis into static Regular (400)/Bold (700) TrueType fonts with fontTools (`bin/build-vendor-pdf-zip.sh`, `.github/workflows/release.yml`). Full glyph coverage is kept (mPDF subsets each PDF). `WPMAR_PDF_Writer` registers `notosansjp` (`NotoSansJP-Regular.ttf`/`NotoSansJP-Bold.ttf`) with a `sun-exta` fallback.
@@ -219,3 +344,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 = 0.1.0-dev =
 * Initial scaffolding: activation, tables, uninstall cleanup.
+
+== License ==
+
+GPLv2 or later. See LICENSE.

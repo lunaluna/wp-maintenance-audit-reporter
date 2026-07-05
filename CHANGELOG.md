@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.0.0] - 2026-07-05
+
+First stable release. Promoted from the `1.0.0-RC` series with no functional changes to the audit/report feature set (scheduled auditing, multisite rollup, checksums, security ops, mail/PDF/CLI output, report storage, GitHub Releases updater). Tested up to WordPress 7.0.1. This release also lands the security hardening below.
+
+### Security
+
+- **PDF library installer — hardened archive handling (RCE fix)** — The on-demand PDF library installer no longer extracts the downloaded/uploaded `vendor-pdf.zip` directly into the plugin directory with `ZipArchive::extractTo()`, and no longer `require_once`s a PHP file straight out of the freshly-extracted archive. Archives are now unpacked into an isolated staging directory with per-entry validation — absolute paths, `..` traversal, symlinks, and any top-level entry other than `vendor/` or `fonts/` are rejected before anything is written — and only the validated directories are moved into place. Combined, this closes an arbitrary-code-execution / zip-slip vector where a crafted upload could plant or execute PHP inside (or outside) the plugin tree. The freshly-installed library is loaded on the normal admin-page reload rather than executed in the upload request. `WPMAR_PDF_Writer` font/library loading is unchanged.
+- **PDF library installer — capability raised to `install_plugins`** — The three installer AJAX handlers (`wpmar_install_pdf_library`, `wpmar_pdf_preflight`, `wpmar_pdf_manual_upload`) and the settings-panel install UI now require `install_plugins` instead of `manage_options`. This matches the true impact (installing executable library code), closes a multisite privilege-escalation path (a subsite administrator has `manage_options` but not `install_plugins`), and makes the installer honour `DISALLOW_FILE_MODS`.
+- **PDF library installer — upload validation** — The manual upload now verifies the file is a genuine PHP HTTP upload (`is_uploaded_file()`) and enforces an 80 MB size cap (the official bundle is ~30 MB), in addition to the existing extension and `PK` magic-byte checks. Extraction is also guarded against decompression bombs via a 300 MB uncompressed-size cap.
+- **PDF library installer — optional checksum pinning** — The installer verifies the archive's SHA-256 against a pinned digest when one is provided via the `WPMAR_PDF_VENDOR_ZIP_SHA256` constant or the `wpmar_pdf_vendor_zip_sha256` filter; extraction is aborted on mismatch. No digest is pinned by default (behaviour unchanged for existing installs). The release pipeline now publishes `vendor-pdf.zip.sha256` alongside the bundle so the digest can be pinned.
+- **Capability-before-nonce ordering (defense-in-depth)** — `WPMAR_Admin_Menu::handle_post`, `WPMAR_Network_Admin_Menu::handle_post`, and `WPMAR_Reports_Page::maybe_stream_bulk_zip` now perform the capability check before nonce verification (request identification → capability → nonce), matching WordPress convention. Both checks always ran before any side effect, so this is a consistency hardening rather than an exploitable fix.
+- **Uploads path symlink resolution (defense-in-depth)** — `WPMAR_MD_Writer::absolute_path_from_upload_relative()` and `delete_if_upload_relative()` now resolve symlinks with `realpath()` and confirm the target stays within the uploads root, in addition to the existing `..` rejection and string-prefix check. A symlink placed inside the uploads directory can no longer be followed out of it. Not-yet-written paths are still permitted.
+- **Read-only report-download GET (defense-in-depth)** — `WPMAR_Reports_Page::maybe_stream_report_download()` no longer writes to the database from the GET request. When a report has no persisted PDF, the on-the-fly copy is rendered to a temporary file, streamed, then removed — the download performs no durable state change. Audit-run-time PDF persistence (`WPMAR_Runner` / CLI) is unchanged.
+
 ## [1.0.0-RC14] - 2026-07-01
 
 ### Changed
@@ -292,6 +306,7 @@ _No pending notes._
 - **Administrator mail body** — Replaces the raw JSON dump with a structured plaintext layout modeled on `/.maintenance/inc/mainte.sh` (`ADMIN_MAIL_BODY`): core, themes, plugins, server, backup, users, snapshot diff, security, optional DB size, execution time, runtime; `wpmar_report_sections` extras still appended.
 
 ## [0.5.0-dev] - 2026-05-14
+
 - **Hooks**: `wpmar_report_sections` (Markdown extras for client/admin bodies), `wpmar_notification_channels` (callable channels after mail), `wpmar_backup_providers` (Markdown/callable summaries merged into audits).
 - **Performance probes** (defaults OFF via settings): home URL timing, capped external HEAD checks seeded from homepage HTML, optional `information_schema` table-size snapshot (surfaced client summary + RAW JSON payload).
 - **Dispatcher** `WPMAR_Notifier_Dispatcher` wiring post-report deliveries for extra channels while keeping core `wp_mail` pair intact.
