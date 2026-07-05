@@ -117,14 +117,53 @@ Network-activate the plugin, then configure rollup audits under **Network Admin 
 
 = WP-CLI =
 
-    # Synchronous run (recommended; bypasses CloudFront-style timeouts)
+The plugin registers two command namespaces: `wp wpmar audit` (the current entry point; routes through the async job system, with a synchronous fallback via `--sync`) and `wp maintenance-audit` (the legacy namespace, which also carries the report-management subcommands). Both `run` commands print the run result as pretty-printed JSON on success.
+
+**`wp wpmar audit run`** — execute an audit run.
+
     wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]
 
-    # Legacy command (direct run, not via the async job system)
-    wp maintenance-audit run [--network] [--same-setting] [--id=<blog_id>] [--no-snapshot]
+* `--sync` — Required. Runs synchronously in the current process (the async queue is not yet wired, so omitting it errors out). Also a CloudFront-bypassing fallback for production debugging / manual runs.
+* `--dry-run` — Harvest data only; no snapshot persistence, no mail.
+* `--network` — Multisite rollup audit (requires network audit enabled under Network Admin → Maintenance Audit).
+* `--no-snapshot` — Generate the report without updating the snapshot baseline.
 
-    # Export a report
-    wp maintenance-audit export <id> --format=markdown|json|pdf [--file=<path>]
+`--same-setting` / `--id` are not available here — use the legacy `wp maintenance-audit run` for per-site network scoping.
+
+**`wp maintenance-audit run`** (legacy) — execute an audit synchronously.
+
+    wp maintenance-audit run [--dry] [--network] [--no-snapshot] [--same-setting] [--id=<blog_id>]
+
+* `--dry` — Harvest data only; no persistence, no mail. Note: this legacy command uses `--dry`, whereas `wp wpmar audit run` uses `--dry-run`.
+* `--network` — Multisite rollup audit (requires network audit enabled).
+* `--no-snapshot` — Generate the report without updating the snapshot baseline.
+* `--same-setting` — Requires `--network`. Audit the main site only instead of all target sites.
+* `--id=<blog_id>` — Requires `--network`. Audit only the given blog ID; takes precedence over `--same-setting`; errors if the blog ID does not exist.
+
+**`wp maintenance-audit test`** — run collector instrumentation in dry mode (no DB writes besides the CLI probe transient). No flags.
+
+    wp maintenance-audit test
+
+**`wp maintenance-audit reports`** — print recent persisted reports as a table.
+
+    wp maintenance-audit reports [--limit=<n>]
+
+* `--limit=<n>` — Number of rows to retrieve (default 20).
+
+**`wp maintenance-audit delete <id>`** — permanently delete a stored report.
+
+    wp maintenance-audit delete <id> [--yes]
+
+* `<id>` — Numeric report identifier (required).
+* `--yes` — Skip the confirmation prompt.
+
+**`wp maintenance-audit export <id>`** — stream a report artefact to STDOUT for piping, or write it to a file.
+
+    wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
+
+* `<id>` — Report primary key (required).
+* `--format=<fmt>` — `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is an alias for `markdown`.
+* `--file=<path>` — Write to this path instead of STDOUT (recommended for PDF when another plugin prints PHP notices during CLI bootstrap). The parent directory must exist and be writable.
 
 == Installation ==
 
