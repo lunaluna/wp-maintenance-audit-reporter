@@ -127,6 +127,17 @@ jobs:
           zip -rq -X vendor-pdf.zip vendor/ fonts/
           echo "vendor_zip_path=$GITHUB_WORKSPACE/vendor-pdf.zip" >> "$GITHUB_OUTPUT"
 
+      - name: Checksum vendor-pdf.zip
+        id: vendor_zip_sha
+        run: |
+          # Publish the SHA-256 so installs can pin it via the
+          # WPMAR_PDF_VENDOR_ZIP_SHA256 constant / wpmar_pdf_vendor_zip_sha256 filter.
+          SHA="$(shasum -a 256 vendor-pdf.zip | awk '{print $1}')"
+          echo "$SHA" > vendor-pdf.zip.sha256
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "vendor_zip_sha_path=$GITHUB_WORKSPACE/vendor-pdf.zip.sha256" >> "$GITHUB_OUTPUT"
+          echo "vendor-pdf.zip SHA-256: $SHA"
+
       - name: Extract release notes from CHANGELOG.md
         id: notes
         run: |
@@ -154,5 +165,6 @@ jobs:
           gh release create "${{ steps.tag.outputs.tag }}" \
             "${{ steps.zip.outputs.zip_path }}" \
             "${{ steps.vendor_zip.outputs.vendor_zip_path }}#vendor-pdf.zip" \
+            "${{ steps.vendor_zip_sha.outputs.vendor_zip_sha_path }}#vendor-pdf.zip.sha256" \
             --title "${{ steps.tag.outputs.tag }}" \
             --notes-file "${{ steps.notes.outputs.notes_path }}"

@@ -92,6 +92,10 @@ Append `/` or `/*` to exclude a whole directory (e.g. `wp-admin/`, `akismet:view
 
 Shows the mPDF installation status. When absent, a one-click button downloads `vendor-pdf.zip` from GitHub Releases and extracts it (no server-side `composer install` needed). If the automatic download fails, a manual ZIP-upload fallback appears.
 
+Installing (both download and manual upload) requires the `install_plugins` capability (super admins only on multisite; disabled when `DISALLOW_FILE_MODS` is set). The archive is validated in an isolated staging directory — absolute paths, `..`, symlinks, and any top-level entry other than `vendor/` or `fonts/` are rejected — before it is moved into place.
+
+**Optional checksum pinning:** each release ships a `vendor-pdf.zip.sha256`. Set that value in the `WPMAR_PDF_VENDOR_ZIP_SHA256` constant (e.g. in `wp-config.php`) or return it from the `wpmar_pdf_vendor_zip_sha256` filter to require a SHA-256 match before extraction (no verification is performed when unset).
+
 #### 検証ツール (QA tools)
 
 - **テストメール上書き先** — a single extra address. When mail is enabled and this is filled, **今すぐ実行** additionally sends one client copy and one admin copy (up to 2 mails) to this address, skipping any type whose recipient list already contains it.
