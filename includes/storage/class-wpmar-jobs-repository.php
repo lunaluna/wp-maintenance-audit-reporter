@@ -170,6 +170,79 @@ class WPMAR_Jobs_Repository {
 	}
 
 	/**
+	 * Records the current phase name and refreshes the heartbeat (`updated_at`).
+	 *
+	 * This is the primary diagnostic for a stalled run: the last step written here is
+	 * the last thing the process completed before it stopped responding.
+	 *
+	 * @param string $id   Job id.
+	 * @param string $step Short machine-readable step name, e.g. `gather:checksums`.
+	 * @return bool
+	 */
+	public function mark_step( $id, $step ) {
+		return $this->update_fields(
+			$id,
+			array( 'step' => substr( (string) $step, 0, 100 ) ),
+			array( '%s' )
+		);
+	}
+
+	/**
+	 * Stores the uploads-relative path to this job's log file.
+	 *
+	 * @param string $id       Job id.
+	 * @param string $relative Uploads-relative log file path.
+	 * @return bool
+	 */
+	public function set_log_path( $id, $relative ) {
+		return $this->update_fields(
+			$id,
+			array( 'log_path' => substr( (string) $relative, 0, 255 ) ),
+			array( '%s' )
+		);
+	}
+
+	/**
+	 * Force-fails `running` jobs whose heartbeat has gone stale.
+	 *
+	 * Covers the case a shutdown handler cannot: a hard kill (SIGKILL, OOM killer)
+	 * never runs PHP shutdown functions, so nothing ever flips the job out of
+	 * `running`. This sweep is the backstop — called opportunistically whenever
+	 * someone is looking at job state (REST poll, reports page load).
+	 *
+	 * @param int $minutes Heartbeat age, in minutes, beyond which a running job is
+	 *                     considered abandoned. Should exceed the runner's own mutex TTL.
+	 * @return int Number of rows flipped to `failed`.
+	 */
+	public function sweep_stale_running( $minutes = 25 ) {
+		$minutes = absint( $minutes );
+		if ( 0 === $minutes ) {
+			return 0;
+		}
+
+		$cutoff_ts = strtotime( '-' . $minutes . ' minutes', time() );
+		if ( false === $cutoff_ts ) {
+			return 0;
+		}
+
+		$cutoff = gmdate( 'Y-m-d H:i:s', (int) $cutoff_ts );
+
+		$updated = $this->db->query(
+			$this->db->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table slug from prefix literal.
+				"UPDATE `{$this->table}` SET status=%s, error=%s, updated_at=%s WHERE status=%s AND updated_at<%s",
+				self::STATUS_FAILED,
+				__( 'ハートビート途絶 — プロセスが強制終了された可能性があります(OOM/タイムアウト)。ログを参照してください。', 'wp-maintenance-audit-reporter' ),
+				gmdate( 'Y-m-d H:i:s' ),
+				self::STATUS_RUNNING,
+				$cutoff
+			)
+		);
+
+		return is_numeric( $updated ) ? (int) $updated : 0;
+	}
+
+	/**
 	 * Counts persisted jobs.
 	 *
 	 * @return int
@@ -204,6 +277,18 @@ class WPMAR_Jobs_Repository {
 		}
 
 		$cutoff = gmdate( 'Y-m-d H:i:s', (int) $cutoff_ts );
+
+		$log_paths = $this->db->get_col(
+			$this->db->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+				"SELECT log_path FROM `{$this->table}` WHERE created_at < %s AND log_path IS NOT NULL AND log_path != ''",
+				$cutoff
+			)
+		);
+
+		foreach ( (array) $log_paths as $log_path ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( (string) $log_path );
+		}
 
 		$deleted = $this->db->query(
 			$this->db->prepare(
