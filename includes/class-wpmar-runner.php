@@ -45,6 +45,7 @@ class WPMAR_Runner {
 
 		// Simple mutex: concurrent runs (CLI + Cron overlap) should not clobber snapshots.
 		if ( false !== get_transient( 'wpmar_run_lock' ) ) {
+			WPMAR_Logger::step( 'lock:busy' );
 			return array(
 				'skipped' => true,
 				'reason'  => 'busy',
@@ -52,13 +53,17 @@ class WPMAR_Runner {
 		}
 
 		set_transient( 'wpmar_run_lock', 1, 20 * MINUTE_IN_SECONDS );
+		WPMAR_Logger::step( 'lock:acquired' );
 
 		$t0 = microtime( true );
 
 		try {
-			$settings       = WPMAR_Settings::get_all();
+			$settings = WPMAR_Settings::get_all();
+
+			WPMAR_Logger::step( 'gather:start' );
 			$data_collector = new WPMAR_Data_Collector();
 			$dataset        = $data_collector->gather();
+			WPMAR_Logger::step( 'gather:done', array( 'mem' => size_format( memory_get_usage( true ) ) ) );
 
 			// Hostname mismatch keeps staging installs from overwriting production snapshots.
 			$domain_gate_ok = WPMAR_Domain_Gate::is_allowed( $settings );
@@ -79,6 +84,7 @@ class WPMAR_Runner {
 			$display_names = self::build_display_name_maps( $dataset );
 
 			list( $changelog_counts, $changelog_md, $changelog_md_client ) = $this->difference_summary( $prior_snap, $pairs, $display_names );
+			WPMAR_Logger::step( 'diff:done', array( 'changes' => absint( $changelog_counts ) ) );
 
 			if ( ! $domain_gate_ok ) {
 				$pairs = array(); // Prevent polluting snapshots from unauthorised hosts.
@@ -95,12 +101,14 @@ class WPMAR_Runner {
 					$snapshot_repo->save( $type, $canonical );
 					$snapshot_repo->prune_keep( $type, 2 );
 				}
+				WPMAR_Logger::step( 'persist-snapshots:done' );
 			}
 
 			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 			$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
 			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+			WPMAR_Logger::step( 'render:done' );
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
 				// Uploaded Markdown mirrors the verbose admin-facing email payload.
@@ -116,6 +124,7 @@ class WPMAR_Runner {
 				if ( ! is_wp_error( $file_result ) && is_string( $file_result ) ) {
 					$md_relative = $file_result;
 				}
+				WPMAR_Logger::step( 'md-write:done' );
 			}
 
 			$status_flag = $domain_gate_ok ? 'success' : 'skipped_domain';
@@ -143,6 +152,7 @@ class WPMAR_Runner {
 			// Mail intentionally precedes INSERT so mail_sent captures the factual dispatch result.
 			$mail_sent_flag = 0;
 			if ( $domain_gate_ok && ! empty( $settings['mail']['enabled'] ) ) {
+				WPMAR_Logger::step( 'mail:start' );
 				$mail_sent_flag = WPMAR_Notifier_Mail::send_pair(
 					$settings,
 					$client_body,
@@ -152,6 +162,7 @@ class WPMAR_Runner {
 				)
 					? 1
 					: 0;
+				WPMAR_Logger::step( 'mail:done', array( 'sent' => (bool) $mail_sent_flag ) );
 			}
 
 			$row_id = $report_repo->insert(
@@ -168,6 +179,7 @@ class WPMAR_Runner {
 					'md_file_path'   => $md_relative,
 				)
 			);
+			WPMAR_Logger::step( 'report-insert:done', array( 'report_id' => (int) $row_id ) );
 
 			if ( $domain_gate_ok && null !== $row_id ) {
 				WPMAR_Notification_Dispatcher::dispatch(
@@ -181,9 +193,11 @@ class WPMAR_Runner {
 						'home_url'       => home_url(),
 					)
 				);
+				WPMAR_Logger::step( 'notify:done' );
 			}
 
 			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
+				WPMAR_Logger::step( 'pdf:start' );
 				$domain_slug_pdf = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 				if ( '' === $domain_slug_pdf ) {
 					$domain_slug_pdf = 'site';
@@ -199,15 +213,19 @@ class WPMAR_Runner {
 				if ( ! is_wp_error( $pdf_rel ) && is_string( $pdf_rel ) && '' !== $pdf_rel ) {
 					$report_repo->update_pdf_file_path( (int) $row_id, $pdf_rel );
 				}
+				WPMAR_Logger::step( 'pdf:done' );
 			}
 
 			$retention_months = isset( $settings['retention']['months'] ) ? absint( $settings['retention']['months'] ) : 12;
 			if ( $retention_months > 0 && null !== $row_id ) {
 				$report_repo->purge_older_than_months( $retention_months );
 			}
+			WPMAR_Logger::purge_keep_latest();
+			WPMAR_Logger::step( 'retention:done' );
 
 			// Monthly single-event chaining is recalculated after every concrete run.
 			WPMAR_Scheduler::reschedule();
+			WPMAR_Logger::step( 'reschedule:done' );
 
 			update_option( 'wpmar_last_audit_completed_at', gmdate( 'c' ), false );
 
@@ -248,8 +266,10 @@ class WPMAR_Runner {
 			$settings = $exec['gate_settings'];
 		}
 
+		WPMAR_Logger::step( "site:{$blog_id}:gather:start" );
 		$data_collector = new WPMAR_Data_Collector();
 		$dataset        = $data_collector->gather();
+		WPMAR_Logger::step( "site:{$blog_id}:gather:done" );
 
 		$domain_gate_ok = WPMAR_Domain_Gate::is_allowed( $settings );
 		$pairs          = $this->canonical_snapshots_from_report( $dataset );
@@ -263,6 +283,7 @@ class WPMAR_Runner {
 		$display_names = self::build_display_name_maps( $dataset );
 
 		list( $changelog_counts, $changelog_md, $changelog_md_client ) = $this->difference_summary( $prior_snap, $pairs, $display_names );
+		WPMAR_Logger::step( "site:{$blog_id}:diff:done", array( 'changes' => absint( $changelog_counts ) ) );
 
 		if ( ! $domain_gate_ok ) {
 			$pairs = array();
@@ -273,12 +294,14 @@ class WPMAR_Runner {
 				$snapshot_repo->save( $type, $canonical );
 				$snapshot_repo->prune_keep( $type, 2 );
 			}
+			WPMAR_Logger::step( "site:{$blog_id}:persist-snapshots:done" );
 		}
 
 		$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 		$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
 		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+		WPMAR_Logger::step( "site:{$blog_id}:render:done" );
 
 		return array(
 			'blog_id'          => (int) $blog_id,
@@ -404,8 +427,10 @@ class WPMAR_Runner {
 
 		WPMAR_CLI_Environment::maybe_capture();
 
+		WPMAR_Logger::step( 'gather:start' );
 		$collector = new WPMAR_Data_Collector();
 		$facts     = $collector->gather();
+		WPMAR_Logger::step( 'gather:done' );
 
 		$tz           = wp_timezone();
 		$brevity_data = array(

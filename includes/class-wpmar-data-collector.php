@@ -50,6 +50,7 @@ class WPMAR_Data_Collector {
 		wp_version_check( array(), true );
 		wp_update_plugins();
 		wp_update_themes();
+		WPMAR_Logger::step( 'gather:core-updates' );
 
 		$dataset = array(
 			'meta'    => array(
@@ -68,16 +69,27 @@ class WPMAR_Data_Collector {
 			'users'   => $this->gather_publishers(),
 			'server'  => $this->gather_server_intel(),
 		);
+		WPMAR_Logger::step(
+			'gather:inventory-done',
+			array(
+				'themes'  => count( $dataset['themes']['inventory'] ?? array() ),
+				'plugins' => count( $dataset['plugins']['inventory'] ?? array() ),
+			)
+		);
 
 		$dataset['plugins_outdated'] = $this->build_plugins_outdated_alerts( $dataset['plugins'] );
 
 		$settings = WPMAR_Settings::get_all();
 		$checksum = new WPMAR_Check_Checksums();
 
+		WPMAR_Logger::step( 'gather:checksums:start' );
 		$dataset['checksums'] = $checksum->collect( $settings, $dataset );
+		WPMAR_Logger::step( 'gather:checksums:done', array( 'mem' => size_format( memory_get_usage( true ) ) ) );
 
-		$security            = new WPMAR_Check_Security_Ops();
+		$security = new WPMAR_Check_Security_Ops();
+		WPMAR_Logger::step( 'gather:security-ops:start' );
 		$dataset['security'] = $security->collect( $settings );
+		WPMAR_Logger::step( 'gather:security-ops:done' );
 
 		$dataset['backup'] = $this->gather_backup_providers( $settings );
 
@@ -91,8 +103,10 @@ class WPMAR_Data_Collector {
 		);
 
 		if ( self::performance_db_size_enabled( $performance_settings ) ) {
+			WPMAR_Logger::step( 'gather:performance:start' );
 			$probe                  = new WPMAR_Check_Performance();
 			$dataset['performance'] = $probe->collect( $performance_settings );
+			WPMAR_Logger::step( 'gather:performance:done' );
 		} else {
 			$dataset['performance'] = array();
 		}
