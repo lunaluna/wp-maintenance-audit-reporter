@@ -243,6 +243,29 @@ class WPMAR_Jobs_Repository {
 	}
 
 	/**
+	 * Lists the most recent jobs that have an associated log file.
+	 *
+	 * Backs the Diagnostics section on the reports screen.
+	 *
+	 * @param int $limit Maximum rows to return.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function find_recent_with_log( $limit = 20 ) {
+		$limit = max( 1, min( 100, absint( $limit ) ) );
+
+		$rows = $this->db->get_results(
+			$this->db->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
+				"SELECT id, status, scope, step, log_path, created_at, updated_at FROM `{$this->table}` WHERE log_path IS NOT NULL AND log_path != '' ORDER BY created_at DESC LIMIT %d",
+				$limit
+			),
+			ARRAY_A
+		);
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
 	 * Counts persisted jobs.
 	 *
 	 * @return int

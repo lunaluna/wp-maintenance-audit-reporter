@@ -28,6 +28,7 @@ class WPMAR_Admin_Menu {
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_report_download' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_bulk_zip' ), 0 );
+		add_action( 'admin_init', array( 'WPMAR_Log_Viewer', 'maybe_stream_log_download' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'handle_get_actions' ), 1 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'strip_legacy_notice_query_arg' ), 2 );
 		add_action( 'admin_init', array( __CLASS__, 'handle_post' ) );
