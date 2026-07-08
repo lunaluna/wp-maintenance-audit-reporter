@@ -169,8 +169,8 @@ class WPMAR_Logger {
 			return;
 		}
 
-		$error = error_get_last();
-		$fatal_types = array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR );
+		$error       = error_get_last();
+		$fatal_types = array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR, E_USER_ERROR );
 
 		if ( is_array( $error ) && in_array( $error['type'], $fatal_types, true ) ) {
 			self::log(
