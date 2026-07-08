@@ -109,6 +109,12 @@ class WPMAR_Job_Dispatcher {
 		}
 		$scope = isset( $job['scope'] ) ? (string) $job['scope'] : 'single';
 
+		$log_relative = WPMAR_Logger::begin_job( $job_id );
+		if ( '' !== $log_relative ) {
+			$repo->set_log_path( $job_id, $log_relative );
+		}
+		WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'scope: ' . $scope );
+
 		try {
 			if ( 'network' === $scope ) {
 				$runner = new WPMAR_Network_Runner();
@@ -119,13 +125,17 @@ class WPMAR_Job_Dispatcher {
 			}
 
 			$repo->mark_done( $job_id, is_array( $result ) ? $result : array() );
+			WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'job succeeded' );
 		} catch ( Throwable $e ) {
 			$repo->mark_failed( $job_id, $e->getMessage() );
+			WPMAR_Logger::log( WPMAR_Logger::LEVEL_ERROR, 'job failed: ' . $e->getMessage() );
 
 			if ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) ) {
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- opt-in logging under WP_DEBUG / WP_DEBUG_LOG.
 				error_log( 'WPMAR async audit job ' . $job_id . ' failed: ' . $e->getMessage() );
 			}
+		} finally {
+			WPMAR_Logger::end_job();
 		}
 	}
 }
