@@ -74,7 +74,13 @@ class WPMAR_Jobs_REST {
 		$id = WPMAR_Jobs_Repository::sanitize_id( (string) $request['id'] );
 
 		$repo = new WPMAR_Jobs_Repository();
-		$job  = $repo->find( $id );
+
+		// Opportunistic backstop: a job killed hard enough that no catch/finally or
+		// shutdown handler ever ran (SIGKILL, OOM killer) would otherwise sit as
+		// `running` forever. Only costs a query when someone is actively polling.
+		$repo->sweep_stale_running();
+
+		$job = $repo->find( $id );
 
 		if ( null === $job ) {
 			return new WP_Error(
@@ -84,16 +90,19 @@ class WPMAR_Jobs_REST {
 			);
 		}
 
-		$status = isset( $job['status'] ) ? (string) $job['status'] : '';
-		$scope  = isset( $job['scope'] ) ? (string) $job['scope'] : 'single';
+		$status   = isset( $job['status'] ) ? (string) $job['status'] : '';
+		$scope    = isset( $job['scope'] ) ? (string) $job['scope'] : 'single';
+		$log_path = isset( $job['log_path'] ) ? (string) $job['log_path'] : '';
 
 		$payload = array(
-			'id'         => $id,
-			'status'     => $status,
-			'scope'      => $scope,
-			'error'      => isset( $job['error'] ) ? (string) $job['error'] : '',
-			'updated_at' => isset( $job['updated_at'] ) ? (string) $job['updated_at'] : '',
-			'result'     => null,
+			'id'               => $id,
+			'status'           => $status,
+			'scope'            => $scope,
+			'step'             => isset( $job['step'] ) ? (string) $job['step'] : '',
+			'error'            => isset( $job['error'] ) ? (string) $job['error'] : '',
+			'updated_at'       => isset( $job['updated_at'] ) ? (string) $job['updated_at'] : '',
+			'log_download_url' => '' !== $log_path ? self::log_download_url( $id ) : '',
+			'result'           => null,
 		);
 
 		if ( WPMAR_Jobs_Repository::STATUS_DONE === $status ) {
@@ -102,6 +111,26 @@ class WPMAR_Jobs_REST {
 		}
 
 		return new WP_REST_Response( $payload, 200 );
+	}
+
+	/**
+	 * Builds a nonce-signed admin download URL for a job's log file.
+	 *
+	 * Matches the query-arg contract expected by
+	 * {@see WPMAR_Log_Viewer::maybe_stream_log_download()}.
+	 *
+	 * @param string $job_id Job id.
+	 * @return string
+	 */
+	public static function log_download_url( $job_id ) {
+		return add_query_arg(
+			array(
+				'page'      => WPMAR_REPORTS_PAGE_SLUG,
+				'wpmar_log' => $job_id,
+				'_wpnonce'  => wp_create_nonce( 'wpmar_dl_log_' . $job_id ),
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	/**

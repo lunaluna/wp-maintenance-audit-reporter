@@ -103,6 +103,8 @@ class WPMAR_Admin_Menu {
 			'linkMd'          => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
 			'linkPdf'         => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
 			'linkClient'      => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'stepLabel'       => __( '現在のステップ', 'wp-maintenance-audit-reporter' ),
+			'linkLog'         => __( '動作ログをダウンロード', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 
@@ -165,6 +167,7 @@ class WPMAR_Admin_Menu {
 				<span class="wpmar-spinner" data-wpmar-job-spinner aria-hidden="true"></span>
 				<span data-wpmar-job-message><?php esc_html_e( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ); ?></span>
 			</p>
+			<p class="wpmar-job-step" data-wpmar-job-step hidden></p>
 			<ul class="wpmar-job-links" data-wpmar-job-links hidden></ul>
 			<pre class="wpmar-dry-run-summary" data-wpmar-job-preview hidden></pre>
 		</div>
