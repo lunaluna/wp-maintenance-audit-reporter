@@ -163,6 +163,8 @@ class WPMAR_Activator {
 	id varchar(40) NOT NULL,
 	status varchar(20) NOT NULL default 'queued',
 	scope varchar(20) NOT NULL default 'single',
+	step varchar(100) NOT NULL default '',
+	log_path varchar(255) NULL,
 	args_json longtext NULL,
 	result_json longtext NULL,
 	error text NULL,

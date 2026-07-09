@@ -69,33 +69,39 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 			WP_CLI::error( 'Async job queue is not yet implemented. Pass --sync to run synchronously.' );
 		}
 
-		if ( $network ) {
-			if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
-				WP_CLI::error( 'Multisite is not enabled on this installation.' );
-			}
-			if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
-				WP_CLI::error( 'Network rollup audit is disabled (enable it under Network Admin → Maintenance Audit).' );
-			}
+		WPMAR_Logger::begin_job( 'cli-' . uniqid() );
 
-			$runner = new WPMAR_Network_Runner();
-			$result = $runner->run(
-				array(
-					'dry'               => ! empty( $dry ),
-					'triggered_by'      => 'cli_network',
-					'persist_snapshots' => ! $no_snapshot,
-				)
-			);
-		} else {
-			$runner = new WPMAR_Runner();
-			$result = $runner->run(
-				array(
-					'dry'               => ! empty( $dry ),
-					'triggered_by'      => 'cli',
-					'capture_cli'       => true,
-					'mail_override'     => '',
-					'persist_snapshots' => ! $no_snapshot,
-				)
-			);
+		try {
+			if ( $network ) {
+				if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
+					WP_CLI::error( 'Multisite is not enabled on this installation.' );
+				}
+				if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
+					WP_CLI::error( 'Network rollup audit is disabled (enable it under Network Admin → Maintenance Audit).' );
+				}
+
+				$runner = new WPMAR_Network_Runner();
+				$result = $runner->run(
+					array(
+						'dry'               => ! empty( $dry ),
+						'triggered_by'      => 'cli_network',
+						'persist_snapshots' => ! $no_snapshot,
+					)
+				);
+			} else {
+				$runner = new WPMAR_Runner();
+				$result = $runner->run(
+					array(
+						'dry'               => ! empty( $dry ),
+						'triggered_by'      => 'cli',
+						'capture_cli'       => true,
+						'mail_override'     => '',
+						'persist_snapshots' => ! $no_snapshot,
+					)
+				);
+			}
+		} finally {
+			WPMAR_Logger::end_job();
 		}
 
 		// Echo structured JSON because operators often pipe CLI output downstream.

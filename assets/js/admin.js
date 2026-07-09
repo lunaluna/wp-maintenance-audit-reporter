@@ -207,7 +207,28 @@
 		const spinnerEl = panel.querySelector('[data-wpmar-job-spinner]');
 		const linksEl = panel.querySelector('[data-wpmar-job-links]');
 		const previewEl = panel.querySelector('[data-wpmar-job-preview]');
+		const stepEl = panel.querySelector('[data-wpmar-job-step]');
 		const flashEl = document.querySelector('[data-wpmar-job-flash]');
+
+		function setStep(step, updatedAt) {
+			if (!stepEl) {
+				return;
+			}
+			if (!step) {
+				stepEl.hidden = true;
+				return;
+			}
+			let text = (cfg.stepLabel || '') + ': ' + step;
+			if (updatedAt) {
+				const updatedMs = Date.parse(updatedAt + 'Z');
+				if (!isNaN(updatedMs)) {
+					const ageSec = Math.max(0, Math.round((Date.now() - updatedMs) / 1000));
+					text += ' (' + ageSec + 's)';
+				}
+			}
+			stepEl.textContent = text;
+			stepEl.hidden = false;
+		}
 
 		function setFlash(text, isError) {
 			if (!flashEl || !text) {
@@ -305,6 +326,12 @@
 			setMessage((cfg.pollFailed || '') + detail);
 			setFlash((cfg.pollFailed || '') + detail, true);
 			panel.classList.add('wpmar-job-panel--failed');
+			if (data && data.log_download_url) {
+				addLink(data.log_download_url, cfg.linkLog || 'Log');
+				if (linksEl) {
+					linksEl.hidden = false;
+				}
+			}
 		}
 
 		function tick() {
@@ -326,6 +353,11 @@
 				})
 				.then(function (data) {
 					const status = data && data.status ? data.status : '';
+
+					setStep(
+						data && data.step ? data.step : '',
+						data && data.updated_at ? data.updated_at : ''
+					);
 
 					if (status === 'queued') {
 						setMessage(cfg.pollQueued || '');

@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.0.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.1.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -16,6 +16,7 @@ Generates monthly maintenance reports automatically and delivers them by mail, M
 - **Two mail streams** — client-facing (HTML with plaintext alternative) and administrator-facing (structured plaintext)
 - **Markdown / PDF output** — administrator-facing Markdown and client-facing PDF (mPDF + Noto Sans JP; library installed on demand from the settings page)
 - **Reports admin** — list, detail preview, downloads, ZIP bulk export, retention-based cleanup
+- **Diagnostics logging** — per-job step log for audit runs, a Reports-screen log viewer with download, and automatic recovery of jobs stuck by a killed process, so a stalled run can be traced to its last completed step
 - **Multisite** — network rollup audits (visits all target sites, stores merged reports on the main site)
 - **WP-CLI** — run audits and export reports from the command line
 - **GitHub Releases updater** — one-click dashboard updates without WordPress.org listing
@@ -111,6 +112,8 @@ Installing (both download and manual upload) requires the `install_plugins` capa
 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
 
+A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time) with a tail preview and a download link — useful when a run stalls or fails and you need to see exactly where it stopped.
+
 ### Network admin (multisite)
 
 Network-activate the plugin, then configure rollup audits under **Network Admin → Maintenance Audit**. All target sites are visited and one client-facing plus one administrator-facing merged report is stored on the main site, with a single mail dispatch. Settings mirror the single-site screen, plus site filters (max sites, excluded blog IDs) and a run-scope selector (all target sites / main site only / a specific site).
@@ -200,6 +203,7 @@ wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.1.0** (2026-07-09) — Added diagnostics logging for audit runs: an unbuffered per-job step log that survives a stalled/killed process, automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.
 - **v1.0.0** (2026-07-05) — First stable release. No functional changes since 1.0.0-RC14. Tested up to WordPress 7.0.1.
 
 ## Git Management

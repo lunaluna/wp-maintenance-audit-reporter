@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,7 @@ Generates monthly maintenance reports automatically and delivers them by mail, M
 * **Two mail streams** — client-facing (HTML with plaintext alternative) and administrator-facing (structured plaintext).
 * **Markdown / PDF output** — administrator-facing Markdown and client-facing PDF (mPDF + Noto Sans JP; library installed on demand from the settings page).
 * **Reports admin** — list, detail preview, downloads, ZIP bulk export, retention-based cleanup.
+* **Diagnostics logging** — per-job step log for audit runs, a Reports-screen log viewer with download, and automatic recovery of jobs stuck by a killed process, so a stalled run can be traced to its last completed step.
 * **Multisite** — network rollup audits (visits all target sites, stores merged reports on the main site).
 * **WP-CLI** — run audits and export reports from the command line.
 * **GitHub Releases updater** — one-click dashboard updates without WordPress.org listing.
@@ -110,6 +111,8 @@ Optional checksum pinning: each release ships a `vendor-pdf.zip.sha256`. Set tha
 = レポート (Reports) screen =
 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
+
+A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time), a tail preview, and a download link — useful when a run stalls or fails and you need to see exactly where it stopped.
 
 = Network admin (multisite) =
 
@@ -216,6 +219,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.1.0 =
+* Added diagnostics logging for audit runs: an unbuffered per-job step log (survives a stalled/killed process), automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.
+* See CHANGELOG.md for full details.
 
 = 1.0.0 =
 * First stable release. Promoted from the 1.0.0-RC series with no functional changes to the audit/report feature set. Tested up to WordPress 7.0.1.

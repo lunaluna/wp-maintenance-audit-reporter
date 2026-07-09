@@ -28,6 +28,7 @@ class WPMAR_Admin_Menu {
 		add_action( 'admin_menu', array( __CLASS__, 'register_page' ) );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_report_download' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'maybe_stream_bulk_zip' ), 0 );
+		add_action( 'admin_init', array( 'WPMAR_Log_Viewer', 'maybe_stream_log_download' ), 0 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'handle_get_actions' ), 1 );
 		add_action( 'admin_init', array( 'WPMAR_Reports_Page', 'strip_legacy_notice_query_arg' ), 2 );
 		add_action( 'admin_init', array( __CLASS__, 'handle_post' ) );
@@ -103,6 +104,8 @@ class WPMAR_Admin_Menu {
 			'linkMd'          => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
 			'linkPdf'         => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
 			'linkClient'      => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'stepLabel'       => __( '現在のステップ', 'wp-maintenance-audit-reporter' ),
+			'linkLog'         => __( '動作ログをダウンロード', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 
@@ -165,6 +168,7 @@ class WPMAR_Admin_Menu {
 				<span class="wpmar-spinner" data-wpmar-job-spinner aria-hidden="true"></span>
 				<span data-wpmar-job-message><?php esc_html_e( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ); ?></span>
 			</p>
+			<p class="wpmar-job-step" data-wpmar-job-step hidden></p>
 			<ul class="wpmar-job-links" data-wpmar-job-links hidden></ul>
 			<pre class="wpmar-dry-run-summary" data-wpmar-job-preview hidden></pre>
 		</div>
