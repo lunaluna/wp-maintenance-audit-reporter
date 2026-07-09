@@ -238,6 +238,7 @@ If you manage this plugin in a project under Git version control, it is recommen
 
 = 1.1.1 =
 * Changed: the report's user-information section (【ユーザー情報】) is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table. Applies to both the client and operator report bodies.
+* Documentation: added a diagnostics-log usage guide (reading step logs, retrieving them for support) to the Usage section.
 * See CHANGELOG.md for full details.
 
 = 1.1.0 =
