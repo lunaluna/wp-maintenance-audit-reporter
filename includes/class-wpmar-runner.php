@@ -1025,7 +1025,7 @@ class WPMAR_Runner {
 	}
 
 	/**
-	 * `# 【ユーザー情報】` block: privileged publishers, TSV (shell-style).
+	 * `# 【ユーザー情報】` block: privileged publishers, Markdown pipe table.
 	 *
 	 * @param array<string,mixed> $facts Full gather envelope.
 	 * @return string
@@ -1043,24 +1043,53 @@ class WPMAR_Runner {
 			return $body;
 		}
 
+		$body .= self::render_users_markdown_table( $users );
+		$body .= "\n";
+
+		return $body;
+	}
+
+	/**
+	 * Privileged-user rows as a GFM pipe table (Parsedown renders it, the PDF
+	 * stylesheet already borders `table/th/td`).
+	 *
+	 * @param array<int,mixed> $users Rows from the gather envelope's `users` list.
+	 * @return string
+	 */
+	protected static function render_users_markdown_table( array $users ) {
+		$headers = array(
+			__( 'ID', 'wp-maintenance-audit-reporter' ),
+			__( 'ユーザー名', 'wp-maintenance-audit-reporter' ),
+			__( '表示名', 'wp-maintenance-audit-reporter' ),
+			__( 'メールアドレス', 'wp-maintenance-audit-reporter' ),
+			__( '権限', 'wp-maintenance-audit-reporter' ),
+			__( '登録日', 'wp-maintenance-audit-reporter' ),
+		);
+
+		// A literal `|` in a cell (display names are free text) would end the cell.
+		$escape = static function ( $value ) {
+			return str_replace( '|', '\\|', (string) $value );
+		};
+
+		$table  = '| ' . implode( ' | ', array_map( $escape, $headers ) ) . " |\n";
+		$table .= '| --- | --- | --- | --- | --- | --- |' . "\n";
+
 		foreach ( $users as $row ) {
 			if ( ! is_array( $row ) ) {
 				continue;
 			}
-			$body .= sprintf(
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
+			$cells  = array(
 				sanitize_text_field( (string) ( $row['id'] ?? '' ) ),
 				sanitize_text_field( (string) ( $row['login'] ?? '' ) ),
 				sanitize_text_field( (string) ( $row['display_name'] ?? '' ) ),
 				sanitize_email( (string) ( $row['email'] ?? '' ) ),
 				sanitize_text_field( (string) ( $row['roles'] ?? '' ) ),
-				sanitize_text_field( (string) ( $row['registered'] ?? '' ) )
+				sanitize_text_field( (string) ( $row['registered'] ?? '' ) ),
 			);
+			$table .= '| ' . implode( ' | ', array_map( $escape, $cells ) ) . " |\n";
 		}
 
-		$body .= "\n";
-
-		return $body;
+		return $table;
 	}
 
 	/**
@@ -1968,7 +1997,7 @@ class WPMAR_Runner {
 	}
 
 	/**
-	 * # 【ユーザー情報】 — TSV block（クライアント向けと同様）.
+	 * # 【ユーザー情報】 — Markdown pipe table（クライアント向けと同様）.
 	 *
 	 * @param array<string,mixed> $facts Dataset.
 	 * @return string
@@ -1984,20 +2013,7 @@ class WPMAR_Runner {
 			return $body . __( '（該当ユーザーがいません。）', 'wp-maintenance-audit-reporter' );
 		}
 
-		foreach ( $users as $row ) {
-			if ( ! is_array( $row ) ) {
-				continue;
-			}
-			$body .= sprintf(
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
-				sanitize_text_field( (string) ( $row['id'] ?? '' ) ),
-				sanitize_text_field( (string) ( $row['login'] ?? '' ) ),
-				sanitize_text_field( (string) ( $row['display_name'] ?? '' ) ),
-				sanitize_email( (string) ( $row['email'] ?? '' ) ),
-				sanitize_text_field( (string) ( $row['roles'] ?? '' ) ),
-				sanitize_text_field( (string) ( $row['registered'] ?? '' ) )
-			);
-		}
+		$body .= self::render_users_markdown_table( $users );
 
 		return rtrim( $body );
 	}
