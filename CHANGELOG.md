@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documentation
-
-- **README 4種に診断ログ（動作ログ）の使い方を追記** — 「今すぐ実行」パネルのステップ表示・失敗時のログDLリンクの説明、およびログ行フォーマット・ステップの流れ・「最後の行が停止箇所」という読み方・ログの取得方法（DL手順・保存場所・保持件数20件・25分無応答ジョブの自動失敗化）を README.md / README-ja.md / readme.txt / readme-ja.txt の使い方セクションに追加。コード変更なし。
+_No pending notes._
 
 ## [1.1.1] - 2026-07-09
 
 ### Changed
 
 - **Report user-information section rendered as a table** — The 【ユーザー情報】 section listed privileged users as tab-separated lines, which the client PDF (Markdown → Parsedown → mPDF) collapsed into hard-to-read unaligned text. Both the client and operator report bodies now emit the list as a GFM pipe table (ID / ユーザー名 / 表示名 / メールアドレス / 権限 / 登録日), which the existing PDF stylesheet renders as a bordered table. Literal `|` characters in user fields are escaped so free-text display names cannot break the table layout. No data collection or PDF-writer changes.
+
+### Documentation
+
+- **README 4種に診断ログ（動作ログ）の使い方を追記** — 「今すぐ実行」パネルのステップ表示・失敗時のログDLリンクの説明、およびログ行フォーマット・ステップの流れ・「最後の行が停止箇所」という読み方・ログの取得方法（DL手順・保存場所・保持件数20件・25分無応答ジョブの自動失敗化）を README.md / README-ja.md / readme.txt / readme-ja.txt の使い方セクションに追加。コード変更なし。
 
 ## [1.1.0] - 2026-07-09
 
