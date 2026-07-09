@@ -106,7 +106,7 @@ Optional checksum pinning: each release ships a `vendor-pdf.zip.sha256`. Set tha
 * **スナップショットを保存する（差分比較用）** — only checked manual runs update the snapshot rows; unchecked manual runs produce the report only. Scheduled (WP-Cron) runs always persist snapshots. Deltas are always computed as "stored snapshot vs this run's collection".
 * **変更を保存** — saves settings.
 * **ドライラン** — collects data only and shows a summary; no snapshot, mail, or file output.
-* **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed), then render preview/download links.
+* **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed); while running, the panel also shows the current step (e.g. `gather:checksums:start`) and seconds since the last update. On completion it renders preview/download links; on failure it shows a "動作ログをダウンロード" (download log) link — see "診断ログ（動作ログ）" below.
 
 = レポート (Reports) screen =
 
