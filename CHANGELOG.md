@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.1.0] - 2026-07-09
+
+### Added
+
+- **Diagnostics: per-job step logging** — Audit runs now write an unbuffered, per-job log (`wp-content/uploads/wpmar/logs/`, one line flushed per phase) so a run that stalls or dies mid-execution (OOM, host timeout) can be diagnosed from its last recorded step instead of leaving no trace. Covers the async job dispatcher, the full run pipeline (gather/diff/persist/render/mail/PDF/retention), the slowest sub-phases (checksums, security ops), multisite per-site segments, and the synchronous `wp wpmar audit run --sync` CLI path. A shutdown handler captures fatal errors (including `E_USER_ERROR`) that bypass the normal try/catch, logging the failure and releasing the run lock. Log files are capacity-limited to the 20 most recent runs.
+- **Diagnostics: stale-job auto-recovery** — A job stuck in `running` because its process was killed hard enough that no handler ever ran (e.g. `SIGKILL`, OOM killer) is now automatically flipped to `failed` once its heartbeat goes stale (25+ minutes), checked opportunistically whenever the job-status REST endpoint or Reports screen is accessed. The `{prefix}wpmar_jobs` table gains `step` and `log_path` columns.
+- **Reports screen — 診断ログ (Diagnostics) section** — Lists recent jobs that have a log file (status, last step, updated time) with an on-screen tail preview (last ~200 lines) and a capability + per-job-nonce-gated download link. The job-status polling panel (settings screen) now also shows the current step and, on failure, a log download link.
+
 ## [1.0.0] - 2026-07-05
 
 First stable release. Promoted from the `1.0.0-RC` series with no functional changes to the audit/report feature set (scheduled auditing, multisite rollup, checksums, security ops, mail/PDF/CLI output, report storage, GitHub Releases updater). Tested up to WordPress 7.0.1. This release also lands the security hardening below.
