@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.1.1] - 2026-07-09
+
+### Changed
+
+- **Report user-information section rendered as a table** — The 【ユーザー情報】 section listed privileged users as tab-separated lines, which the client PDF (Markdown → Parsedown → mPDF) collapsed into hard-to-read unaligned text. Both the client and operator report bodies now emit the list as a GFM pipe table (ID / ユーザー名 / 表示名 / メールアドレス / 権限 / 登録日), which the existing PDF stylesheet renders as a bordered table. Literal `|` characters in user fields are escaped so free-text display names cannot break the table layout. No data collection or PDF-writer changes.
+
 ## [1.1.0] - 2026-07-09
 
 ### Added

@@ -2,7 +2,7 @@
 	"name": "lunaluna/wp-maintenance-audit-reporter",
 	"description": "WP Maintenance Audit Reporter WordPress plugin (development scaffolding).",
 	"type": "wordpress-plugin",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"license": "GPL-2.0-or-later",
 	"require": {
 		"php": ">=7.4",

@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.1.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.1.1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -203,6 +203,7 @@ wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.1.1** (2026-07-09) — The report's user-information section is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table. Applies to both the client and operator report bodies.
 - **v1.1.0** (2026-07-09) — Added diagnostics logging for audit runs: an unbuffered per-job step log that survives a stalled/killed process, automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.
 - **v1.0.0** (2026-07-05) — First stable release. No functional changes since 1.0.0-RC14. Tested up to WordPress 7.0.1.
 
