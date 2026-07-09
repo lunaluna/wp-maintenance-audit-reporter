@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -219,6 +219,10 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.1.1 =
+* 変更：レポートの「ユーザー情報」セクションをタブ区切りテキストから Markdown テーブルに変更し、クライアント向け PDF で罫線付きテーブルとして表示されるようにしました。クライアント向け・管理者向け両方のレポート本文に適用されます。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.1.0 =
 * 監査実行の動作ログ（診断）機能を追加。プロセスが強制終了しても直前まで残る、ジョブごとのステップログ、強制終了されたジョブの自動復旧、レポート画面でのログビューアとnonce保護ダウンロードに対応。

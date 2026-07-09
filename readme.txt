@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -219,6 +219,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.1.1 =
+* Changed: the report's user-information section (【ユーザー情報】) is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table. Applies to both the client and operator report bodies.
+* See CHANGELOG.md for full details.
 
 = 1.1.0 =
 * Added diagnostics logging for audit runs: an unbuffered per-job step log (survives a stalled/killed process), automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.
