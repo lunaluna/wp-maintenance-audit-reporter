@@ -112,7 +112,34 @@ Installing (both download and manual upload) requires the `install_plugins` capa
 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
 
-A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time) with a tail preview and a download link — useful when a run stalls or fails and you need to see exactly where it stopped.
+A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time) with a tail preview and a download link — useful when a run stalls or fails and you need to see exactly where it stopped (see "診断ログ（動作ログ）" / Diagnostics below).
+
+### 診断ログ (Diagnostics)
+
+While an audit runs, one line is written per processing phase (step). Even if the process is killed abruptly (host OOM, execution timeout), everything up to the last completed step survives — so a stalled run can be traced to where it stopped.
+
+#### Reading the log
+
+Each line looks like this (a real example):
+
+```text
+[2026-07-09T00:51:19+00:00] [INFO] [job:cli-6a4ef05f3baf2] step: gather:checksums:start
+```
+
+Timestamp (UTC) · level (`INFO`/`ERROR`) · job id · what happened. A normal run walks through these steps in order:
+
+`lock:acquired` → `gather:start` → `gather:core-updates` → `gather:inventory-done` → `gather:checksums:start` → `gather:checksums:done` → `gather:security-ops:start` → `gather:security-ops:done` → `gather:done` → `diff:done` → `persist-snapshots:done` → `render:done` → `md-write:done` → (if mail enabled) `mail:start` → `mail:done` → `report-insert:done` → `notify:done` → (if PDF enabled) `pdf:start` → `pdf:done` → `retention:done` → `reschedule:done` → `job ended`
+
+**If a run stalls, the last line in the log is the last thing it completed.** For example, if the log ends at `gather:checksums:start`, the run stopped during checksum verification. A fatal error additionally logs an `[ERROR] FATAL: ...` line. Even if the process was killed hard enough (`SIGKILL`, OOM killer) that nothing could be written at all, a job with no update for ~25 minutes is automatically flipped to "failed" with "ハートビート途絶" (heartbeat lost) as the error.
+
+#### Getting the log (e.g. for a support request)
+
+- The **Reports screen**'s 診断ログ section lists recent jobs that have a log; "表示" (view) shows the tail (last ~200 lines) inline, "ダウンロード" (download) fetches the file.
+- The running/failed job panel (Settings & Run screen) also shows a "動作ログをダウンロード" (download log) link on failure.
+- Both are protected by the `manage_options` capability and a per-job nonce, so it's safe to hand the log file to a support request as-is — secrets such as mail passwords are never written to it.
+- A synchronous WP-CLI run (`wp wpmar audit run --sync`) also produces a log (job id starting with `cli-`), but it won't appear in the admin job list — check `wp-content/uploads/wpmar/logs/` directly on the server.
+
+Log files live under `wp-content/uploads/wpmar/logs/` (filenames carry an unguessable random token and the directory is `.htaccess`-protected against direct access). Only the 20 most recent runs are kept — older ones are pruned automatically after each run — and the whole directory is removed on uninstall.
 
 ### Network admin (multisite)
 

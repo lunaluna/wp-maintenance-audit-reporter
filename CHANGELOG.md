@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No pending notes._
+### Documentation
+
+- **README 4種に診断ログ（動作ログ）の使い方を追記** — 「今すぐ実行」パネルのステップ表示・失敗時のログDLリンクの説明、およびログ行フォーマット・ステップの流れ・「最後の行が停止箇所」という読み方・ログの取得方法（DL手順・保存場所・保持件数20件・25分無応答ジョブの自動失敗化）を README.md / README-ja.md / readme.txt / readme-ja.txt の使い方セクションに追加。コード変更なし。
 
 ## [1.1.1] - 2026-07-09
 
