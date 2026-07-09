@@ -45,7 +45,7 @@ class WPMAR_Log_Viewer {
 			wp_die( esc_html__( '権限がありません。', 'wp-maintenance-audit-reporter' ) );
 		}
 
-		$job_id = WPMAR_Jobs_Repository::sanitize_id( wp_unslash( (string) $_GET['wpmar_log'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$job_id = WPMAR_Jobs_Repository::sanitize_id( sanitize_text_field( wp_unslash( (string) $_GET['wpmar_log'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( '' === $job_id ) {
 			wp_die( esc_html__( 'ジョブ ID が無効です。', 'wp-maintenance-audit-reporter' ) );
@@ -97,7 +97,7 @@ class WPMAR_Log_Viewer {
 		$jobs = $repo->find_recent_with_log( 20 );
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view selector, no state change.
-		$selected_id = isset( $_GET['wpmar_log_view'] ) ? WPMAR_Jobs_Repository::sanitize_id( wp_unslash( (string) $_GET['wpmar_log_view'] ) ) : '';
+		$selected_id = isset( $_GET['wpmar_log_view'] ) ? WPMAR_Jobs_Repository::sanitize_id( sanitize_text_field( wp_unslash( (string) $_GET['wpmar_log_view'] ) ) ) : '';
 
 		?>
 		<h2><?php esc_html_e( '診断ログ', 'wp-maintenance-audit-reporter' ); ?></h2>
@@ -125,8 +125,8 @@ class WPMAR_Log_Viewer {
 			<tbody>
 				<?php foreach ( $jobs as $job ) : ?>
 					<?php
-					$job_id    = (string) $job['id'];
-					$view_url  = add_query_arg(
+					$job_id       = (string) $job['id'];
+					$view_url     = add_query_arg(
 						array(
 							'page'           => WPMAR_REPORTS_PAGE_SLUG,
 							'wpmar_log_view' => $job_id,
@@ -210,7 +210,7 @@ class WPMAR_Log_Viewer {
 			return '';
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read.file_operations_fopen -- read-only tail over a path already validated as inside the protected logs directory.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- read-only tail (fseek + stream_get_contents) over a path already validated as inside the protected logs directory; WP_Filesystem has no seek/tail equivalent.
 		$handle = fopen( $abs, 'rb' );
 		if ( false === $handle ) {
 			return '';
@@ -219,6 +219,7 @@ class WPMAR_Log_Viewer {
 		$offset = max( 0, $size - $max_bytes );
 		fseek( $handle, $offset );
 		$contents = stream_get_contents( $handle );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- pairs with the fopen() above.
 		fclose( $handle );
 
 		return is_string( $contents ) ? $contents : '';

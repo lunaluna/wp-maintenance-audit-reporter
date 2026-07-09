@@ -92,8 +92,8 @@ class WPMAR_Logger {
 	/**
 	 * Records a phase/step boundary. This is the line a stuck job is diagnosed from.
 	 *
-	 * @param string               $name    Short machine-readable step name, e.g. `gather:checksums`.
-	 * @param array<string,mixed>  $context Optional structured context (counts, durations, memory).
+	 * @param string              $name    Short machine-readable step name, e.g. `gather:checksums`.
+	 * @param array<string,mixed> $context Optional structured context (counts, durations, memory).
 	 * @return void
 	 */
 	public static function step( $name, array $context = array() ) {
@@ -108,9 +108,9 @@ class WPMAR_Logger {
 	/**
 	 * Appends one log line. No-op when no job context is active.
 	 *
-	 * @param string               $level   One of the LEVEL_* constants.
-	 * @param string               $message Human-readable message (no secrets).
-	 * @param array<string,mixed>  $context Optional structured context, redacted before encoding.
+	 * @param string              $level   One of the LEVEL_* constants.
+	 * @param string              $message Human-readable message (no secrets).
+	 * @param array<string,mixed> $context Optional structured context, redacted before encoding.
 	 * @return void
 	 */
 	public static function log( $level, $message, array $context = array() ) {
@@ -212,8 +212,7 @@ class WPMAR_Logger {
 		);
 
 		foreach ( array_slice( $files, $keep ) as $stale ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink -- retention sweep over our own controlled logs directory.
-			@unlink( $stale );
+			wp_delete_file( $stale );
 		}
 	}
 
@@ -328,19 +327,5 @@ class WPMAR_Logger {
 		}
 
 		return $redacted;
-	}
-}
-
-/**
- * Convenience wrapper so call sites do not need to reference the class directly.
- *
- * @param string               $level   One of WPMAR_Logger::LEVEL_*.
- * @param string               $message Human-readable message.
- * @param array<string,mixed>  $context Optional structured context.
- * @return void
- */
-if ( ! function_exists( 'wpmar_log' ) ) {
-	function wpmar_log( $level, $message, array $context = array() ) {
-		WPMAR_Logger::log( $level, $message, $context );
 	}
 }
