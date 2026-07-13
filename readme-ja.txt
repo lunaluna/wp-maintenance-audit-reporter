@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -260,6 +260,12 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.2.0 =
+* 追加：Basic 認証環境での手動レポート生成に対応。ループバックのブロックを自動検出（判定は 12 時間キャッシュ・再チェックボタン付き）し、管理画面のポーリング中にジョブを段階的に処理します。ループバックが正常な環境の動作は変わりません。
+* 追加：ループバックがブロックされている場合、プラグイン管理画面に警告を表示。スケジュール設定にも「月次自動レポートは動作しない」旨の注記を追加（サーバー cron + `wp wpmar audit run --sync` を推奨）。ポーリングパネルには「ページを開いたまま」の案内と進捗停滞時の警告を追加。
+* ドキュメント：全 README に「Basic 認証環境での利用について」セクションを追加。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.1.1 =
 * 変更：レポートの「ユーザー情報」セクションをタブ区切りテキストから Markdown テーブルに変更し、クライアント向け PDF で罫線付きテーブルとして表示されるようにしました。クライアント向け・管理者向け両方のレポート本文に適用されます。

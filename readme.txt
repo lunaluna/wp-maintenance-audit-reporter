@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -260,6 +260,12 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.2.0 =
+* Added: manual report generation now works on sites behind HTTP Basic authentication — blocked loopbacks are detected automatically (12h-cached verdict with a re-check button) and pending jobs are processed incrementally while the admin page polls. Environments with working loopbacks are unaffected.
+* Added: admin warning on the plugin screens when loopback requests are blocked, plus an inline note in the schedule settings that monthly auto-reports cannot run (use server cron + `wp wpmar audit run --sync`). The polling panel now asks the operator to keep the page open and warns when a job makes no progress.
+* Documentation: new "Sites behind HTTP Basic authentication" section in all README variants.
+* See CHANGELOG.md for full details.
 
 = 1.1.1 =
 * Changed: the report's user-information section (【ユーザー情報】) is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table. Applies to both the client and operator report bodies.
