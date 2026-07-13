@@ -337,6 +337,63 @@ if ( ! function_exists( 'apply_filters' ) ) {
 	}
 }
 
+if ( ! function_exists( 'add_filter' ) ) {
+	/**
+	 * Records filter registrations (callbacks are never invoked by the stubs).
+	 *
+	 * @param string   $hook_name     Hook name.
+	 * @param callable $callback      Callback.
+	 * @param int      $priority      Priority.
+	 * @param int      $accepted_args Accepted args.
+	 * @return bool
+	 */
+	function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $callback, $accepted_args );
+		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
+			$GLOBALS['_wpmar_test_filters'] = array();
+		}
+		$GLOBALS['_wpmar_test_filters'][] = array( 'add', $hook_name, $priority );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'remove_filter' ) ) {
+	/**
+	 * Records filter removals.
+	 *
+	 * @param string   $hook_name Hook name.
+	 * @param callable $callback  Callback.
+	 * @param int      $priority  Priority.
+	 * @return bool
+	 */
+	function remove_filter( $hook_name, $callback, $priority = 10 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $callback );
+		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
+			$GLOBALS['_wpmar_test_filters'] = array();
+		}
+		$GLOBALS['_wpmar_test_filters'][] = array( 'remove', $hook_name, $priority );
+
+		return true;
+	}
+}
+
+if ( ! class_exists( 'ActionScheduler' ) ) {
+	/**
+	 * Fake ActionScheduler facade: hands out the runner configured by a test.
+	 */
+	class ActionScheduler { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+		/**
+		 * Returns the test-provided queue runner double.
+		 *
+		 * @return object|null
+		 */
+		public static function runner() {
+			return isset( $GLOBALS['_wpmar_test_as_runner'] ) ? $GLOBALS['_wpmar_test_as_runner'] : null;
+		}
+	}
+}
+
 if ( ! function_exists( 'wp_remote_post' ) ) {
 	/**
 	 * Fake HTTP POST: records calls, replies with a canned response.
