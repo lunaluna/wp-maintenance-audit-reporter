@@ -84,6 +84,7 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-reports-list-table.php',
 		'includes/admin/class-wpmar-reports-page.php',
 		'includes/admin/class-wpmar-log-viewer.php',
+		'includes/admin/class-wpmar-loopback-notice.php',
 		'includes/admin/class-wpmar-pdf-installer.php',
 		'includes/class-wpmar-github-updater.php',
 	);

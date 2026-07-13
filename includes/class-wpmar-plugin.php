@@ -63,6 +63,7 @@ class WPMAR_Plugin {
 
 		if ( is_admin() ) {
 			WPMAR_Admin_Menu::init();
+			WPMAR_Loopback_Notice::init();
 		}
 
 		WPMAR_GitHub_Updater::init();
