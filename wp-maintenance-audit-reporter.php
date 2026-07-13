@@ -53,6 +53,7 @@ function wpmar_get_include_manifest() {
 	return array(
 		'includes/class-wpmar-settings.php',
 		'includes/class-wpmar-logger.php',
+		'includes/class-wpmar-loopback-detector.php',
 		'includes/class-wpmar-network-settings.php',
 		'includes/class-wpmar-network.php',
 		'includes/class-wpmar-activator.php',
