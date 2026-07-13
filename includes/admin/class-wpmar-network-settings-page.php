@@ -137,6 +137,7 @@ class WPMAR_Network_Settings_Page {
 
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'スケジュール', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<?php WPMAR_Loopback_Notice::render_schedule_inline_note(); ?>
 					<table class="form-table" role="presentation">
 						<tr>
 							<th scope="row"><label for="wpmar-schedule-day"><?php esc_html_e( '実行日 (1〜31)', 'wp-maintenance-audit-reporter' ); ?></label></th>

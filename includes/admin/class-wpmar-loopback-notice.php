@@ -128,6 +128,38 @@ class WPMAR_Loopback_Notice {
 	}
 
 	/**
+	 * Prints an inline warning for schedule-settings sections when loopback is blocked.
+	 *
+	 * Shared by the スケジュール panels on the single-site and network settings
+	 * screens. The form stays enabled on purpose: with DISABLE_WP_CRON plus a
+	 * real server cron the WP-Cron event itself can still fire, so hard-disabling
+	 * the fields would punish a correctly configured environment.
+	 *
+	 * @return void
+	 */
+	public static function render_schedule_inline_note() {
+		$detector = new WPMAR_Loopback_Detector();
+		if ( $detector->is_loopback_available() ) {
+			return;
+		}
+		?>
+		<div class="wpmar-inline-warning">
+			<p>
+				<?php
+				echo wp_kses_post(
+					sprintf(
+						/* translators: %s: WP-CLI command */
+						__( 'この環境ではループバックリクエストがブロックされているため、月次自動レポートは動作しません。サーバーの cron から %s を実行する運用をご検討ください。', 'wp-maintenance-audit-reporter' ),
+						'<code>wp wpmar audit run --sync</code>'
+					)
+				);
+				?>
+			</p>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Whether the current screen is one of the given plugin screens.
 	 *
 	 * @param array<int,string> $screen_ids Allowed screen ids.
