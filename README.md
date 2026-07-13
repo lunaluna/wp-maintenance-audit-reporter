@@ -226,6 +226,35 @@ wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
 | `--format=<fmt>` | `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is accepted as an alias for `markdown`. |
 | `--file=<path>` | Write to this path instead of STDOUT. Recommended for PDF when another plugin prints PHP notices during CLI bootstrap. The parent directory must exist and be writable. |
 
+## Sites behind HTTP Basic authentication
+
+When the whole site sits behind HTTP Basic authentication (e.g. `.htaccess` `AuthType Basic`), WordPress's loopback requests (WP-Cron / Action Scheduler) are rejected at the web-server layer, which constrains this plugin as follows.
+
+### What does not work
+
+- **Scheduled monthly report generation** — the WP-Cron loopback request is rejected with `401`, so the schedule never fires.
+
+### What works
+
+- **Manual report generation** — runs triggered from the admin screen work. Processing advances incrementally on each status poll, so **keep the admin page open** while the report is being generated; closing it pauses the run until the page is opened again.
+
+The plugin detects blocked loopbacks automatically (the verdict is cached for 12 hours) and shows a warning on its admin screens with a re-check button.
+
+### Recommended: server cron + WP-CLI
+
+To generate reports on a schedule in a Basic-auth environment, run the WP-CLI command directly from the server's cron. This path uses no HTTP loopback at all, so Basic authentication does not affect it.
+
+```bash
+# Example: run at 03:00 on the 1st of every month
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+```
+
+On multisite, target each site with `--url`:
+
+```bash
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+```
+
 ## Changelog
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).

@@ -228,6 +228,35 @@ wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
 | `--format=<fmt>` | `markdown`（既定。管理者向け `body_md`）／ `json`（レポート行全体）／ `pdf`（クライアント向け）。`md` は `markdown` のエイリアスとして受け付けます。 |
 | `--file=<path>` | STDOUT ではなくこのパスへ書き出します。他プラグインが CLI ブートストラップ時に PHP Notice を出す環境での PDF 取得に推奨。親ディレクトリが存在し書き込み可能である必要があります。 |
 
+## Basic 認証環境での利用について
+
+サイト全体に Basic 認証（`.htaccess` の `AuthType Basic` など）がかかっている環境では、WordPress のループバックリクエスト（WP-Cron / Action Scheduler）が Web サーバー層で拒否されるため、以下の制約があります。
+
+### 動作しない機能
+
+- **月次自動レポート生成** — WP-Cron のループバックリクエストが `401` で拒否されるため、スケジュール実行は動作しません。
+
+### 動作する機能
+
+- **手動でのレポート生成** — 管理画面からの手動実行は利用できます。処理はステータス確認（ポーリング）のたびに段階的に進行するため、レポート生成中は**管理画面のページを開いたままにしてください**。ページを閉じると処理は一時停止し、再度開くと再開します。
+
+ループバックのブロックは自動検出され（判定は 12 時間キャッシュ）、プラグインの管理画面に再チェックボタン付きの警告が表示されます。
+
+### 推奨: サーバー cron + WP-CLI での運用
+
+Basic 認証環境で定期的にレポートを生成したい場合は、サーバーの cron から WP-CLI コマンドを直接実行してください。この方式は HTTP ループバックを一切使用しないため、Basic 認証の影響を受けません。
+
+```bash
+# 毎月 1 日 午前 3 時に実行する例
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+```
+
+マルチサイトの場合はサイトごとに `--url` を指定してください。
+
+```bash
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+```
+
 ## 更新履歴
 
 各バージョンの詳しい変更内容はすべて [CHANGELOG.md](CHANGELOG.md) に記載しています。
