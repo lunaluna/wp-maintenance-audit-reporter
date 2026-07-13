@@ -136,6 +136,33 @@
 	color: #d63638;
 }
 
+.wpmar-job-panel .wpmar-job-note {
+	color: #646970;
+}
+
+.wpmar-job-panel .wpmar-job-stalled {
+	padding: 10px 12px;
+	background: #fcf9e8;
+	border-left: 4px solid #dba617;
+}
+
+.wpmar-loopback-notice__list {
+	list-style: disc;
+	margin: 0.5em 0;
+	padding-left: 22px;
+}
+
+.wpmar-inline-warning {
+	margin: 8px 0;
+	padding: 10px 12px;
+	background: #fcf9e8;
+	border-left: 4px solid #dba617;
+}
+
+.wpmar-inline-warning p {
+	margin: 0;
+}
+
 .wpmar-job-links {
 	list-style: none;
 	margin: 12px 0 0;

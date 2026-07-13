@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.2.0] - 2026-07-14
+
+### Added
+
+- **Basic auth (blocked-loopback) support for manual runs** — Sites behind HTTP Basic authentication reject the loopback requests WP-Cron / Action Scheduler depend on, so async audit jobs previously sat in `queued` forever. A new loopback detector (`WPMAR_Loopback_Detector`) probes `admin-ajax.php` the same way core's Site Health does and caches the verdict for 12 hours (per-site transient, with a re-check button). Jobs enqueued while blocked are flagged (`loopback_blocked` column on `{prefix}wpmar_jobs`, applied via the existing dbDelta upgrade), and the job-status REST endpoint (`GET /wpmar/v1/jobs/{id}`) then drains the Action Scheduler queue in-process while the admin page polls — batch size pinned to 1, 15-second budget per poll (filterable via `wpmar_inline_runner_time_limit`), transient mutex against concurrent pollers. Manual report generation therefore completes as long as the admin page stays open; environments with working loopbacks are entirely unaffected. Scheduled monthly generation under Basic auth is explicitly **not** supported — use server cron + `wp wpmar audit run --sync` instead.
+- **Loopback-blocked admin warnings** — The plugin's screens (single-site and network admin) show a warning notice with a re-check button when loopback is blocked; the schedule settings sections (single-site and network) gain an inline note that monthly auto-reports cannot run, recommending server cron + WP-CLI; the job polling panel tells the operator to keep the page open while a blocked job progresses and warns when a job stays `queued` for ~2 minutes without progress.
+
+### Documentation
+
+- **README (4 variants): Basic auth section** — New "Sites behind HTTP Basic authentication / Basic 認証環境での利用について" section in README.md / README-ja.md / readme.txt / readme-ja.txt covering what does not work (scheduled generation), what works (manual generation while the page polls), and the recommended server-cron + `wp wpmar audit run --sync` setup with a multisite `--url` example.
+
 ## [1.1.1] - 2026-07-09
 
 ### Changed

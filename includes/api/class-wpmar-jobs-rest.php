@@ -90,6 +90,17 @@ class WPMAR_Jobs_REST {
 			);
 		}
 
+		// Basic auth fallback: when loopback requests cannot reach this site,
+		// Action Scheduler's async runner never fires, so drain the queue inside
+		// this (authenticated) polling request instead. Re-fetch afterwards so
+		// the poller sees the progress made inline, not the pre-run snapshot.
+		if ( self::maybe_run_queue_inline( $job ) ) {
+			$refreshed = $repo->find( $id );
+			if ( is_array( $refreshed ) ) {
+				$job = $refreshed;
+			}
+		}
+
 		$status   = isset( $job['status'] ) ? (string) $job['status'] : '';
 		$scope    = isset( $job['scope'] ) ? (string) $job['scope'] : 'single';
 		$log_path = isset( $job['log_path'] ) ? (string) $job['log_path'] : '';
@@ -101,6 +112,7 @@ class WPMAR_Jobs_REST {
 			'step'             => isset( $job['step'] ) ? (string) $job['step'] : '',
 			'error'            => isset( $job['error'] ) ? (string) $job['error'] : '',
 			'updated_at'       => isset( $job['updated_at'] ) ? (string) $job['updated_at'] : '',
+			'loopback_blocked' => self::job_loopback_blocked( $job ),
 			'log_download_url' => '' !== $log_path ? self::log_download_url( $id ) : '',
 			'result'           => null,
 		);
@@ -111,6 +123,118 @@ class WPMAR_Jobs_REST {
 		}
 
 		return new WP_REST_Response( $payload, 200 );
+	}
+
+	/**
+	 * Whether loopback was blocked when this job was enqueued.
+	 *
+	 * Rows written before the schema gained the column (or by an older plugin
+	 * version) carry no verdict, so fall back to the live detector — its result
+	 * is cached, so polling stays cheap.
+	 *
+	 * @param array<string,mixed> $job Job row.
+	 * @return bool
+	 */
+	protected static function job_loopback_blocked( array $job ) {
+		if ( array_key_exists( 'loopback_blocked', $job ) && null !== $job['loopback_blocked'] ) {
+			return (bool) (int) $job['loopback_blocked'];
+		}
+
+		$detector = new WPMAR_Loopback_Detector();
+
+		return ! $detector->is_loopback_available();
+	}
+
+	/**
+	 * Whether this poll should drain the Action Scheduler queue inline.
+	 *
+	 * Only when the job is still pending AND loopback is blocked — on healthy
+	 * environments the async runner handles the queue and this never fires.
+	 *
+	 * @param array<string,mixed> $job Job row.
+	 * @return bool
+	 */
+	protected static function should_run_inline( array $job ) {
+		$status = isset( $job['status'] ) ? (string) $job['status'] : '';
+
+		$pending = in_array(
+			$status,
+			array( WPMAR_Jobs_Repository::STATUS_QUEUED, WPMAR_Jobs_Repository::STATUS_RUNNING ),
+			true
+		);
+
+		if ( ! $pending ) {
+			return false;
+		}
+
+		if ( ! wpmar_action_scheduler_available() || ! class_exists( 'ActionScheduler' ) ) {
+			return false;
+		}
+
+		return self::job_loopback_blocked( $job );
+	}
+
+	/**
+	 * Runs the Action Scheduler queue in-process, bounded by a time limit.
+	 *
+	 * The polling browser has already passed the server-level auth (Basic auth),
+	 * so its REST request is the one loopback-equivalent execution context we
+	 * reliably get. Batch size is pinned to 1 during the inline run so the time
+	 * limit is honoured per chunk rather than per 25-action claim.
+	 *
+	 * @param array<string,mixed> $job Job row.
+	 * @return bool True when the queue runner was invoked.
+	 */
+	protected static function maybe_run_queue_inline( array $job ) {
+		if ( ! self::should_run_inline( $job ) ) {
+			return false;
+		}
+
+		/**
+		 * Filters the inline fallback runner's time budget per polling request.
+		 *
+		 * Keep it well below PHP's max_execution_time; the poller comes back for
+		 * the next slice anyway.
+		 *
+		 * @since 1.2.0
+		 *
+		 * @param int $time_limit Seconds spent draining the queue per poll.
+		 */
+		$time_limit = (int) apply_filters( 'wpmar_inline_runner_time_limit', 15 );
+		if ( $time_limit <= 0 ) {
+			return false;
+		}
+
+		// Simple mutex against concurrent pollers (multiple tabs). Action
+		// Scheduler's claim mechanism already prevents double-processing, so a
+		// leaked lock (TTL expiry) is a performance concern, not a correctness one.
+		$lock_key = 'wpmar_inline_runner_lock';
+		if ( false !== get_transient( $lock_key ) ) {
+			return false;
+		}
+		set_transient( $lock_key, 1, max( 30, 2 * $time_limit ) );
+
+		$batch_of_one = static function () {
+			return 1;
+		};
+		add_filter( 'action_scheduler_queue_runner_batch_size', $batch_of_one, 100 );
+
+		try {
+			$start  = microtime( true );
+			$runner = ActionScheduler::runner();
+
+			do {
+				$processed = (int) $runner->run( 'WPMAR Inline Fallback' );
+			} while (
+				$processed > 0
+				&& ( microtime( true ) - $start ) < $time_limit
+			);
+		} finally {
+			remove_filter( 'action_scheduler_queue_runner_batch_size', $batch_of_one, 100 );
+			delete_transient( $lock_key );
+		}
+
+		return true;
 	}
 
 	/**

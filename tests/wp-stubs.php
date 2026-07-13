@@ -5,6 +5,10 @@
  * @package WPMAR\Tests
  */
 
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+	define( 'HOUR_IN_SECONDS', 3600 );
+}
+
 if ( ! function_exists( '__' ) ) {
 	/**
 	 * Stub translate.
@@ -255,6 +259,180 @@ if ( ! function_exists( 'as_enqueue_async_action' ) ) {
 		$GLOBALS['_wpmar_test_as_calls'][] = array( $hook, $args, $group );
 
 		return 1;
+	}
+}
+
+if ( ! function_exists( 'get_transient' ) ) {
+	/**
+	 * In-memory transient store backed by $GLOBALS['_wpmar_test_transients'].
+	 *
+	 * @param string $transient Transient key.
+	 * @return mixed False when absent.
+	 */
+	function get_transient( $transient ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( isset( $GLOBALS['_wpmar_test_transients'][ $transient ] ) ) {
+			return $GLOBALS['_wpmar_test_transients'][ $transient ];
+		}
+		return false;
+	}
+}
+
+if ( ! function_exists( 'set_transient' ) ) {
+	/**
+	 * Stores a transient in the in-memory store (expiration ignored).
+	 *
+	 * @param string $transient  Transient key.
+	 * @param mixed  $value      Value.
+	 * @param int    $expiration TTL (ignored).
+	 * @return bool
+	 */
+	function set_transient( $transient, $value, $expiration = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $expiration );
+		if ( ! isset( $GLOBALS['_wpmar_test_transients'] ) || ! is_array( $GLOBALS['_wpmar_test_transients'] ) ) {
+			$GLOBALS['_wpmar_test_transients'] = array();
+		}
+		$GLOBALS['_wpmar_test_transients'][ $transient ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'delete_transient' ) ) {
+	/**
+	 * Removes a transient from the in-memory store.
+	 *
+	 * @param string $transient Transient key.
+	 * @return bool
+	 */
+	function delete_transient( $transient ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $GLOBALS['_wpmar_test_transients'][ $transient ] );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'admin_url' ) ) {
+	/**
+	 * Stub admin_url.
+	 *
+	 * @param string $path Path relative to wp-admin.
+	 * @return string
+	 */
+	function admin_url( $path = '' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return 'https://example.test/wp-admin/' . ltrim( (string) $path, '/' );
+	}
+}
+
+if ( ! function_exists( 'apply_filters' ) ) {
+	/**
+	 * Pass-through apply_filters.
+	 *
+	 * @param string $hook_name Hook name.
+	 * @param mixed  $value     Value.
+	 * @return mixed
+	 */
+	function apply_filters( $hook_name, $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $hook_name );
+		return $value;
+	}
+}
+
+if ( ! function_exists( 'add_filter' ) ) {
+	/**
+	 * Records filter registrations (callbacks are never invoked by the stubs).
+	 *
+	 * @param string   $hook_name     Hook name.
+	 * @param callable $callback      Callback.
+	 * @param int      $priority      Priority.
+	 * @param int      $accepted_args Accepted args.
+	 * @return bool
+	 */
+	function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $callback, $accepted_args );
+		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
+			$GLOBALS['_wpmar_test_filters'] = array();
+		}
+		$GLOBALS['_wpmar_test_filters'][] = array( 'add', $hook_name, $priority );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'remove_filter' ) ) {
+	/**
+	 * Records filter removals.
+	 *
+	 * @param string   $hook_name Hook name.
+	 * @param callable $callback  Callback.
+	 * @param int      $priority  Priority.
+	 * @return bool
+	 */
+	function remove_filter( $hook_name, $callback, $priority = 10 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $callback );
+		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
+			$GLOBALS['_wpmar_test_filters'] = array();
+		}
+		$GLOBALS['_wpmar_test_filters'][] = array( 'remove', $hook_name, $priority );
+
+		return true;
+	}
+}
+
+if ( ! class_exists( 'ActionScheduler' ) ) {
+	/**
+	 * Fake ActionScheduler facade: hands out the runner configured by a test.
+	 */
+	class ActionScheduler { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+		/**
+		 * Returns the test-provided queue runner double.
+		 *
+		 * @return object|null
+		 */
+		public static function runner() {
+			return isset( $GLOBALS['_wpmar_test_as_runner'] ) ? $GLOBALS['_wpmar_test_as_runner'] : null;
+		}
+	}
+}
+
+if ( ! function_exists( 'wp_remote_post' ) ) {
+	/**
+	 * Fake HTTP POST: records calls, replies with a canned response.
+	 *
+	 * Configure via $GLOBALS['_wpmar_test_http_response'] (WP_Error or a
+	 * response array); defaults to HTTP 200.
+	 *
+	 * @param string              $url  Request URL.
+	 * @param array<string,mixed> $args Request args.
+	 * @return array<string,mixed>|WP_Error
+	 */
+	function wp_remote_post( $url, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_http_calls'] ) || ! is_array( $GLOBALS['_wpmar_test_http_calls'] ) ) {
+			$GLOBALS['_wpmar_test_http_calls'] = array();
+		}
+		$GLOBALS['_wpmar_test_http_calls'][] = array( $url, $args );
+
+		if ( isset( $GLOBALS['_wpmar_test_http_response'] ) ) {
+			return $GLOBALS['_wpmar_test_http_response'];
+		}
+
+		return array(
+			'response' => array( 'code' => 200 ),
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
+	/**
+	 * Stub wp_remote_retrieve_response_code.
+	 *
+	 * @param array<string,mixed>|WP_Error $response HTTP response.
+	 * @return int|string
+	 */
+	function wp_remote_retrieve_response_code( $response ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( is_wp_error( $response ) || ! isset( $response['response']['code'] ) ) {
+			return '';
+		}
+		return (int) $response['response']['code'];
 	}
 }
 

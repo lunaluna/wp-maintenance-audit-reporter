@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.1.1**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.2.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -226,10 +226,40 @@ wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
 | `--format=<fmt>` | `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is accepted as an alias for `markdown`. |
 | `--file=<path>` | Write to this path instead of STDOUT. Recommended for PDF when another plugin prints PHP notices during CLI bootstrap. The parent directory must exist and be writable. |
 
+## Sites behind HTTP Basic authentication
+
+When the whole site sits behind HTTP Basic authentication (e.g. `.htaccess` `AuthType Basic`), WordPress's loopback requests (WP-Cron / Action Scheduler) are rejected at the web-server layer, which constrains this plugin as follows.
+
+### What does not work
+
+- **Scheduled monthly report generation** — the WP-Cron loopback request is rejected with `401`, so the schedule never fires.
+
+### What works
+
+- **Manual report generation** — runs triggered from the admin screen work. Processing advances incrementally on each status poll, so **keep the admin page open** while the report is being generated; closing it pauses the run until the page is opened again.
+
+The plugin detects blocked loopbacks automatically (the verdict is cached for 12 hours) and shows a warning on its admin screens with a re-check button.
+
+### Recommended: server cron + WP-CLI
+
+To generate reports on a schedule in a Basic-auth environment, run the WP-CLI command directly from the server's cron. This path uses no HTTP loopback at all, so Basic authentication does not affect it.
+
+```bash
+# Example: run at 03:00 on the 1st of every month
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+```
+
+On multisite, target each site with `--url`:
+
+```bash
+0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+```
+
 ## Changelog
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.2.0** (2026-07-14) — Manual report generation now works on sites behind HTTP Basic authentication: blocked loopbacks are detected automatically (12h-cached, re-checkable) and pending jobs progress incrementally while the admin polling page stays open. Adds admin warnings with a re-check button, a schedule-settings note, and README guidance recommending server cron + `wp wpmar audit run --sync` for scheduled reports. Scheduled generation under Basic auth remains unsupported by design.
 - **v1.1.1** (2026-07-09) — The report's user-information section is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table (applies to both the client and operator report bodies); also adds a diagnostics-log usage guide (reading step logs, retrieving them for support) to this README.
 - **v1.1.0** (2026-07-09) — Added diagnostics logging for audit runs: an unbuffered per-job step log that survives a stalled/killed process, automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.
 - **v1.0.0** (2026-07-05) — First stable release. No functional changes since 1.0.0-RC14. Tested up to WordPress 7.0.1.

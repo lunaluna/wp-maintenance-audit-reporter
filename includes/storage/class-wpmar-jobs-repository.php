@@ -54,12 +54,15 @@ class WPMAR_Jobs_Repository {
 	/**
 	 * Inserts a freshly-queued job.
 	 *
-	 * @param string              $id    Caller-generated job id (uniqid-style, [a-z0-9.]+).
-	 * @param array<string,mixed> $args  Run arguments forwarded to the runner.
-	 * @param string              $scope `single` or `network`.
+	 * @param string              $id               Caller-generated job id (uniqid-style, [a-z0-9.]+).
+	 * @param array<string,mixed> $args             Run arguments forwarded to the runner.
+	 * @param string              $scope            `single` or `network`.
+	 * @param bool                $loopback_blocked Whether loopback requests were blocked at enqueue
+	 *                                              time (Basic auth etc.); read back by the polling
+	 *                                              REST endpoint to trigger the inline fallback runner.
 	 * @return bool True on insert.
 	 */
-	public function create( $id, array $args, $scope = 'single' ) {
+	public function create( $id, array $args, $scope = 'single', $loopback_blocked = false ) {
 		$id = self::sanitize_id( $id );
 		if ( '' === $id ) {
 			return false;
@@ -75,16 +78,17 @@ class WPMAR_Jobs_Repository {
 		$ok = $this->db->insert(
 			$this->table,
 			array(
-				'id'          => $id,
-				'status'      => self::STATUS_QUEUED,
-				'scope'       => self::sanitize_scope( $scope ),
-				'args_json'   => $args_json,
-				'result_json' => '',
-				'error'       => '',
-				'created_at'  => $now,
-				'updated_at'  => $now,
+				'id'               => $id,
+				'status'           => self::STATUS_QUEUED,
+				'scope'            => self::sanitize_scope( $scope ),
+				'loopback_blocked' => $loopback_blocked ? 1 : 0,
+				'args_json'        => $args_json,
+				'result_json'      => '',
+				'error'            => '',
+				'created_at'       => $now,
+				'updated_at'       => $now,
 			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
 		);
 
 		return false !== $ok;

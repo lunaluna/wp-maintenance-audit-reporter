@@ -25,6 +25,7 @@ final class JobDispatcherTest extends TestCase {
 
 		require_once __DIR__ . '/wp-stubs.php';
 		require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-jobs-repository.php';
+		require_once dirname( __DIR__ ) . '/includes/class-wpmar-loopback-detector.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-job-dispatcher.php';
 	}
 
@@ -32,11 +33,20 @@ final class JobDispatcherTest extends TestCase {
 		parent::setUp();
 		$GLOBALS['_wpmar_test_as_available'] = false;
 		$GLOBALS['_wpmar_test_as_calls']     = array();
+		$GLOBALS['_wpmar_test_transients']   = array();
 		$GLOBALS['wpdb']                     = new \WPMAR_Test_Fake_Wpdb();
+		unset( $GLOBALS['_wpmar_test_http_response'] );
 	}
 
 	protected function tearDown(): void {
-		unset( $GLOBALS['_wpmar_test_as_available'], $GLOBALS['_wpmar_test_as_calls'], $GLOBALS['wpdb'] );
+		unset(
+			$GLOBALS['_wpmar_test_as_available'],
+			$GLOBALS['_wpmar_test_as_calls'],
+			$GLOBALS['_wpmar_test_transients'],
+			$GLOBALS['_wpmar_test_http_calls'],
+			$GLOBALS['_wpmar_test_http_response'],
+			$GLOBALS['wpdb']
+		);
 		parent::tearDown();
 	}
 
@@ -79,6 +89,25 @@ final class JobDispatcherTest extends TestCase {
 		list( $hook, $args ) = $GLOBALS['_wpmar_test_as_calls'][0];
 		self::assertSame( \WPMAR_Job_Dispatcher::HOOK, $hook );
 		self::assertSame( array( $result ), $args );
+
+		// Loopback works (stub HTTP answers 200), so the row records 0.
+		self::assertSame( 0, $GLOBALS['wpdb']->insert_calls[0]['loopback_blocked'] );
+	}
+
+	public function test_enqueue_records_loopback_blocked_when_probe_rejected(): void {
+		$GLOBALS['_wpmar_test_as_available'] = true;
+		// Basic auth in front of the site: the loopback probe bounces with 401.
+		$GLOBALS['_wpmar_test_http_response'] = array(
+			'response' => array( 'code' => 401 ),
+		);
+
+		$result = \WPMAR_Job_Dispatcher::enqueue_audit_job( array( 'dry' => false ), 'single' );
+
+		self::assertIsString( $result );
+		self::assertSame( 1, $GLOBALS['wpdb']->insert_calls[0]['loopback_blocked'] );
+
+		// The job is still queued to Action Scheduler (the inline fallback drains it).
+		self::assertCount( 1, $GLOBALS['_wpmar_test_as_calls'] );
 	}
 
 	// -------------------------------------------------------------------------

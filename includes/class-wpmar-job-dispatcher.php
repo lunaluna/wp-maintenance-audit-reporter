@@ -66,8 +66,14 @@ class WPMAR_Job_Dispatcher {
 			);
 		}
 
+		// Record whether loopback works right now so the polling REST endpoint can
+		// decide to run the queue inline (Basic auth環境のフォールバック) without
+		// re-probing per poll. Cached 12h by the detector, so this is usually free.
+		$detector         = new WPMAR_Loopback_Detector();
+		$loopback_blocked = ! $detector->is_loopback_available();
+
 		$repo = new WPMAR_Jobs_Repository();
-		if ( ! $repo->create( $job_id, $args, $scope ) ) {
+		if ( ! $repo->create( $job_id, $args, $scope, $loopback_blocked ) ) {
 			return new WP_Error(
 				'wpmar_job_create_failed',
 				__( 'ジョブの登録に失敗しました。', 'wp-maintenance-audit-reporter' )

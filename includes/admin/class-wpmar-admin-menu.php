@@ -89,23 +89,25 @@ class WPMAR_Admin_Menu {
 	 */
 	public static function polling_l10n() {
 		return array(
-			'restBase'        => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
-			'restNonce'       => wp_create_nonce( 'wp_rest' ),
-			'pollQueued'      => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
-			'pollRunning'     => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
-			'pollDone'        => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
-			'pollDoneDry'     => __( 'ドライランが完了しました。', 'wp-maintenance-audit-reporter' ),
-			'pollFailed'      => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
-			'pollError'       => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
-			'flashDone'       => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
-			'flashDoneDry'    => __( 'ドライランが完了しました（保存・通知なし）。', 'wp-maintenance-audit-reporter' ),
-			'dryPreviewLabel' => __( 'ドライラン要約', 'wp-maintenance-audit-reporter' ),
-			'linkReport'      => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
-			'linkMd'          => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
-			'linkPdf'         => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
-			'linkClient'      => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
-			'stepLabel'       => __( '現在のステップ', 'wp-maintenance-audit-reporter' ),
-			'linkLog'         => __( '動作ログをダウンロード', 'wp-maintenance-audit-reporter' ),
+			'restBase'         => esc_url_raw( rest_url( WPMAR_Jobs_REST::NAMESPACE_V1 . '/jobs/' ) ),
+			'restNonce'        => wp_create_nonce( 'wp_rest' ),
+			'pollQueued'       => __( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ),
+			'pollRunning'      => __( 'バックグラウンドで監査を実行しています…', 'wp-maintenance-audit-reporter' ),
+			'pollDone'         => __( 'レポート生成が完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollDoneDry'      => __( 'ドライランが完了しました。', 'wp-maintenance-audit-reporter' ),
+			'pollFailed'       => __( 'レポート生成に失敗しました。', 'wp-maintenance-audit-reporter' ),
+			'pollError'        => __( 'ジョブ状態の取得中にエラーが発生しました。', 'wp-maintenance-audit-reporter' ),
+			'flashDone'        => __( 'レポートが生成されました。', 'wp-maintenance-audit-reporter' ),
+			'flashDoneDry'     => __( 'ドライランが完了しました（保存・通知なし）。', 'wp-maintenance-audit-reporter' ),
+			'dryPreviewLabel'  => __( 'ドライラン要約', 'wp-maintenance-audit-reporter' ),
+			'linkReport'       => __( 'レポートをプレビューする', 'wp-maintenance-audit-reporter' ),
+			'linkMd'           => __( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ),
+			'linkPdf'          => __( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'linkClient'       => __( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ),
+			'stepLabel'        => __( '現在のステップ', 'wp-maintenance-audit-reporter' ),
+			'linkLog'          => __( '動作ログをダウンロード', 'wp-maintenance-audit-reporter' ),
+			'pollLoopbackNote' => __( 'Basic 認証環境のため、処理はこのページを開いている間に段階的に進行します。ページを閉じると処理が一時停止します。', 'wp-maintenance-audit-reporter' ),
+			'pollStalled'      => __( '処理が進んでいません。ループバックリクエストがブロックされている可能性があります。ページを開いたまましばらくお待ちいただくか、WP-CLI（wp wpmar audit run --sync）をご利用ください。', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 
@@ -169,6 +171,8 @@ class WPMAR_Admin_Menu {
 				<span data-wpmar-job-message><?php esc_html_e( 'キューで待機中です…', 'wp-maintenance-audit-reporter' ); ?></span>
 			</p>
 			<p class="wpmar-job-step" data-wpmar-job-step hidden></p>
+			<p class="wpmar-job-note" data-wpmar-job-note hidden></p>
+			<p class="wpmar-job-stalled" data-wpmar-job-stalled hidden></p>
 			<ul class="wpmar-job-links" data-wpmar-job-links hidden></ul>
 			<pre class="wpmar-dry-run-summary" data-wpmar-job-preview hidden></pre>
 		</div>

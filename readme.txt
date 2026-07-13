@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -184,6 +184,31 @@ The plugin registers two command namespaces: `wp wpmar audit` (the current entry
 * `--format=<fmt>` — `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is an alias for `markdown`.
 * `--file=<path>` — Write to this path instead of STDOUT (recommended for PDF when another plugin prints PHP notices during CLI bootstrap). The parent directory must exist and be writable.
 
+== Sites behind HTTP Basic authentication ==
+
+When the whole site sits behind HTTP Basic authentication (e.g. `.htaccess` `AuthType Basic`), WordPress's loopback requests (WP-Cron / Action Scheduler) are rejected at the web-server layer, which constrains this plugin as follows.
+
+= What does not work =
+
+* **Scheduled monthly report generation** — the WP-Cron loopback request is rejected with `401`, so the schedule never fires.
+
+= What works =
+
+* **Manual report generation** — runs triggered from the admin screen work. Processing advances incrementally on each status poll, so **keep the admin page open** while the report is being generated; closing it pauses the run until the page is opened again.
+
+The plugin detects blocked loopbacks automatically (the verdict is cached for 12 hours) and shows a warning on its admin screens with a re-check button.
+
+= Recommended: server cron + WP-CLI =
+
+To generate reports on a schedule in a Basic-auth environment, run the WP-CLI command directly from the server's cron. This path uses no HTTP loopback at all, so Basic authentication does not affect it.
+
+    # Example: run at 03:00 on the 1st of every month
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+
+On multisite, target each site with `--url`:
+
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+
 == Installation ==
 
 1. Upload the plugin folder to `/wp-content/plugins/`
@@ -235,6 +260,12 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.2.0 =
+* Added: manual report generation now works on sites behind HTTP Basic authentication — blocked loopbacks are detected automatically (12h-cached verdict with a re-check button) and pending jobs are processed incrementally while the admin page polls. Environments with working loopbacks are unaffected.
+* Added: admin warning on the plugin screens when loopback requests are blocked, plus an inline note in the schedule settings that monthly auto-reports cannot run (use server cron + `wp wpmar audit run --sync`). The polling panel now asks the operator to keep the page open and warns when a job makes no progress.
+* Documentation: new "Sites behind HTTP Basic authentication" section in all README variants.
+* See CHANGELOG.md for full details.
 
 = 1.1.1 =
 * Changed: the report's user-information section (【ユーザー情報】) is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table. Applies to both the client and operator report bodies.

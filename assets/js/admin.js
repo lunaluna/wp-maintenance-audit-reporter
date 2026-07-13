@@ -208,6 +208,8 @@
 		const linksEl = panel.querySelector('[data-wpmar-job-links]');
 		const previewEl = panel.querySelector('[data-wpmar-job-preview]');
 		const stepEl = panel.querySelector('[data-wpmar-job-step]');
+		const noteEl = panel.querySelector('[data-wpmar-job-note]');
+		const stalledEl = panel.querySelector('[data-wpmar-job-stalled]');
 		const flashEl = document.querySelector('[data-wpmar-job-flash]');
 
 		function setStep(step, updatedAt) {
@@ -244,8 +246,51 @@
 		}
 
 		const POLL_MS = 2500;
+		// Warn when a job sits in `queued` this long without progressing —
+		// the loopback runner is probably blocked (Basic auth, firewall, …).
+		const STALL_MS = 2 * 60 * 1000;
 		let timer = null;
 		let stopped = false;
+		let queuedSince = null;
+
+		function setNote(text) {
+			if (!noteEl) {
+				return;
+			}
+			if (!text) {
+				noteEl.hidden = true;
+				return;
+			}
+			noteEl.textContent = text;
+			noteEl.hidden = false;
+		}
+
+		function setStalled(visible) {
+			if (!stalledEl) {
+				return;
+			}
+			if (!visible || !cfg.pollStalled) {
+				stalledEl.hidden = true;
+				return;
+			}
+			stalledEl.textContent = cfg.pollStalled;
+			stalledEl.hidden = false;
+		}
+
+		function trackStall(status) {
+			if (status !== 'queued') {
+				queuedSince = null;
+				setStalled(false);
+				return;
+			}
+			if (queuedSince === null) {
+				queuedSince = Date.now();
+				return;
+			}
+			if (Date.now() - queuedSince >= STALL_MS) {
+				setStalled(true);
+			}
+		}
 
 		function setMessage(text) {
 			if (messageEl && text) {
@@ -358,6 +403,19 @@
 						data && data.step ? data.step : '',
 						data && data.updated_at ? data.updated_at : ''
 					);
+
+					// Basic auth fallback: work only advances while this page
+					// keeps polling, so tell the operator to keep it open.
+					if (
+						data &&
+						data.loopback_blocked &&
+						(status === 'queued' || status === 'running')
+					) {
+						setNote(cfg.pollLoopbackNote || '');
+					} else {
+						setNote('');
+					}
+					trackStall(status);
 
 					if (status === 'queued') {
 						setMessage(cfg.pollQueued || '');
