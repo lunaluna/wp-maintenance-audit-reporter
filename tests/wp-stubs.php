@@ -161,6 +161,25 @@ if ( ! function_exists( 'untrailingslashit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_normalize_path' ) ) {
+	/**
+	 * Stub wp_normalize_path.
+	 *
+	 * @param string $path Path to normalise.
+	 * @return string
+	 */
+	function wp_normalize_path( $path ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$path = str_replace( '\\', '/', (string) $path );
+		$path = preg_replace( '|(?<=.)/+|', '/', $path );
+
+		if ( ':' === substr( $path, 1, 1 ) ) {
+			$path = ucfirst( $path );
+		}
+
+		return $path;
+	}
+}
+
 if ( ! defined( 'ARRAY_A' ) ) {
 	define( 'ARRAY_A', 'ARRAY_A' );
 }

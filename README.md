@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.2.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.3.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -79,6 +79,8 @@ Excludes intentionally modified files from integrity checking. One entry per lin
 - **プラグイン除外パス** — `slug:relative-path` entries (e.g. `akismet:readme.txt`).
 
 Append `/` or `/*` to exclude a whole directory (e.g. `wp-admin/`, `akismet:views/`).
+
+Entries containing `*` (any string, crosses `/`) or `?` (any single character) are matched as glob patterns via `fnmatch()` (e.g. `wordfence:*/.htaccess` excludes that filename at any nesting depth).
 
 #### 保持期間 (Retention)
 
@@ -259,6 +261,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.3.0** (2026-07-14) — Checksum exclude lists (core and plugin) now support `fnmatch()`-style glob patterns (`*`, `?`) in addition to exact paths and directory prefixes, so a single entry like `wordfence:*/.htaccess` can exclude a repeating filename at any nesting depth.
 - **v1.2.0** (2026-07-14) — Manual report generation now works on sites behind HTTP Basic authentication: blocked loopbacks are detected automatically (12h-cached, re-checkable) and pending jobs progress incrementally while the admin polling page stays open. Adds admin warnings with a re-check button, a schedule-settings note, and README guidance recommending server cron + `wp wpmar audit run --sync` for scheduled reports. Scheduled generation under Basic auth remains unsupported by design.
 - **v1.1.1** (2026-07-09) — The report's user-information section is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table (applies to both the client and operator report bodies); also adds a diagnostics-log usage guide (reading step logs, retrieving them for support) to this README.
 - **v1.1.0** (2026-07-09) — Added diagnostics logging for audit runs: an unbuffered per-job step log that survives a stalled/killed process, automatic recovery of jobs stuck by a killed process, and a Reports-screen viewer with a nonce-protected download link.

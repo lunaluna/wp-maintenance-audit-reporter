@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No pending notes._
 
+## [1.3.0] - 2026-07-14
+
+### Added
+
+- **Glob patterns in checksum exclude lists** — `WPMAR_Check_Checksums::build_exclude_set()` / `is_excluded()` now recognize entries containing `*`, `?`, or `[` as `fnmatch()` glob patterns (matched against the lowercased, normalized relative path), in addition to the existing exact-match and directory-prefix (`/`, `/*` suffix) forms. A pattern like `wordfence:*/.htaccess` excludes that repeating filename at any nesting depth in one line, instead of requiring one entry per directory. Falls back to a `preg_match()`-based equivalent (`*` → `.*`, `?` → `.`) on environments without `fnmatch()`.
+
 ## [1.2.0] - 2026-07-14
 
 ### Added

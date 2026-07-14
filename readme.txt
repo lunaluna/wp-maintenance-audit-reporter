@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -81,6 +81,8 @@ When mail is enabled but a recipient list is empty, the settings screen shows a 
 * **プラグイン除外パス** — `slug:relative-path` entries (e.g. `akismet:readme.txt`).
 
 Append `/` or `/*` to exclude a whole directory (e.g. `wp-admin/`, `akismet:views/`).
+
+Entries containing `*` (any string, crosses `/`) or `?` (any single character) are matched as glob patterns via `fnmatch()` (e.g. `wordfence:*/.htaccess` excludes that filename at any nesting depth).
 
 **保持期間 (Retention):**
 
@@ -260,6 +262,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.3.0 =
+* Added: checksum exclude lists (core and plugin) now support `fnmatch()`-style glob patterns (`*`, `?`) in addition to exact paths and directory prefixes, so a single entry like `wordfence:*/.htaccess` can exclude a repeating filename at any nesting depth.
+* See CHANGELOG.md for full details.
 
 = 1.2.0 =
 * Added: manual report generation now works on sites behind HTTP Basic authentication — blocked loopbacks are detected automatically (12h-cached verdict with a re-check button) and pending jobs are processed incrementally while the admin page polls. Environments with working loopbacks are unaffected.
