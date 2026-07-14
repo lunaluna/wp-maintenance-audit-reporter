@@ -506,22 +506,36 @@ class WPMAR_Check_Checksums {
 	 * Converts a list of paths into a lookup structure for exclusion checks.
 	 *
 	 * Entries ending in '/' or '/*' are treated as directory prefixes (all
-	 * files under that directory are excluded). All other entries are treated
-	 * as exact file matches.
+	 * files under that directory are excluded). Entries containing wildcard
+	 * meta characters ('*', '?', '[') are treated as fnmatch() glob patterns
+	 * (e.g. a pattern of '*' then '/.htaccess' matches that filename at any
+	 * depth). All other entries are treated as exact file matches.
 	 *
 	 * @param string[] $paths Relative paths.
-	 * @return array{exact: array<string,bool>, dirs: list<string>}
+	 * @return array{exact: array<string,bool>, dirs: list<string>, globs: list<string>}
 	 */
 	protected function build_exclude_set( array $paths ) {
 		$exact = array();
 		$dirs  = array();
+		$globs = array();
 		foreach ( $paths as $path ) {
-			$normalized = $this->normalize_rel_path( rtrim( (string) $path, '*' ) );
+			$raw = (string) $path;
+
+			if ( '/' === substr( $raw, -1 ) || '/*' === substr( $raw, -2 ) ) {
+				$normalized = $this->normalize_rel_path( rtrim( $raw, '*' ) );
+				if ( '' !== $normalized ) {
+					$dirs[] = $normalized;
+				}
+				continue;
+			}
+
+			$normalized = $this->normalize_rel_path( $raw );
 			if ( '' === $normalized ) {
 				continue;
 			}
-			if ( '/' === substr( $normalized, -1 ) ) {
-				$dirs[] = $normalized;
+
+			if ( false !== strpbrk( $normalized, '*?[' ) ) {
+				$globs[] = $normalized;
 			} else {
 				$exact[ $normalized ] = true;
 			}
@@ -530,14 +544,15 @@ class WPMAR_Check_Checksums {
 		return array(
 			'exact' => $exact,
 			'dirs'  => $dirs,
+			'globs' => $globs,
 		);
 	}
 
 	/**
 	 * Returns true if the normalised $key matches an exclusion entry.
 	 *
-	 * @param string                                               $key Normalised relative path.
-	 * @param array{exact: array<string,bool>, dirs: list<string>} $set Output of build_exclude_set().
+	 * @param string                                                                    $key Normalised relative path.
+	 * @param array{exact: array<string,bool>, dirs: list<string>, globs: list<string>} $set Output of build_exclude_set().
 	 * @return bool
 	 */
 	protected function is_excluded( $key, array $set ) {
@@ -549,7 +564,38 @@ class WPMAR_Check_Checksums {
 				return true;
 			}
 		}
+		foreach ( $set['globs'] as $pattern ) {
+			if ( $this->wildcard_match( $pattern, $key ) ) {
+				return true;
+			}
+		}
 
 		return false;
+	}
+
+	/**
+	 * Matches a normalised relative path against a glob pattern.
+	 *
+	 * Both arguments are expected to already be lowercased via
+	 * {@see normalize_rel_path()}. Uses fnmatch() (where '*' crosses '/'
+	 * boundaries, i.e. no FNM_PATHNAME) with a regex fallback for
+	 * environments lacking fnmatch().
+	 *
+	 * @param string $pattern Glob pattern, e.g. '*' then '/.htaccess'.
+	 * @param string $subject Normalised relative path to test.
+	 * @return bool
+	 */
+	protected function wildcard_match( $pattern, $subject ) {
+		if ( function_exists( 'fnmatch' ) ) {
+			return fnmatch( $pattern, $subject );
+		}
+
+		$regex = '#^' . str_replace(
+			array( '\*', '\?' ),
+			array( '.*', '.' ),
+			preg_quote( $pattern, '#' )
+		) . '$#';
+
+		return 1 === preg_match( $regex, $subject );
 	}
 }
