@@ -185,9 +185,10 @@ class WPMAR_Reports_Page {
 		$dl_date_ymd = false !== $created_ts ? gmdate( 'Ymd', $created_ts ) : gmdate( 'Ymd' );
 
 		if ( 'md' === $type ) {
-			nocache_headers();
-			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-admin-' . $dl_date_his . '.md"' );
+			WPMAR_Download_Headers::send_attachment(
+				'text/plain; charset=utf-8',
+				'wpmar-report-' . $dl_domain . '-admin-' . $dl_date_his . '.md'
+			);
 			$body = (string) ( $row['body_md'] ?? '' );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown export payload for operators.
 			echo $body;
@@ -195,9 +196,10 @@ class WPMAR_Reports_Page {
 		}
 
 		if ( 'client_md' === $type ) {
-			nocache_headers();
-			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '.md"' );
+			WPMAR_Download_Headers::send_attachment(
+				'text/plain; charset=utf-8',
+				'wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '.md'
+			);
 			$body = (string) ( $row['body_client_md'] ?? '' );
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markdown export payload for clients.
 			echo $body;
@@ -254,10 +256,11 @@ class WPMAR_Reports_Page {
 			wp_die( esc_html__( 'PDF サイズを取得できませんでした。', 'wp-maintenance-audit-reporter' ) );
 		}
 
-		nocache_headers();
-		header( 'Content-Type: application/pdf' );
-		header( 'Content-Disposition: attachment; filename="wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id . '.pdf"' );
-		header( 'Content-Length: ' . (string) $size );
+		WPMAR_Download_Headers::send_attachment(
+			'application/pdf',
+			'wpmar-report-' . $dl_domain . '-client-' . $dl_date_ymd . '-' . $id . '.pdf',
+			$size
+		);
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Streams binary PDF artefact.
 		$bytes = readfile( $abs );

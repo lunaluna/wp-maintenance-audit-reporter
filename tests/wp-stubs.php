@@ -108,6 +108,30 @@ if ( ! function_exists( 'is_email' ) ) {
 	}
 }
 
+if ( ! function_exists( 'sanitize_file_name' ) ) {
+	/**
+	 * Stub sanitize_file_name.
+	 *
+	 * @param string $filename Filename to sanitize.
+	 * @return string
+	 */
+	function sanitize_file_name( $filename ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$filename = preg_replace( '/[\/\\\\\x00-\x1F]/', '', (string) $filename );
+		return trim( (string) $filename, '.-_ ' );
+	}
+}
+
+if ( ! function_exists( 'nocache_headers' ) ) {
+	/**
+	 * Stub nocache_headers — records that it was called for assertions.
+	 *
+	 * @return void
+	 */
+	function nocache_headers() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$GLOBALS['_wpmar_test_nocache_headers_called'] = true;
+	}
+}
+
 if ( ! function_exists( 'sanitize_key' ) ) {
 	/**
 	 * Stub sanitize_key.

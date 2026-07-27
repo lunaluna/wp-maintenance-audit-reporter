@@ -103,10 +103,7 @@ class WPMAR_Report_Zip_Export {
 
 		$name = 'wpmar-reports-' . gmdate( 'Ymd-His' ) . '.zip';
 
-		nocache_headers();
-		header( 'Content-Type: application/zip' );
-		header( 'Content-Disposition: attachment; filename="' . $name . '"' );
-		header( 'Content-Length: ' . (string) $size );
+		WPMAR_Download_Headers::send_attachment( 'application/zip', $name, $size );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Deliberate download of generated temp file.
 		readfile( $tmp );

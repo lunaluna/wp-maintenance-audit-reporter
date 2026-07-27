@@ -332,14 +332,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_preflight_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		$result = self::preflight_check();
 
@@ -356,14 +356,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		$result = self::install();
 
@@ -384,14 +384,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_manual_upload_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		// Validate that a file was actually sent.
 		if ( empty( $_FILES['vendor_zip'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- binary upload; sanitizing would corrupt it.

@@ -12,6 +12,7 @@
  * Author URI:        https://profiles.wordpress.org/lunaluna_dev/
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Update URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Text Domain:       wp-maintenance-audit-reporter
  * Domain Path:       /languages
  *
@@ -68,6 +69,7 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-jobs-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
 		'includes/storage/class-wpmar-pdf-writer.php',
+		'includes/storage/class-wpmar-download-headers.php',
 		'includes/storage/class-wpmar-report-zip-export.php',
 		'includes/class-wpmar-data-collector.php',
 		'includes/notify/class-wpmar-notifier-mail.php',
