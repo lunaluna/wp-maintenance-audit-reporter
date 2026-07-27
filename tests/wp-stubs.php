@@ -132,6 +132,24 @@ if ( ! function_exists( 'nocache_headers' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_parse_args' ) ) {
+	/**
+	 * Stub wp_parse_args.
+	 *
+	 * @param array<string,mixed>|string $args     Value to parse.
+	 * @param array<string,mixed>        $defaults Defaults merged under $args.
+	 * @return array<string,mixed>
+	 */
+	function wp_parse_args( $args, $defaults = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( is_array( $args ) ) {
+			return array_merge( $defaults, $args );
+		}
+		parse_str( (string) $args, $parsed );
+
+		return array_merge( $defaults, $parsed );
+	}
+}
+
 if ( ! function_exists( 'sanitize_key' ) ) {
 	/**
 	 * Stub sanitize_key.

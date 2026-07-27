@@ -69,6 +69,7 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-jobs-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
 		'includes/storage/class-wpmar-private-storage.php',
+		'includes/storage/class-wpmar-storage-migrator.php',
 		'includes/storage/class-wpmar-pdf-writer.php',
 		'includes/storage/class-wpmar-download-headers.php',
 		'includes/storage/class-wpmar-report-zip-export.php',
@@ -89,6 +90,7 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-log-viewer.php',
 		'includes/admin/class-wpmar-loopback-notice.php',
 		'includes/admin/class-wpmar-storage-fallback-notice.php',
+		'includes/admin/class-wpmar-storage-migration-notice.php',
 		'includes/admin/class-wpmar-pdf-installer.php',
 		'includes/class-wpmar-github-updater.php',
 	);

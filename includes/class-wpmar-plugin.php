@@ -61,10 +61,15 @@ class WPMAR_Plugin {
 		// on-demand PDF library (vendor/) survives all plugin update paths.
 		WPMAR_PDF_Installer::register_upgrade_hooks();
 
+		// Registered in every context (not just is_admin()) so the Action Scheduler
+		// hook handler exists wherever AS itself runs (async requests, WP-CLI, cron).
+		WPMAR_Storage_Migrator::register_hooks();
+
 		if ( is_admin() ) {
 			WPMAR_Admin_Menu::init();
 			WPMAR_Loopback_Notice::init();
 			WPMAR_Storage_Fallback_Notice::init();
+			WPMAR_Storage_Migration_Notice::init();
 		}
 
 		WPMAR_GitHub_Updater::init();
@@ -72,6 +77,7 @@ class WPMAR_Plugin {
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-command.php';
 			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-audit-command.php';
+			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-storage-command.php';
 		}
 
 		/**
