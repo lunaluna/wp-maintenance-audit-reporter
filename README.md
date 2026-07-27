@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.3.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.3.1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -325,6 +325,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.3.1** (2026-07-27) — Security release. Report/PDF/log storage moves to a protected `wp-content/wpmar-private/` directory by default (random-token filenames, auto `.htaccess`/`index.php`, `WPMAR_PRIVATE_STORAGE_DIR` override), fixing an unauthenticated disclosure issue; existing v1.3.0 files migrate automatically (`wp wpmar storage migrate`, with `--dry-run`/`--network`/`--revert`). Also unifies Parsedown safe mode across the PDF and HTML-email paths, enables `vendor-pdf.zip` checksum verification by default, and adds an `Update URI` header, `nosniff` on all downloads, capability-before-nonce ordering in the PDF installer, `SECURITY.md`, and CI hardening.
 - **v1.3.0** (2026-07-14) — Checksum exclude lists (core and plugin) now support `fnmatch()`-style glob patterns (`*`, `?`) in addition to exact paths and directory prefixes, so a single entry like `wordfence:*/.htaccess` can exclude a repeating filename at any nesting depth.
 - **v1.2.0** (2026-07-14) — Manual report generation now works on sites behind HTTP Basic authentication: blocked loopbacks are detected automatically (12h-cached, re-checkable) and pending jobs progress incrementally while the admin polling page stays open. Adds admin warnings with a re-check button, a schedule-settings note, and README guidance recommending server cron + `wp wpmar audit run --sync` for scheduled reports. Scheduled generation under Basic auth remains unsupported by design.
 - **v1.1.1** (2026-07-09) — The report's user-information section is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table (applies to both the client and operator report bodies); also adds a diagnostics-log usage guide (reading step logs, retrieving them for support) to this README.

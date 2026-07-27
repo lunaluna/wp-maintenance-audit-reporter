@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.0.1
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -289,6 +289,13 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.3.1 =
+* Security: report/PDF/log storage moved to a protected `wp-content/wpmar-private/` directory by default (random-token filenames, auto-generated `.htaccess`/`index.php`, `WPMAR_PRIVATE_STORAGE_DIR` override) — fixes unauthenticated report/PDF/log disclosure. Existing v1.3.0 files migrate automatically after upgrading; `wp wpmar storage migrate [--dry-run] [--network] [--batch=<n>] [--revert]` drives or previews it manually.
+* Security: PDF rendering now shares the same Parsedown safe-mode sanitization as the HTML-email path (previously bypassed), and strips `<img>` tags; mPDF's `allow_local_file_access` is explicitly disabled.
+* Security: `vendor-pdf.zip` checksum verification is enabled by default (previously required manually pinning a constant/filter).
+* Security: added the `Update URI` header, `X-Content-Type-Options: nosniff` on all download responses, capability-before-nonce ordering in the PDF-installer Ajax handlers, a `SECURITY.md` policy, and CI hardening (least-privilege permissions, pinned Actions, `composer audit` against dev dependencies too).
+* See CHANGELOG.md for full details.
 
 = 1.3.0 =
 * Added: checksum exclude lists (core and plugin) now support `fnmatch()`-style glob patterns (`*`, `?`) in addition to exact paths and directory prefixes, so a single entry like `wordfence:*/.htaccess` can exclude a repeating filename at any nesting depth.
