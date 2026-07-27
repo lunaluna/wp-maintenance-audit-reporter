@@ -25,12 +25,19 @@ class WPMAR_PDF_Writer {
 	}
 
 	/**
-	 * Converts UTF-8 Markdown to an HTML fragment (for HTML email). Parsedown only; does not require mPDF.
+	 * Converts UTF-8 Markdown to a sanitized HTML fragment. Parsedown only; does not require mPDF.
+	 *
+	 * Sole conversion path for both the HTML email and the PDF renderer — there
+	 * must be no call site that can reach `\Parsedown::text()` without safe mode.
+	 * Safe mode strips raw HTML (`<script>`, `<annotation>`, ...), but Markdown's
+	 * own `![]()` syntax still emits an `<img>` tag; those are stripped here too
+	 * since reports carry no legitimate images and mPDF would otherwise fetch
+	 * `src` as a remote request (SSRF) or embed attacker-controlled content.
 	 *
 	 * @param string $markdown Source Markdown (same family as PDF / client body).
 	 * @return string HTML fragment, or empty string when Parsedown is not available.
 	 */
-	public static function markdown_to_html_fragment( $markdown ) {
+	public static function markdown_to_safe_html_fragment( $markdown ) {
 		if ( ! class_exists( '\Parsedown' ) ) {
 			return '';
 		}
@@ -41,7 +48,9 @@ class WPMAR_PDF_Writer {
 			$pd->setSafeMode( true );
 		}
 
-		return $pd->text( $markdown );
+		$html = $pd->text( $markdown );
+
+		return preg_replace( '/<img\b[^>]*>/i', '', $html );
 	}
 
 	/**
@@ -97,8 +106,7 @@ class WPMAR_PDF_Writer {
 			return new WP_Error( 'wpmar_pdf_temp_mkdir', __( 'mPDF 一時ディレクトリを作成できません。', 'wp-maintenance-audit-reporter' ) );
 		}
 
-		$parsedown = new \Parsedown();
-		$fragment  = $parsedown->text( $markdown );
+		$fragment = self::markdown_to_safe_html_fragment( $markdown );
 
 		$font_dir   = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
 		$has_notojp = is_dir( $font_dir )
@@ -113,12 +121,13 @@ class WPMAR_PDF_Writer {
 		$file = trailingslashit( $pdf_dir ) . $slug . '.pdf';
 
 		$mpdf_config = array(
-			'mode'          => 'utf-8',
-			'format'        => 'A4',
-			'tempDir'       => $temp_dir,
-			'default_font'  => $has_notojp ? 'notosansjp' : 'sun-exta',
-			'margin_top'    => 12,
-			'margin_bottom' => 12,
+			'mode'                    => 'utf-8',
+			'format'                  => 'A4',
+			'tempDir'                 => $temp_dir,
+			'default_font'            => $has_notojp ? 'notosansjp' : 'sun-exta',
+			'margin_top'              => 12,
+			'margin_bottom'           => 12,
+			'allow_local_file_access' => false,
 		);
 		if ( $has_notojp ) {
 			$mpdf_config['fontDir']  = array( $font_dir );
