@@ -185,6 +185,18 @@ if ( ! function_exists( 'untrailingslashit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'trailingslashit' ) ) {
+	/**
+	 * Stub trailingslashit.
+	 *
+	 * @param string $string String to process.
+	 * @return string
+	 */
+	function trailingslashit( $string ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return rtrim( (string) $string, '/\\' ) . '/';
+	}
+}
+
 if ( ! function_exists( 'wp_normalize_path' ) ) {
 	/**
 	 * Stub wp_normalize_path.
@@ -201,6 +213,161 @@ if ( ! function_exists( 'wp_normalize_path' ) ) {
 		}
 
 		return $path;
+	}
+}
+
+if ( ! function_exists( 'path_join' ) ) {
+	/**
+	 * Stub path_join.
+	 *
+	 * @param string $base Base path.
+	 * @param string $path Path to append.
+	 * @return string
+	 */
+	function path_join( $base, $path ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( '' === (string) $base ) {
+			return (string) $path;
+		}
+		return rtrim( (string) $base, '/' ) . '/' . ltrim( (string) $path, '/' );
+	}
+}
+
+if ( ! function_exists( 'wp_mkdir_p' ) ) {
+	/**
+	 * Stub wp_mkdir_p.
+	 *
+	 * @param string $target Directory to create.
+	 * @return bool
+	 */
+	function wp_mkdir_p( $target ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( is_dir( $target ) ) {
+			return true;
+		}
+		return mkdir( $target, 0777, true ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir
+	}
+}
+
+if ( ! function_exists( 'wp_upload_dir' ) ) {
+	/**
+	 * Stub wp_upload_dir — set $GLOBALS['_wpmar_test_upload_basedir'] to configure per-test.
+	 *
+	 * @return array<string,mixed>
+	 */
+	function wp_upload_dir() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$basedir = isset( $GLOBALS['_wpmar_test_upload_basedir'] )
+			? (string) $GLOBALS['_wpmar_test_upload_basedir']
+			: rtrim( sys_get_temp_dir(), '/\\' ) . '/wpmar-test-uploads';
+
+		return array(
+			'basedir' => $basedir,
+			'error'   => false,
+		);
+	}
+}
+
+if ( ! function_exists( 'is_multisite' ) ) {
+	/**
+	 * Stub is_multisite — set $GLOBALS['_wpmar_test_is_multisite'] to configure per-test.
+	 *
+	 * @return bool
+	 */
+	function is_multisite() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return ! empty( $GLOBALS['_wpmar_test_is_multisite'] );
+	}
+}
+
+if ( ! function_exists( 'get_current_blog_id' ) ) {
+	/**
+	 * Stub get_current_blog_id — set $GLOBALS['_wpmar_test_current_blog_id'] to configure per-test.
+	 *
+	 * @return int
+	 */
+	function get_current_blog_id() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return isset( $GLOBALS['_wpmar_test_current_blog_id'] ) ? (int) $GLOBALS['_wpmar_test_current_blog_id'] : 1;
+	}
+}
+
+if ( ! function_exists( 'get_option' ) ) {
+	/**
+	 * In-memory option store backed by $GLOBALS['_wpmar_test_options'].
+	 *
+	 * @param string $name           Option name.
+	 * @param mixed  $default_value  Default when absent.
+	 * @return mixed
+	 */
+	function get_option( $name, $default_value = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_options'] ) || ! is_array( $GLOBALS['_wpmar_test_options'] ) ) {
+			$GLOBALS['_wpmar_test_options'] = array();
+		}
+		return array_key_exists( $name, $GLOBALS['_wpmar_test_options'] ) ? $GLOBALS['_wpmar_test_options'][ $name ] : $default_value;
+	}
+}
+
+if ( ! function_exists( 'update_option' ) ) {
+	/**
+	 * Stores an option in the in-memory store.
+	 *
+	 * @param string $name     Option name.
+	 * @param mixed  $value    Value.
+	 * @param bool   $autoload Ignored.
+	 * @return bool
+	 */
+	function update_option( $name, $value, $autoload = null ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $autoload );
+		if ( ! isset( $GLOBALS['_wpmar_test_options'] ) || ! is_array( $GLOBALS['_wpmar_test_options'] ) ) {
+			$GLOBALS['_wpmar_test_options'] = array();
+		}
+		$GLOBALS['_wpmar_test_options'][ $name ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'delete_option' ) ) {
+	/**
+	 * Removes an option from the in-memory store.
+	 *
+	 * @param string $name Option name.
+	 * @return bool
+	 */
+	function delete_option( $name ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $GLOBALS['_wpmar_test_options'][ $name ] );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_generate_password' ) ) {
+	/**
+	 * Stub wp_generate_password (alnum-only; special-char args are ignored).
+	 *
+	 * @param int  $length              Password length.
+	 * @param bool $special_chars       Ignored.
+	 * @param bool $extra_special_chars Ignored.
+	 * @return string
+	 */
+	function wp_generate_password( $length = 12, $special_chars = true, $extra_special_chars = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $special_chars, $extra_special_chars );
+		$chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+		$out   = '';
+		for ( $i = 0; $i < $length; $i++ ) {
+			$out .= $chars[ random_int( 0, strlen( $chars ) - 1 ) ];
+		}
+		return $out;
+	}
+}
+
+if ( ! function_exists( 'wp_delete_file' ) ) {
+	/**
+	 * Stub wp_delete_file.
+	 *
+	 * @param string $file Absolute file path.
+	 * @return void
+	 */
+	function wp_delete_file( $file ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( is_string( $file ) && file_exists( $file ) ) {
+			unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_unlink
+		}
 	}
 }
 

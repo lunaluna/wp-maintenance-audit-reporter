@@ -1,6 +1,6 @@
 <?php
 /**
- * Turns Markdown bodies into PDF files under `uploads/wpmar/pdf`.
+ * Turns Markdown bodies into PDF files under the private storage directory.
  *
  * @package WPMAR
  */
@@ -68,7 +68,7 @@ class WPMAR_PDF_Writer {
 	 *
 	 * @param string $markdown        Source Markdown (client-facing stakeholder report when generating audits).
 	 * @param string $basename_no_ext Filename slug without extension.
-	 * @return string|WP_Error Relative uploads path or failure.
+	 * @return string|WP_Error `private:`-prefixed relative path (see {@see WPMAR_Private_Storage}), or failure.
 	 */
 	public static function write_pdf_from_markdown( $markdown, $basename_no_ext ) {
 		if ( ! self::is_available() ) {
@@ -84,20 +84,15 @@ class WPMAR_PDF_Writer {
 			$slug = 'report';
 		}
 
-		$base = WPMAR_MD_Writer::uploads_base_dir();
-		if ( is_wp_error( $base ) ) {
-			return $base;
+		$pdf_dir = WPMAR_Private_Storage::pdf_dir();
+		if ( is_wp_error( $pdf_dir ) ) {
+			return $pdf_dir;
 		}
 
-		$pdf_dir = trailingslashit( $base ) . 'pdf';
-		wp_mkdir_p( $pdf_dir );
-
-		if ( ! is_dir( $pdf_dir ) ) {
-			return new WP_Error( 'wpmar_pdf_mkdir', __( 'PDF 保存用ディレクトリを作成できません。', 'wp-maintenance-audit-reporter' ) );
+		$temp_parent = WPMAR_Private_Storage::tmp_dir();
+		if ( is_wp_error( $temp_parent ) ) {
+			return $temp_parent;
 		}
-
-		$temp_parent = trailingslashit( $base ) . 'tmp';
-		wp_mkdir_p( $temp_parent );
 
 		$temp_dir = trailingslashit( $temp_parent ) . 'mpdf-' . gmdate( 'YmdHis' ) . '-' . wp_rand( 10000, 99999 );
 		wp_mkdir_p( $temp_dir );
@@ -118,7 +113,7 @@ class WPMAR_PDF_Writer {
 			. '<style>body{font-family:' . $body_font . ';font-size:10pt;line-height:1.35;color:#111;}pre,code{font-family:dejavusansmono,monospace;font-size:8pt;}h1{font-size:14pt;}h2{font-size:12pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:4px;}</style>'
 			. '</head><body>' . $fragment . '</body></html>';
 
-		$file = trailingslashit( $pdf_dir ) . $slug . '.pdf';
+		$file = trailingslashit( $pdf_dir ) . $slug . '-' . WPMAR_Private_Storage::generate_token() . '.pdf';
 
 		$mpdf_config = array(
 			'mode'                    => 'utf-8',
@@ -162,10 +157,7 @@ class WPMAR_PDF_Writer {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged -- Mirror uploaded artefact permissions like Markdown exports.
 		@chmod( $file, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
-		$upload_info = wp_upload_dir();
-		$relative    = str_replace( trailingslashit( $upload_info['basedir'] ), '', $file );
-
-		return is_string( $relative ) ? $relative : '';
+		return WPMAR_Private_Storage::relative_for_storage( $file );
 	}
 
 	/**
