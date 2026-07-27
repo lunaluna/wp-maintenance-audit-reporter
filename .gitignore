@@ -30,6 +30,11 @@ build/
 
 # PDF vendor bundle (build artefact; uploaded to GitHub Releases)
 /vendor-pdf.zip
+/vendor-pdf.zip.sha256
+
+# SHA-256 of vendor-pdf.zip, bundled into the release zip by the Release
+# workflow to enable checksum verification by default (see class-wpmar-pdf-installer.php)
+/vendor-pdf.sha256
 
 # Fonts extracted from vendor-pdf.zip — downloaded at runtime via the admin installer
 /fonts/
