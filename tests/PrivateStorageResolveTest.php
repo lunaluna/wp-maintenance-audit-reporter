@@ -63,6 +63,7 @@ class PrivateStorageResolveTest extends TestCase {
 		// Some tests chmod this read-only; always restore before the next test/cleanup.
 		chmod( WPMAR_PRIVATE_STORAGE_DIR, 0755 );
 		$this->rrmdir( WPMAR_PRIVATE_STORAGE_DIR );
+		$this->rrmdir( WP_CONTENT_DIR . '/wpmar-private' );
 		$this->rrmdir( $this->uploads_base );
 		unset(
 			$GLOBALS['_wpmar_test_upload_basedir'],
@@ -152,6 +153,48 @@ class PrivateStorageResolveTest extends TestCase {
 
 		$this->assertStringStartsWith( 'private:reports/', $stored );
 		$this->assertSame( $file, \WPMAR_Private_Storage::resolve( $stored ) );
+	}
+
+	public function test_resolve_falls_back_to_default_location_for_a_private_path_missing_from_the_configured_dir() {
+		// Simulates a file written before WPMAR_PRIVATE_STORAGE_DIR was defined/changed:
+		// it physically lives under the plugin's hard-coded default location, while
+		// base_dir() now resolves to the (different) configured directory.
+		$default_dir = WP_CONTENT_DIR . '/wpmar-private/reports/';
+		mkdir( $default_dir, 0777, true );
+		$file = $default_dir . 'wpmar-report-example-TOKEN000000000001.md';
+		file_put_contents( $file, 'body written under the previous default location' );
+
+		$resolved = \WPMAR_Private_Storage::resolve( 'private:reports/wpmar-report-example-TOKEN000000000001.md' );
+
+		$this->assertSame( wp_normalize_path( $file ), $resolved );
+	}
+
+	public function test_resolve_falls_back_to_uploads_fallback_location_for_a_private_path_written_during_a_fallback_episode() {
+		// Simulates a file written by the uploads/ write fallback while the configured
+		// directory was temporarily unwritable: the DB value already carries the
+		// current `private:` prefix, but the file sits under wp_upload_dir() instead.
+		$fallback_dir = $this->uploads_base . '/wpmar/pdf/';
+		mkdir( $fallback_dir, 0777, true );
+		$file = $fallback_dir . 'wpmar-report-example-TOKEN000000000002.pdf';
+		file_put_contents( $file, 'pdf body written during a fallback episode' );
+
+		$resolved = \WPMAR_Private_Storage::resolve( 'private:pdf/wpmar-report-example-TOKEN000000000002.pdf' );
+
+		$this->assertSame( wp_normalize_path( $file ), $resolved );
+	}
+
+	public function test_resolve_prefers_the_configured_directory_over_the_fallback_locations() {
+		$relative     = 'reports/wpmar-report-example-TOKEN000000000003.md';
+		$current_file = \WPMAR_Private_Storage::reports_dir() . basename( $relative );
+		file_put_contents( $current_file, 'current body' );
+
+		$default_dir = WP_CONTENT_DIR . '/wpmar-private/reports/';
+		mkdir( $default_dir, 0777, true );
+		file_put_contents( $default_dir . basename( $relative ), 'stale body from the default location' );
+
+		$resolved = \WPMAR_Private_Storage::resolve( 'private:' . $relative );
+
+		$this->assertSame( wp_normalize_path( $current_file ), $resolved );
 	}
 
 	public function test_resolve_rejects_traversal_in_private_prefixed_path() {

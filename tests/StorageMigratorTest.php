@@ -384,6 +384,54 @@ class StorageMigratorTest extends TestCase {
 		$this->assertDirectoryExists( $legacy_dir, 'the legacy directory must survive rmdir() while it still has content' );
 	}
 
+	public function test_migrate_after_revert_replaces_the_previous_token_instead_of_appending_another() {
+		// A supported cycle (README documents --revert for downgrading, then migrate to
+		// upgrade again): each pass through migrate_column() must append exactly one
+		// fresh token, never grow the filename by re-tokenizing the previous result,
+		// or the varchar(255) md_file_path/pdf_file_path columns eventually overflow.
+		$rel = $this->seed_legacy_md_file( 1, 'wpmar-report-example-1' );
+		$this->db->reports[] = array(
+			'id'            => 1,
+			'md_file_path'  => $rel,
+			'pdf_file_path' => '',
+		);
+
+		\WPMAR_Storage_Migrator::run_all( 'migrate', 20 );
+		\WPMAR_Storage_Migrator::run_all( 'revert', 20 );
+		\WPMAR_Storage_Migrator::run_all( 'migrate', 20 );
+
+		$twice_migrated = basename( \WPMAR_Private_Storage::resolve( $this->db->reports[0]['md_file_path'] ) );
+
+		$this->assertMatchesRegularExpression(
+			'/^wpmar-report-example-1-[A-Za-z0-9]{20}\.md$/',
+			$twice_migrated,
+			'a second migrate pass must replace the token, not append a second one'
+		);
+	}
+
+	public function test_cleanup_does_not_delete_a_file_still_referenced_via_the_uploads_fallback() {
+		// A file written by the uploads/ write fallback lands in the *same* directory
+		// and matches the *same* filename pattern cleanup_legacy_directories() targets
+		// after a migrate run, even though its DB value already carries the current
+		// `private:` prefix (fallback writes are not legacy files). It must survive
+		// because a current row still resolves to it.
+		$fallback_dir = $GLOBALS['_wpmar_test_upload_basedir'] . '/wpmar/pdf';
+		mkdir( $fallback_dir, 0777, true );
+		$fallback_file = $fallback_dir . '/wpmar-report-fallback-example.pdf';
+		file_put_contents( $fallback_file, 'still-needed pdf' );
+
+		$this->db->reports[] = array(
+			'id'            => 1,
+			'md_file_path'  => '',
+			'pdf_file_path' => 'private:pdf/wpmar-report-fallback-example.pdf',
+		);
+
+		$state = \WPMAR_Storage_Migrator::run_all( 'migrate', 20 );
+
+		$this->assertSame( 'done', $state['state'] );
+		$this->assertFileExists( $fallback_file, 'a file a current row still resolves to must never be swept as legacy cruft' );
+	}
+
 	public function test_revert_moves_file_back_and_keeps_the_same_filename() {
 		$rel = $this->seed_legacy_md_file( 1, 'wpmar-report-example-1' );
 		$this->db->reports[] = array(

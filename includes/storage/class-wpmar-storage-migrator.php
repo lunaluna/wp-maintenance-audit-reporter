@@ -525,6 +525,13 @@ class WPMAR_Storage_Migrator {
 	 * left empty. Never removes a directory that still holds anything else — third-party
 	 * or manually placed files must not be deleted by mistake.
 	 *
+	 * `uploads/wpmar/` is also where the write-fallback ({@see WPMAR_Private_Storage})
+	 * writes when the configured base directory is not writable, using the *same*
+	 * filename patterns as the pre-1.3.1 legacy layout this sweep targets. A file
+	 * written there during a fallback episode is otherwise indistinguishable from
+	 * real legacy cruft by name alone, so every match is checked against every
+	 * current DB row's resolved path first — still-referenced files are skipped.
+	 *
 	 * @return void
 	 */
 	protected static function cleanup_legacy_directories() {
@@ -533,13 +540,14 @@ class WPMAR_Storage_Migrator {
 			return;
 		}
 
-		$base = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'wpmar' );
+		$base       = trailingslashit( trailingslashit( $uploads['basedir'] ) . 'wpmar' );
+		$referenced = self::referenced_absolute_paths();
 
 		foreach ( array( 'wpmar-report-*.md', 'pdf/*.pdf', 'logs/run-*.log' ) as $pattern ) {
 			$matches = glob( $base . $pattern );
 			if ( is_array( $matches ) ) {
 				foreach ( $matches as $file ) {
-					if ( is_file( $file ) ) {
+					if ( is_file( $file ) && ! isset( $referenced[ wp_normalize_path( $file ) ] ) ) {
 						wp_delete_file( $file );
 					}
 				}
@@ -564,6 +572,44 @@ class WPMAR_Storage_Migrator {
 				@rmdir( $dir );
 			}
 		}
+	}
+
+	/**
+	 * Absolute paths every current `md_file_path` / `pdf_file_path` / `log_path`
+	 * value resolves to right now, used by {@see self::cleanup_legacy_directories()}
+	 * to avoid deleting a file that is still a live target of some row — including
+	 * one written by the uploads/ write fallback, which is indistinguishable from
+	 * real legacy leftovers by filename pattern alone.
+	 *
+	 * @return array<string,true> Normalized absolute path => true.
+	 */
+	protected static function referenced_absolute_paths() {
+		global $wpdb;
+		$db = $wpdb;
+
+		$paths = array();
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal, no user input.
+		$reports = $db->get_results( "SELECT md_file_path, pdf_file_path FROM `{$db->prefix}wpmar_reports`", ARRAY_A );
+		foreach ( (array) $reports as $row ) {
+			foreach ( array( 'md_file_path', 'pdf_file_path' ) as $column ) {
+				$abs = WPMAR_Private_Storage::resolve( $row[ $column ] );
+				if ( '' !== $abs ) {
+					$paths[ wp_normalize_path( $abs ) ] = true;
+				}
+			}
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal, no user input.
+		$jobs = $db->get_results( "SELECT log_path FROM `{$db->prefix}wpmar_jobs`", ARRAY_A );
+		foreach ( (array) $jobs as $row ) {
+			$abs = WPMAR_Private_Storage::resolve( $row['log_path'] );
+			if ( '' !== $abs ) {
+				$paths[ wp_normalize_path( $abs ) ] = true;
+			}
+		}
+
+		return $paths;
 	}
 
 	/**
@@ -592,6 +638,23 @@ class WPMAR_Storage_Migrator {
 	}
 
 	/**
+	 * Strips any already-appended random tokens from a filename base.
+	 *
+	 * {@see self::migrate_column()} always appends exactly one fresh token per call,
+	 * but a file can pass through it more than once via the documented, supported
+	 * `migrate` -> `--revert` -> `migrate` downgrade/upgrade cycle (revert keeps the
+	 * filename, including any token, unchanged). Without this, each extra cycle would
+	 * append another 20-character token on top of the last, eventually overflowing the
+	 * `varchar(255)` `md_file_path`/`pdf_file_path` columns.
+	 *
+	 * @param string $basename Filename without extension, as returned by pathinfo().
+	 * @return string Basename with any trailing `-{20 alphanumeric chars}` run(s) removed.
+	 */
+	protected static function strip_accumulated_tokens( $basename ) {
+		return (string) preg_replace( '/(?:-[A-Za-z0-9]{20})+$/', '', (string) $basename );
+	}
+
+	/**
 	 * Moves one legacy file into private storage with a freshly generated token.
 	 *
 	 * @param string $stored     Current (legacy or already-migrated) DB value.
@@ -616,7 +679,7 @@ class WPMAR_Storage_Migrator {
 		}
 
 		$ext      = pathinfo( $old_abs, PATHINFO_EXTENSION );
-		$basename = pathinfo( $old_abs, PATHINFO_FILENAME );
+		$basename = self::strip_accumulated_tokens( pathinfo( $old_abs, PATHINFO_FILENAME ) );
 		$new_abs  = $dir . $basename . '-' . WPMAR_Private_Storage::generate_token() . ( '' !== $ext ? '.' . $ext : '' );
 
 		if ( ! self::move_file( $old_abs, $new_abs ) ) {

@@ -109,6 +109,27 @@ class WPMAR_Private_Storage {
 	}
 
 	/**
+	 * The base directory this class would use with no `WPMAR_PRIVATE_STORAGE_DIR`
+	 * constant/`wpmar_private_storage_dir` filter in effect, i.e. `wp-content/wpmar-private`.
+	 *
+	 * Used only as a read fallback in {@see self::resolve()} for rows written before an
+	 * operator defined/changed that override: the override affects where *new* files go,
+	 * but does not relocate files already written under the previous default, so a stale
+	 * `private:`-prefixed path must still be resolvable against this well-known location.
+	 *
+	 * @return string Trailing-slashed absolute path (not created/verified — read-only probe).
+	 */
+	protected static function default_base_dir() {
+		$base = wp_normalize_path( untrailingslashit( WP_CONTENT_DIR . '/wpmar-private' ) );
+
+		if ( is_multisite() ) {
+			$base .= '/site-' . get_current_blog_id();
+		}
+
+		return trailingslashit( $base );
+	}
+
+	/**
 	 * Whether the uploads/ fallback is active for this site right now.
 	 *
 	 * @return bool
@@ -284,6 +305,17 @@ class WPMAR_Private_Storage {
 	 * directory resolved by {@see self::base_dir()}) and the legacy v1.3.0
 	 * format (a bare `wp_upload_dir()`-relative fragment, read-only support).
 	 *
+	 * A `private:`-prefixed path is tried, in order, against: the currently
+	 * configured base directory; the plugin's well-known default location
+	 * ({@see self::default_base_dir()}); and the uploads/ write-fallback
+	 * location ({@see self::fallback_base_dir()}). A file can end up at either
+	 * of the latter two even though its DB value already carries the *current*
+	 * `private:` prefix format — the configured base directory only affects
+	 * where *new* files are written, it does not relocate ones already written
+	 * under a previous default or during a past write-fallback episode, and
+	 * `wp wpmar storage migrate` has nothing to do here either (the path is
+	 * already in the current, non-legacy format).
+	 *
 	 * @param string $stored Value from `md_file_path` / `pdf_file_path` / `log_path`.
 	 * @return string Absolute path, or '' when invalid, unresolvable, or escaping its root.
 	 */
@@ -294,7 +326,31 @@ class WPMAR_Private_Storage {
 		}
 
 		if ( 0 === strpos( $stored, self::PREFIX ) ) {
-			return self::resolve_relative_to( substr( $stored, strlen( self::PREFIX ) ), self::base_dir() );
+			$relative = substr( $stored, strlen( self::PREFIX ) );
+
+			// The primary candidate's resolution is always the fallback return value —
+			// including '' when it rejects a traversal/symlink escape — so a secondary
+			// candidate can never be used to paper over that rejection. Secondary
+			// candidates are consulted only to find a file that actually exists.
+			$primary = self::resolve_relative_to( $relative, self::base_dir() );
+			if ( '' !== $primary && is_file( $primary ) ) {
+				return $primary;
+			}
+
+			$fallback   = self::fallback_base_dir();
+			$candidates = array( self::default_base_dir() );
+			if ( ! is_wp_error( $fallback ) ) {
+				$candidates[] = $fallback;
+			}
+
+			foreach ( $candidates as $base ) {
+				$resolved = self::resolve_relative_to( $relative, $base );
+				if ( '' !== $resolved && is_file( $resolved ) ) {
+					return $resolved;
+				}
+			}
+
+			return $primary;
 		}
 
 		return self::resolve_legacy_upload_relative( $stored );
