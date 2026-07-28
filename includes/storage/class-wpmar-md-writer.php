@@ -1,8 +1,9 @@
 <?php
 /**
- * Filesystem helpers that land Markdown exports under `uploads/wpmar`.
+ * Filesystem helpers that land Markdown exports in the private storage directory.
  *
- * Paths are normalised against `wp_upload_dir()` so multisite subsites stay isolated.
+ * Also retains the `uploads/wpmar` helpers used by {@see WPMAR_Private_Storage} as
+ * its write-fallback location when the primary storage directory is not writable.
  *
  * @package WPMAR
  */
@@ -47,16 +48,16 @@ class WPMAR_MD_Writer {
 	}
 
 	/**
-	 * Persist markdown string and return uploads-relative posix path fragments.
+	 * Persist markdown string and return its `private:`-prefixed storage path.
 	 *
-	 * @param string $basename_no_ext Desired filename slug (timestamp based).
+	 * @param string $basename_no_ext   Desired filename slug (timestamp based).
 	 * @param string $markdown_contents utf8 textual body bytes.
-	 * @return string|WP_Error relative path like wp-content uploads relative or error.
+	 * @return string|WP_Error `private:`-prefixed relative path, or error.
 	 */
 	public static function write_markdown_file( $basename_no_ext, $markdown_contents ) {
-		$base = self::uploads_base_dir();
-		if ( is_wp_error( $base ) ) {
-			return $base;
+		$dir = WPMAR_Private_Storage::reports_dir();
+		if ( is_wp_error( $dir ) ) {
+			return $dir;
 		}
 
 		$slug = sanitize_file_name( strtolower( preg_replace( '/[^a-z0-9_-]+/i', '-', $basename_no_ext ) ) );
@@ -64,10 +65,10 @@ class WPMAR_MD_Writer {
 			$slug = 'report';
 		}
 
-		$file = trailingslashit( $base ) . $slug . '.md';
+		$file = trailingslashit( $dir ) . $slug . '-' . WPMAR_Private_Storage::generate_token() . '.md';
 
 		// Atomic-friendly single write; caller already assembled the UTF-8 Markdown string.
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes under wp_upload_dir with controlled filename.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- writes under the protected private-storage directory.
 		if ( false === file_put_contents( $file, $markdown_contents ) ) {
 			return new WP_Error( 'wpmar_md_write_failed', __( 'Unable to persist markdown artefact.', 'wp-maintenance-audit-reporter' ) );
 		}
@@ -75,108 +76,33 @@ class WPMAR_MD_Writer {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged -- Mirror core upload permissions; failures are harmless.
 		@chmod( $file, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
-		// Store relative fragments in DB so restores can relocate uploads between environments.
-		$upload_info = wp_upload_dir();
-		$relative    = str_replace(
-			trailingslashit( $upload_info['basedir'] ),
-			'',
-			$file
-		);
-
-		return is_string( $relative ) ? $relative : '';
+		return WPMAR_Private_Storage::relative_for_storage( $file );
 	}
 
 	/**
-	 * Maps an uploads-relative fragment to an absolute path inside the uploads base directory.
+	 * Maps a stored path (new `private:`-prefixed or legacy uploads-relative) to an
+	 * absolute filesystem path.
 	 *
-	 * @param string $relative Path relative to `wp_upload_dir()['basedir']`.
-	 * @return string Empty string when the path escapes the uploads root or cannot be resolved.
+	 * Thin wrapper kept for the existing call sites; the resolution itself now
+	 * lives in {@see WPMAR_Private_Storage::resolve()}.
+	 *
+	 * @param string $relative Value from `md_file_path` / `pdf_file_path` / `log_path`.
+	 * @return string Empty string when the path is invalid or cannot be resolved.
 	 */
 	public static function absolute_path_from_upload_relative( $relative ) {
-		$relative = is_string( $relative ) ? trim( $relative ) : '';
-		if ( '' === $relative || false !== strpos( $relative, '..' ) ) {
-			return '';
-		}
-
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return '';
-		}
-
-		$base = wp_normalize_path( trailingslashit( $uploads['basedir'] ) );
-		$full = wp_normalize_path( path_join( $uploads['basedir'], $relative ) );
-
-		if ( 0 !== strpos( $full, $base ) ) {
-			return '';
-		}
-
-		// Resolve symlinks: if the target exists, its real location must remain inside
-		// the uploads root (a symlink placed under uploads must not escape it).
-		if ( false === self::real_path_within_uploads( $full, $uploads['basedir'] ) ) {
-			return '';
-		}
-
-		return $full;
+		return WPMAR_Private_Storage::resolve( $relative );
 	}
 
 	/**
-	 * Deletes a file previously stored as `wp_upload_dir()['basedir']`-relative.
+	 * Deletes a file previously stored via {@see self::write_markdown_file()} or the
+	 * legacy uploads-relative format.
 	 *
-	 * @param string $relative Path relative to the uploads base directory.
+	 * Thin wrapper kept for the existing call sites; see {@see WPMAR_Private_Storage::delete()}.
+	 *
+	 * @param string $relative Value from `md_file_path` / `pdf_file_path` / `log_path`.
 	 * @return void
 	 */
 	public static function delete_if_upload_relative( $relative ) {
-		$relative = is_string( $relative ) ? trim( $relative ) : '';
-
-		if ( '' === $relative || false !== strpos( $relative, '..' ) ) {
-			return;
-		}
-
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return;
-		}
-
-		$base = wp_normalize_path( trailingslashit( $uploads['basedir'] ) );
-		$full = wp_normalize_path( path_join( $uploads['basedir'], $relative ) );
-
-		if ( 0 !== strpos( $full, $base ) ) {
-			return;
-		}
-
-		// Never follow a symlink out of the uploads root when deleting.
-		if ( false === self::real_path_within_uploads( $full, $uploads['basedir'] ) ) {
-			return;
-		}
-
-		if ( file_exists( $full ) && is_file( $full ) ) {
-			wp_delete_file( $full );
-		}
-	}
-
-	/**
-	 * Whether $full, once symlinks are resolved, stays inside the uploads root.
-	 *
-	 * @param string $full    Absolute candidate path (already prefix-checked as a string).
-	 * @param string $basedir Uploads base directory.
-	 * @return bool|null True when contained, false when it escapes the root, null when the
-	 *                   target does not yet exist (nothing to resolve — the string prefix
-	 *                   check already guards the logical path for not-yet-written files).
-	 */
-	private static function real_path_within_uploads( $full, $basedir ) {
-		$real_full = realpath( $full );
-		if ( false === $real_full ) {
-			return null;
-		}
-
-		$real_base = realpath( $basedir );
-		if ( false === $real_base ) {
-			return false;
-		}
-
-		$real_base_n = wp_normalize_path( trailingslashit( $real_base ) );
-		$real_full_n = wp_normalize_path( $real_full );
-
-		return 0 === strpos( $real_full_n, $real_base_n );
+		WPMAR_Private_Storage::delete( $relative );
 	}
 }

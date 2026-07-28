@@ -225,7 +225,7 @@ class WPMAR_Notifier_Mail {
 	 * @return string Full HTML document fragment, or empty to fall back to plain text.
 	 */
 	protected static function build_client_html_email_body( $markdown ) {
-		$fragment = WPMAR_PDF_Writer::markdown_to_html_fragment( (string) $markdown );
+		$fragment = WPMAR_PDF_Writer::markdown_to_safe_html_fragment( (string) $markdown );
 		if ( '' === trim( $fragment ) ) {
 			return '';
 		}

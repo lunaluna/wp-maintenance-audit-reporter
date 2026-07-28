@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.3.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.3.1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -88,8 +88,8 @@ Entries containing `*` (any string, crosses `/`) or `?` (any single character) a
 
 #### レポートをファイルとして自動保存 (Auto-save report files)
 
-- **Markdown を uploads に書き出して保存（管理者向け）** — writes the administrator-facing `.md` to `wp-content/uploads/wpmar/` on each run.
-- **PDF を uploads に書き出して保存（クライアント向け）** — writes the client-facing PDF to `uploads/wpmar/pdf/`. A warning appears (and the setting has no effect) while the PDF library is not installed.
+- **Markdown を書き出して保存（管理者向け）** — writes the administrator-facing `.md` to the protected private storage directory's `reports/` on each run (see "Storage directory (private storage)" below).
+- **PDF を書き出して保存（クライアント向け）** — writes the client-facing PDF to the private storage directory's `pdf/`. A warning appears (and the setting has no effect) while the PDF library is not installed.
 
 #### PDF ライブラリ（mPDF） (PDF library)
 
@@ -139,9 +139,58 @@ Timestamp (UTC) · level (`INFO`/`ERROR`) · job id · what happened. A normal r
 - The **Reports screen**'s 診断ログ section lists recent jobs that have a log; "表示" (view) shows the tail (last ~200 lines) inline, "ダウンロード" (download) fetches the file.
 - The running/failed job panel (Settings & Run screen) also shows a "動作ログをダウンロード" (download log) link on failure.
 - Both are protected by the `manage_options` capability and a per-job nonce, so it's safe to hand the log file to a support request as-is — secrets such as mail passwords are never written to it.
-- A synchronous WP-CLI run (`wp wpmar audit run --sync`) also produces a log (job id starting with `cli-`), but it won't appear in the admin job list — check `wp-content/uploads/wpmar/logs/` directly on the server.
+- A synchronous WP-CLI run (`wp wpmar audit run --sync`) also produces a log (job id starting with `cli-`), but it won't appear in the admin job list — check the private storage directory's `logs/` (below) directly on the server.
 
-Log files live under `wp-content/uploads/wpmar/logs/` (filenames carry an unguessable random token and the directory is `.htaccess`-protected against direct access). Only the 20 most recent runs are kept — older ones are pruned automatically after each run — and the whole directory is removed on uninstall.
+Log files live under the private storage directory's `logs/` (filenames carry an unguessable random token and the directory is `.htaccess`-protected against direct access). Only the 20 most recent runs are kept — older ones are pruned automatically after each run — and the whole directory is removed on uninstall.
+
+### Storage directory (private storage)
+
+Reports (Markdown), PDFs, and diagnostics logs are stored by default under `wp-content/wpmar-private/` (with `reports/`, `pdf/`, `logs/`, and `tmp/` subdirectories). `wp-content/uploads/` is routinely exposed unintentionally by backup publishing, CDNs, and sync tools, so as of v1.3.1 the default storage location has moved outside `uploads`.
+
+**Defense in depth:**
+
+1. Every filename carries an unguessable random token — the only defense that doesn't depend on the web server type.
+2. Every directory gets an auto-generated `.htaccess` (`Require all denied` / `Deny from all`) and `index.php`.
+3. By default this still sits under the document root (inside `wp-content`), but the constant below lets you move it outside entirely.
+4. On multisite, a `site-{blog_id}/` split is always inserted under the base directory, since `wp-content` is shared network-wide (unlike `wp_upload_dir()`, which WordPress already splits per site).
+
+**Changing the location (`WPMAR_PRIVATE_STORAGE_DIR`):** define this constant (e.g. in `wp-config.php`) to move storage outside the document root entirely:
+
+```php
+define( 'WPMAR_PRIVATE_STORAGE_DIR', dirname( ABSPATH ) . '/wpmar-private' );
+```
+
+The `wpmar_private_storage_dir` filter offers the same override programmatically.
+
+**Non-Apache servers (nginx, etc.):** `.htaccess` only works under Apache. On nginx, add an explicit deny rule, e.g.:
+
+```nginx
+location ^~ /wp-content/wpmar-private/ {
+    deny all;
+    return 404;
+}
+```
+
+Behind a CDN/reverse proxy (e.g. CloudFront), add the same deny rule at the CDN layer in addition to the origin.
+
+**Write-fallback:** on hosts where `wp-content` isn't writable (some hardened setups), the plugin automatically falls back to the already-protected `wp-content/uploads/wpmar/` and shows an admin notice. Random-token protection stays in effect during the fallback. Setting `WPMAR_PRIVATE_STORAGE_DIR`, or fixing directory permissions, is recommended over relying on the fallback long-term.
+
+**Backups:** exclude `wp-content/wpmar-private/` from backups, or encrypt it if included — it contains administrator email addresses and a vulnerability-relevant version inventory.
+
+**Upgrading from v1.3.0 or earlier:** existing md/PDF/log files are migrated automatically to the new storage location after the plugin updates (files are renamed with a freshly generated random token). Migration proceeds gradually in the background, and the admin screens show progress ("レポートの保存先を移行中: X / Y 件" — "Migrating report storage: X / Y"). Old files are not deleted until migration completes. If the process is interrupted mid-migration, it resumes on the next request. To check or drive it manually, use WP-CLI:
+
+```bash
+# Preview only — reports counts and post-migration paths, changes nothing
+wp wpmar storage migrate --dry-run
+
+# Run it (default batch size: 20)
+wp wpmar storage migrate
+
+# Run across every site on a multisite network
+wp wpmar storage migrate --network
+```
+
+**Downgrading:** before reinstalling the v1.3.0 zip, run `wp wpmar storage migrate --revert` first. This moves files back under `uploads/wpmar/` and updates the DB paths to the legacy format (filenames, random tokens included, are kept as-is, so they remain safe to serve even under v1.3.0). Downgrading without `--revert` first can leave files under `wp-content/wpmar-private/` outside the reach of both retention cleanup and the uninstaller.
 
 ### Network admin (multisite)
 
@@ -172,6 +221,21 @@ wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]
 | `--no-snapshot` | Generate the report without updating the snapshot baseline. |
 
 `--same-setting` / `--id` are not available here — use the legacy `wp maintenance-audit run` for per-site network scoping.
+
+#### `wp wpmar storage migrate`
+
+Migrates report/PDF/log storage to (or, with `--revert`, back from) the protected private-storage directory — see [Storage directory (private storage)](#storage-directory-private-storage) above.
+
+```bash
+wp wpmar storage migrate [--dry-run] [--network] [--batch=<size>] [--revert]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Report eligible-row counts and post-migration paths without moving any file or touching the database. |
+| `--network` | Repeat on every site in the network (`switch_to_blog()` per site). Without this flag, only the current site is processed. |
+| `--batch=<size>` | Rows processed per internal batch (default 20). Progress is saved after every batch, so an interrupted run resumes from where it left off. |
+| `--revert` | Reverse direction: move files back to the legacy `uploads/wpmar/` layout and strip the `private:` prefix from stored paths (filenames, tokens included, are kept as-is). Intended for downgrading to a pre-1.3.1 release; not exposed in the admin UI since a downgrade is a deliberate operator action. |
 
 #### `wp maintenance-audit` (legacy)
 
@@ -261,6 +325,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.3.1** (2026-07-27) — Security release. Report/PDF/log storage moves to a protected `wp-content/wpmar-private/` directory by default (random-token filenames, auto `.htaccess`/`index.php`, `WPMAR_PRIVATE_STORAGE_DIR` override), fixing an unauthenticated disclosure issue; existing v1.3.0 files migrate automatically (`wp wpmar storage migrate`, with `--dry-run`/`--network`/`--revert`). Also unifies Parsedown safe mode across the PDF and HTML-email paths, enables `vendor-pdf.zip` checksum verification by default, and adds an `Update URI` header, `nosniff` on all downloads, capability-before-nonce ordering in the PDF installer, `SECURITY.md`, and CI hardening.
 - **v1.3.0** (2026-07-14) — Checksum exclude lists (core and plugin) now support `fnmatch()`-style glob patterns (`*`, `?`) in addition to exact paths and directory prefixes, so a single entry like `wordfence:*/.htaccess` can exclude a repeating filename at any nesting depth.
 - **v1.2.0** (2026-07-14) — Manual report generation now works on sites behind HTTP Basic authentication: blocked loopbacks are detected automatically (12h-cached, re-checkable) and pending jobs progress incrementally while the admin polling page stays open. Adds admin warnings with a re-check button, a schedule-settings note, and README guidance recommending server cron + `wp wpmar audit run --sync` for scheduled reports. Scheduled generation under Basic auth remains unsupported by design.
 - **v1.1.1** (2026-07-09) — The report's user-information section is now a Markdown table instead of tab-separated text, so the client PDF renders it as a bordered table (applies to both the client and operator report bodies); also adds a diagnostics-log usage guide (reading step logs, retrieving them for support) to this README.

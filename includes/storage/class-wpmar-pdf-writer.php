@@ -1,6 +1,6 @@
 <?php
 /**
- * Turns Markdown bodies into PDF files under `uploads/wpmar/pdf`.
+ * Turns Markdown bodies into PDF files under the private storage directory.
  *
  * @package WPMAR
  */
@@ -25,12 +25,19 @@ class WPMAR_PDF_Writer {
 	}
 
 	/**
-	 * Converts UTF-8 Markdown to an HTML fragment (for HTML email). Parsedown only; does not require mPDF.
+	 * Converts UTF-8 Markdown to a sanitized HTML fragment. Parsedown only; does not require mPDF.
+	 *
+	 * Sole conversion path for both the HTML email and the PDF renderer — there
+	 * must be no call site that can reach `\Parsedown::text()` without safe mode.
+	 * Safe mode strips raw HTML (`<script>`, `<annotation>`, ...), but Markdown's
+	 * own `![]()` syntax still emits an `<img>` tag; those are stripped here too
+	 * since reports carry no legitimate images and mPDF would otherwise fetch
+	 * `src` as a remote request (SSRF) or embed attacker-controlled content.
 	 *
 	 * @param string $markdown Source Markdown (same family as PDF / client body).
 	 * @return string HTML fragment, or empty string when Parsedown is not available.
 	 */
-	public static function markdown_to_html_fragment( $markdown ) {
+	public static function markdown_to_safe_html_fragment( $markdown ) {
 		if ( ! class_exists( '\Parsedown' ) ) {
 			return '';
 		}
@@ -41,7 +48,9 @@ class WPMAR_PDF_Writer {
 			$pd->setSafeMode( true );
 		}
 
-		return $pd->text( $markdown );
+		$html = $pd->text( $markdown );
+
+		return preg_replace( '/<img\b[^>]*>/i', '', $html );
 	}
 
 	/**
@@ -59,7 +68,7 @@ class WPMAR_PDF_Writer {
 	 *
 	 * @param string $markdown        Source Markdown (client-facing stakeholder report when generating audits).
 	 * @param string $basename_no_ext Filename slug without extension.
-	 * @return string|WP_Error Relative uploads path or failure.
+	 * @return string|WP_Error `private:`-prefixed relative path (see {@see WPMAR_Private_Storage}), or failure.
 	 */
 	public static function write_pdf_from_markdown( $markdown, $basename_no_ext ) {
 		if ( ! self::is_available() ) {
@@ -75,20 +84,15 @@ class WPMAR_PDF_Writer {
 			$slug = 'report';
 		}
 
-		$base = WPMAR_MD_Writer::uploads_base_dir();
-		if ( is_wp_error( $base ) ) {
-			return $base;
+		$pdf_dir = WPMAR_Private_Storage::pdf_dir();
+		if ( is_wp_error( $pdf_dir ) ) {
+			return $pdf_dir;
 		}
 
-		$pdf_dir = trailingslashit( $base ) . 'pdf';
-		wp_mkdir_p( $pdf_dir );
-
-		if ( ! is_dir( $pdf_dir ) ) {
-			return new WP_Error( 'wpmar_pdf_mkdir', __( 'PDF 保存用ディレクトリを作成できません。', 'wp-maintenance-audit-reporter' ) );
+		$temp_parent = WPMAR_Private_Storage::tmp_dir();
+		if ( is_wp_error( $temp_parent ) ) {
+			return $temp_parent;
 		}
-
-		$temp_parent = trailingslashit( $base ) . 'tmp';
-		wp_mkdir_p( $temp_parent );
 
 		$temp_dir = trailingslashit( $temp_parent ) . 'mpdf-' . gmdate( 'YmdHis' ) . '-' . wp_rand( 10000, 99999 );
 		wp_mkdir_p( $temp_dir );
@@ -97,8 +101,7 @@ class WPMAR_PDF_Writer {
 			return new WP_Error( 'wpmar_pdf_temp_mkdir', __( 'mPDF 一時ディレクトリを作成できません。', 'wp-maintenance-audit-reporter' ) );
 		}
 
-		$parsedown = new \Parsedown();
-		$fragment  = $parsedown->text( $markdown );
+		$fragment = self::markdown_to_safe_html_fragment( $markdown );
 
 		$font_dir   = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
 		$has_notojp = is_dir( $font_dir )
@@ -110,15 +113,16 @@ class WPMAR_PDF_Writer {
 			. '<style>body{font-family:' . $body_font . ';font-size:10pt;line-height:1.35;color:#111;}pre,code{font-family:dejavusansmono,monospace;font-size:8pt;}h1{font-size:14pt;}h2{font-size:12pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:4px;}</style>'
 			. '</head><body>' . $fragment . '</body></html>';
 
-		$file = trailingslashit( $pdf_dir ) . $slug . '.pdf';
+		$file = trailingslashit( $pdf_dir ) . $slug . '-' . WPMAR_Private_Storage::generate_token() . '.pdf';
 
 		$mpdf_config = array(
-			'mode'          => 'utf-8',
-			'format'        => 'A4',
-			'tempDir'       => $temp_dir,
-			'default_font'  => $has_notojp ? 'notosansjp' : 'sun-exta',
-			'margin_top'    => 12,
-			'margin_bottom' => 12,
+			'mode'                    => 'utf-8',
+			'format'                  => 'A4',
+			'tempDir'                 => $temp_dir,
+			'default_font'            => $has_notojp ? 'notosansjp' : 'sun-exta',
+			'margin_top'              => 12,
+			'margin_bottom'           => 12,
+			'allow_local_file_access' => false,
 		);
 		if ( $has_notojp ) {
 			$mpdf_config['fontDir']  = array( $font_dir );
@@ -153,10 +157,7 @@ class WPMAR_PDF_Writer {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod,WordPress.PHP.NoSilencedErrors.Discouraged -- Mirror uploaded artefact permissions like Markdown exports.
 		@chmod( $file, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
-		$upload_info = wp_upload_dir();
-		$relative    = str_replace( trailingslashit( $upload_info['basedir'] ), '', $file );
-
-		return is_string( $relative ) ? $relative : '';
+		return WPMAR_Private_Storage::relative_for_storage( $file );
 	}
 
 	/**

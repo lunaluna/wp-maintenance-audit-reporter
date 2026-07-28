@@ -23,9 +23,6 @@ class WPMAR_Logger {
 	const LEVEL_WARN  = 'WARN';
 	const LEVEL_ERROR = 'ERROR';
 
-	/** Subdirectory inside `wp_upload_dir()['basedir']`. */
-	const UPLOAD_SUBDIR = 'wpmar/logs';
-
 	/** Fixed retention: number of most recent log files kept on disk. */
 	const KEEP_LATEST = 20;
 
@@ -59,7 +56,7 @@ class WPMAR_Logger {
 	 *
 	 * @param string $job_id Job id from {@see WPMAR_Jobs_Repository}, or an arbitrary
 	 *                       label (e.g. `cli-...`) for job-less contexts.
-	 * @return string Uploads-relative path to the log file, or '' on failure.
+	 * @return string `private:`-prefixed path to the log file (see {@see WPMAR_Private_Storage}), or '' on failure.
 	 */
 	public static function begin_job( $job_id ) {
 		$job_id = self::sanitize_label( $job_id );
@@ -72,7 +69,7 @@ class WPMAR_Logger {
 			return '';
 		}
 
-		$token    = wp_generate_password( 16, false, false );
+		$token    = WPMAR_Private_Storage::generate_token();
 		$filename = sprintf( 'run-%s-%s-%s.log', gmdate( 'Ymd-His' ), $job_id, $token );
 		$absolute = $dir . $filename;
 
@@ -86,7 +83,7 @@ class WPMAR_Logger {
 			self::$shutdown_registered = true;
 		}
 
-		return self::relative_from_absolute( $absolute );
+		return WPMAR_Private_Storage::relative_for_storage( $absolute );
 	}
 
 	/**
@@ -222,59 +219,7 @@ class WPMAR_Logger {
 	 * @return string|WP_Error Trailing-slashed absolute path, or WP_Error on failure.
 	 */
 	public static function logs_dir() {
-		$uploads = wp_upload_dir();
-		if ( ! empty( $uploads['error'] ) ) {
-			return new WP_Error( 'wpmar_log_upload_base', esc_html( $uploads['error'] ) );
-		}
-
-		$dir = trailingslashit( $uploads['basedir'] ) . self::UPLOAD_SUBDIR;
-		wp_mkdir_p( $dir );
-
-		if ( ! is_dir( $dir ) ) {
-			return new WP_Error( 'wpmar_log_mkdir_fail', __( 'Unable to create log directory.', 'wp-maintenance-audit-reporter' ) );
-		}
-
-		self::seed_protection_files( trailingslashit( $dir ) );
-
-		return trailingslashit( $dir );
-	}
-
-	/**
-	 * Writes `.htaccess` (Apache) and an empty `index.php` guard into the logs directory.
-	 *
-	 * Defense in depth only: the primary protection is the unguessable random token in
-	 * every filename, since local/dev environments frequently run nginx where `.htaccess`
-	 * has no effect at all.
-	 *
-	 * @param string $dir Trailing-slashed absolute directory path.
-	 * @return void
-	 */
-	protected static function seed_protection_files( $dir ) {
-		$htaccess = $dir . '.htaccess';
-		if ( ! file_exists( $htaccess ) ) {
-			$rules = "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n";
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- one-time guard file inside our own protected directory.
-			file_put_contents( $htaccess, $rules );
-		}
-
-		$index = $dir . 'index.php';
-		if ( ! file_exists( $index ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- one-time guard file inside our own protected directory.
-			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
-		}
-	}
-
-	/**
-	 * Maps an absolute log path back to an uploads-relative fragment for DB storage.
-	 *
-	 * @param string $absolute Absolute path under `wp_upload_dir()['basedir']`.
-	 * @return string
-	 */
-	protected static function relative_from_absolute( $absolute ) {
-		$uploads  = wp_upload_dir();
-		$relative = str_replace( trailingslashit( $uploads['basedir'] ), '', $absolute );
-
-		return is_string( $relative ) ? $relative : '';
+		return WPMAR_Private_Storage::logs_dir();
 	}
 
 	/**

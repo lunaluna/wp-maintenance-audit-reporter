@@ -332,14 +332,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_preflight_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		$result = self::preflight_check();
 
@@ -356,14 +356,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		$result = self::install();
 
@@ -384,14 +384,14 @@ class WPMAR_PDF_Installer {
 	 * @return void
 	 */
 	public static function handle_manual_upload_ajax() {
-		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
-
 		if ( ! current_user_can( 'install_plugins' ) ) {
 			wp_send_json_error(
 				array( 'message' => __( '権限がありません。', 'wp-maintenance-audit-reporter' ) ),
 				403
 			);
 		}
+
+		check_ajax_referer( 'wpmar_pdf_installer', 'nonce' );
 
 		// Validate that a file was actually sent.
 		if ( empty( $_FILES['vendor_zip'] ) ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- binary upload; sanitizing would corrupt it.
@@ -555,17 +555,39 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
-	 * Expected SHA-256 of the official vendor-pdf.zip, if pinned.
+	 * Expected SHA-256 of the official vendor-pdf.zip.
 	 *
-	 * Empty by default (no enforcement). Set the `WPMAR_PDF_VENDOR_ZIP_SHA256`
-	 * constant or the `wpmar_pdf_vendor_zip_sha256` filter to a lowercase hex
-	 * digest to require the archive to match before it is extracted.
+	 * Enabled by default: the release workflow embeds the digest for that exact
+	 * release into {@see self::bundled_sha256()}. The `WPMAR_PDF_VENDOR_ZIP_SHA256`
+	 * constant overrides it (e.g. a custom build), and the
+	 * `wpmar_pdf_vendor_zip_sha256` filter has the final say. Both stay empty on a
+	 * source checkout (e.g. local development) rather than an official release
+	 * zip, in which case verification is a no-op as before.
 	 *
 	 * @return string
 	 */
 	private static function expected_sha256() {
-		$pinned = defined( 'WPMAR_PDF_VENDOR_ZIP_SHA256' ) ? (string) WPMAR_PDF_VENDOR_ZIP_SHA256 : '';
-		return strtolower( trim( (string) apply_filters( 'wpmar_pdf_vendor_zip_sha256', $pinned ) ) );
+		$pinned  = defined( 'WPMAR_PDF_VENDOR_ZIP_SHA256' ) ? trim( (string) WPMAR_PDF_VENDOR_ZIP_SHA256 ) : '';
+		$default = '' !== $pinned ? $pinned : self::bundled_sha256();
+
+		return strtolower( trim( (string) apply_filters( 'wpmar_pdf_vendor_zip_sha256', $default ) ) );
+	}
+
+	/**
+	 * SHA-256 embedded in this exact plugin release by `.github/workflows/release.yml`.
+	 *
+	 * @return string Lowercase hex digest, or '' when the file is absent or malformed.
+	 */
+	private static function bundled_sha256() {
+		$path = WPMAR_PLUGIN_DIR . 'vendor-pdf.sha256';
+		if ( ! is_readable( $path ) ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads a small file bundled inside this plugin's own directory, not a remote fetch.
+		$contents = trim( (string) file_get_contents( $path ) );
+
+		return preg_match( '/^[a-f0-9]{64}$/i', $contents ) ? strtolower( $contents ) : '';
 	}
 
 	/**

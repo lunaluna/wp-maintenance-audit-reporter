@@ -67,13 +67,11 @@ class WPMAR_Log_Viewer {
 
 		$size = filesize( $abs );
 
-		nocache_headers();
-		header( 'Content-Type: text/plain; charset=utf-8' );
-		header( 'X-Content-Type-Options: nosniff' );
-		header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( 'wpmar-' . $job_id . '.log' ) . '"' );
-		if ( false !== $size ) {
-			header( 'Content-Length: ' . (string) $size );
-		}
+		WPMAR_Download_Headers::send_attachment(
+			'text/plain; charset=utf-8',
+			'wpmar-' . $job_id . '.log',
+			$size
+		);
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- streams a plain-text log from our own protected directory.
 		readfile( $abs );

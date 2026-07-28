@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Requires at least: 6.0
  * Tested up to:      7.0.1
  * Requires PHP:      7.4
@@ -12,6 +12,7 @@
  * Author URI:        https://profiles.wordpress.org/lunaluna_dev/
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Update URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Text Domain:       wp-maintenance-audit-reporter
  * Domain Path:       /languages
  *
@@ -22,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.3.0' );
+define( 'WPMAR_VERSION', '1.3.1' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -67,7 +68,10 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-report-repository.php',
 		'includes/storage/class-wpmar-jobs-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
+		'includes/storage/class-wpmar-private-storage.php',
+		'includes/storage/class-wpmar-storage-migrator.php',
 		'includes/storage/class-wpmar-pdf-writer.php',
+		'includes/storage/class-wpmar-download-headers.php',
 		'includes/storage/class-wpmar-report-zip-export.php',
 		'includes/class-wpmar-data-collector.php',
 		'includes/notify/class-wpmar-notifier-mail.php',
@@ -85,6 +89,8 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-reports-page.php',
 		'includes/admin/class-wpmar-log-viewer.php',
 		'includes/admin/class-wpmar-loopback-notice.php',
+		'includes/admin/class-wpmar-storage-fallback-notice.php',
+		'includes/admin/class-wpmar-storage-migration-notice.php',
 		'includes/admin/class-wpmar-pdf-installer.php',
 		'includes/class-wpmar-github-updater.php',
 	);
