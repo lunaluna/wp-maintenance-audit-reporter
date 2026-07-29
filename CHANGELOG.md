@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No pending notes._
+### Changed
+
+- **Dev dependency: WordPress Coding Standards bumped to 3.4.1 (CVE-2026-45293)** — WPCS 0.14.1–3.4.0 evaluate the `$ver` argument of `wp_enqueue_script()` and friends through `eval()` in `WordPress.WP.EnqueuedResourceParameters::is_falsy()`, so running PHPCS over untrusted PHP could execute arbitrary code ([GHSA-3pwp-g2mj-5p3v](https://github.com/WordPress/WordPress-Coding-Standards/security/advisories/GHSA-3pwp-g2mj-5p3v), CVSS 8.6). This repository's `phpcs.xml.dist` uses the affected `WordPress` ruleset. `require-dev` now floors `wp-coding-standards/wpcs` at `^3.4.1` and `squizlabs/php_codesniffer` at `^3.13.5` (PHPCS 4.x is not supported by WPCS 3.x). **No impact on the distributed plugin**: `vendor/` is gitignored and excluded from the release zip, which is built with `composer install --no-dev` — WPCS never ships to users. The `composer audit` step in CI was failing on this advisory and is green again.
 
 ## [1.3.1] - 2026-07-27
 
