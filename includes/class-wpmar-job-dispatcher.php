@@ -166,6 +166,12 @@ class WPMAR_Job_Dispatcher {
 	 * the raw per-site dataset from {@see WPMAR_Runner::run_site_segment()} is discarded
 	 * once this function returns, exactly as it would be at the end of any PHP request.
 	 *
+	 * `wpmar_network_segments` only has real data in the main site's copy of the table
+	 * (see {@see WPMAR_Activator::maybe_create_tables()}), but Action Scheduler does not
+	 * guarantee which blog is "current" when it fires an action - this mirrors the same
+	 * explicit `on_main_site()` wrap {@see WPMAR_Network_Runner::run()} already uses for
+	 * exactly this reason, rather than assuming the queue happened to fire on main site.
+	 *
 	 * @param string $run_id            Parent job id (see {@see WPMAR_Jobs_Repository}) this segment belongs to.
 	 * @param int    $blog_id           Target blog id.
 	 * @param bool   $persist_snapshots Whether to persist snapshots for this site (see {@see WPMAR_Runner::run_site_segment()}).
@@ -178,6 +184,23 @@ class WPMAR_Job_Dispatcher {
 			return;
 		}
 
+		WPMAR_Network::on_main_site(
+			function () use ( $run_id, $blog_id, $persist_snapshots ) {
+				self::run_network_site_segment_on_main_site( $run_id, $blog_id, $persist_snapshots );
+			}
+		);
+	}
+
+	/**
+	 * Body of {@see self::run_network_site_segment()}, guaranteed to already be running
+	 * on the main site.
+	 *
+	 * @param string $run_id            Parent job id.
+	 * @param int    $blog_id           Target blog id.
+	 * @param bool   $persist_snapshots Whether to persist snapshots for this site.
+	 * @return void
+	 */
+	protected static function run_network_site_segment_on_main_site( $run_id, $blog_id, $persist_snapshots ) {
 		$segments_repo = new WPMAR_Network_Segments_Repository();
 		$row           = $segments_repo->find_one( $run_id, $blog_id );
 
@@ -198,6 +221,9 @@ class WPMAR_Job_Dispatcher {
 			$network_settings = WPMAR_Network_Settings::get_all();
 			$runner           = new WPMAR_Runner();
 
+			// Switches away from the main site (established by the caller) to the target
+			// blog for the actual audit, then back - the same nesting run_on_main_site()'s
+			// synchronous loop already relies on.
 			$segment = WPMAR_Network::on_blog(
 				$blog_id,
 				function () use ( $runner, $network_settings, $persist_snapshots ) {
