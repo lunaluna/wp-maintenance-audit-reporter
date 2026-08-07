@@ -56,11 +56,14 @@ class WPMAR_Network_Runner {
 	 *
 	 * Priority: target_blog_id > same_setting > all target sites.
 	 *
+	 * Public so {@see WPMAR_Job_Dispatcher} can resolve the same target list at dispatch
+	 * time, ahead of creating one segment row per blog.
+	 *
 	 * @param array<string,mixed>      $exec             Normalised options.
 	 * @param array<string,mixed>|null $network_settings Optional preloaded network settings.
 	 * @return array<int,int>
 	 */
-	protected static function resolve_blog_ids( array $exec, $network_settings = null ) {
+	public static function resolve_blog_ids( array $exec, $network_settings = null ) {
 		$target_id = absint( $exec['target_blog_id'] ?? 0 );
 		if ( $target_id > 0 ) {
 			// Return empty array for a nonexistent blog ID to prevent switch_to_blog on a ghost site (e.g. via Cron path that bypasses UI validation).
@@ -361,10 +364,14 @@ class WPMAR_Network_Runner {
 	/**
 	 * Snapshot persistence policy for network rollup runs.
 	 *
+	 * Public so {@see WPMAR_Job_Dispatcher} can apply the same policy once per dispatch
+	 * and hand the single resulting flag to every per-site segment job, instead of each
+	 * one re-deriving it from `$exec['triggered_by']` independently.
+	 *
 	 * @param array<string,mixed> $exec Options.
 	 * @return bool
 	 */
-	protected static function should_persist_snapshots( array $exec ) {
+	public static function should_persist_snapshots( array $exec ) {
 		// Explicit false opt-out takes priority over any trigger default.
 		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
 			return false;

@@ -101,6 +101,14 @@ class WPMAR_Job_Dispatcher {
 	/**
 	 * Executes a queued audit job. Invoked by Action Scheduler.
 	 *
+	 * A real (non-dry) network-scope job no longer runs the rollup itself here - it
+	 * dispatches to {@see self::dispatch_network_rollup()}, which queues one independent
+	 * action per site plus one aggregate action, and returns immediately. The job stays
+	 * `running` until {@see self::run_network_aggregate()} eventually marks it `done`.
+	 * A dry network run (preview only, no persistence/mail) still runs synchronously
+	 * here, same as before - it has no memory concern to split up and no report to wait
+	 * for. Single-scope jobs are entirely unaffected.
+	 *
 	 * @param string $job_id Job id recorded by {@see self::enqueue_audit_job()}.
 	 * @return void
 	 */
@@ -134,16 +142,15 @@ class WPMAR_Job_Dispatcher {
 		WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'scope: ' . $scope );
 
 		try {
-			if ( 'network' === $scope ) {
-				$runner = new WPMAR_Network_Runner();
-				$result = $runner->run( $args );
+			if ( 'network' === $scope && empty( $args['dry'] ) ) {
+				self::dispatch_network_rollup( $job_id, $args );
 			} else {
-				$runner = new WPMAR_Runner();
+				$runner = ( 'network' === $scope ) ? new WPMAR_Network_Runner() : new WPMAR_Runner();
 				$result = $runner->run( $args );
-			}
 
-			$repo->mark_done( $job_id, is_array( $result ) ? $result : array() );
-			WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'job succeeded' );
+				$repo->mark_done( $job_id, is_array( $result ) ? $result : array() );
+				WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'job succeeded' );
+			}
 		} catch ( Throwable $e ) {
 			$repo->mark_failed( $job_id, $e->getMessage() );
 			WPMAR_Logger::log( WPMAR_Logger::LEVEL_ERROR, 'job failed: ' . $e->getMessage() );
@@ -155,6 +162,85 @@ class WPMAR_Job_Dispatcher {
 		} finally {
 			WPMAR_Logger::end_job();
 		}
+	}
+
+	/**
+	 * Dispatches a real network rollup as independent per-site jobs + one aggregate job,
+	 * instead of running every site inline in this one action.
+	 *
+	 * Deliberately lightweight (DB writes and `as_enqueue_async_action()` calls only, no
+	 * site audits run here) - the whole point of the split is that this dispatch step
+	 * itself is not where an OOM could plausibly happen, unlike the old single-loop design.
+	 *
+	 * @param string              $job_id Parent job id (doubles as the segments table's `run_id`).
+	 * @param array<string,mixed> $args   Decoded job args (same shape {@see WPMAR_Network_Runner::run()} expects).
+	 * @return void
+	 */
+	protected static function dispatch_network_rollup( $job_id, array $args ) {
+		WPMAR_Network::on_main_site(
+			function () use ( $job_id, $args ) {
+				self::dispatch_network_rollup_on_main_site( $job_id, $args );
+			}
+		);
+	}
+
+	/**
+	 * Body of {@see self::dispatch_network_rollup()}, guaranteed to already be running on
+	 * the main site - `wpmar_network_segments` only has real data there, same rationale
+	 * as {@see self::run_network_site_segment()}. `LOCK_TRANSIENT` itself is a *site*
+	 * transient (network-wide, not per-blog), so the busy-check alone would be safe from
+	 * any blog context, but everything past it is not.
+	 *
+	 * @param string              $job_id Parent job id / segments `run_id`.
+	 * @param array<string,mixed> $args   Decoded job args.
+	 * @return void
+	 */
+	protected static function dispatch_network_rollup_on_main_site( $job_id, array $args ) {
+		if ( false !== get_site_transient( WPMAR_Network_Runner::LOCK_TRANSIENT ) ) {
+			WPMAR_Logger::log( WPMAR_Logger::LEVEL_INFO, 'network dispatch skipped: another network run is already in progress' );
+
+			$repo = new WPMAR_Jobs_Repository();
+			$repo->mark_done(
+				$job_id,
+				array(
+					'skipped' => true,
+					'reason'  => 'busy',
+				)
+			);
+			return;
+		}
+		set_site_transient( WPMAR_Network_Runner::LOCK_TRANSIENT, 1, 20 * MINUTE_IN_SECONDS );
+
+		$network_settings  = WPMAR_Network_Settings::get_all();
+		$blog_ids          = WPMAR_Network_Runner::resolve_blog_ids( $args, $network_settings );
+		$persist_snapshots = WPMAR_Network_Runner::should_persist_snapshots( $args );
+
+		$segments_repo = new WPMAR_Network_Segments_Repository();
+		$created       = $segments_repo->create_queued_batch( $job_id, $blog_ids );
+
+		if ( count( $blog_ids ) !== $created ) {
+			WPMAR_Logger::log(
+				WPMAR_Logger::LEVEL_WARN,
+				sprintf( 'network dispatch: only %d of %d segment rows were created', $created, count( $blog_ids ) )
+			);
+		}
+
+		foreach ( $blog_ids as $blog_id ) {
+			as_enqueue_async_action(
+				self::HOOK_NETWORK_SITE_SEGMENT,
+				array( $job_id, $blog_id, $persist_snapshots ),
+				self::GROUP
+			);
+		}
+
+		// Enqueued even when $blog_ids is empty, so the run still finalizes (empty report,
+		// lock released) instead of sitting `running` forever with nothing left to wait on.
+		as_enqueue_async_action( self::HOOK_NETWORK_AGGREGATE, array( $job_id ), self::GROUP );
+
+		WPMAR_Logger::log(
+			WPMAR_Logger::LEVEL_INFO,
+			sprintf( 'network dispatch: queued %d site segment(s) + 1 aggregate action', count( $blog_ids ) )
+		);
 	}
 
 	/**
