@@ -356,6 +356,15 @@ class WPMAR_Admin_Menu {
 			WPMAR_REPORTS_PAGE_SLUG,
 			array( 'WPMAR_Reports_Page', 'render' )
 		);
+
+		add_submenu_page(
+			WPMAR_ADMIN_PAGE_SLUG,
+			__( 'Maintenance Audit — システム状態', 'wp-maintenance-audit-reporter' ),
+			__( 'システム状態', 'wp-maintenance-audit-reporter' ),
+			self::CAPABILITY,
+			WPMAR_SYSTEM_STATUS_PAGE_SLUG,
+			array( 'WPMAR_System_Status_Page', 'render' )
+		);
 	}
 
 	/**
@@ -503,6 +512,10 @@ class WPMAR_Admin_Menu {
 					)
 				);
 				exit;
+			case 'clear_wporg_cache':
+			case 'force_unlock_run':
+				WPMAR_System_Status_Page::handle_post_action( $action );
+				break;
 			default:
 				break;
 		}

@@ -308,7 +308,7 @@ class WPMAR_Jobs_Repository {
 		$rows = $this->db->get_results(
 			$this->db->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
-				"SELECT id, status, scope, step, log_path, created_at, updated_at FROM `{$this->table}` WHERE log_path IS NOT NULL AND log_path != '' ORDER BY created_at DESC LIMIT %d",
+				"SELECT id, status, scope, step, attempts, log_path, created_at, updated_at FROM `{$this->table}` WHERE log_path IS NOT NULL AND log_path != '' ORDER BY created_at DESC LIMIT %d",
 				$limit
 			),
 			ARRAY_A

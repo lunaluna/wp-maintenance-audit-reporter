@@ -116,6 +116,7 @@ class WPMAR_Log_Viewer {
 					<th><?php esc_html_e( 'ジョブ ID', 'wp-maintenance-audit-reporter' ); ?></th>
 					<th><?php esc_html_e( '状態', 'wp-maintenance-audit-reporter' ); ?></th>
 					<th><?php esc_html_e( '最終ステップ', 'wp-maintenance-audit-reporter' ); ?></th>
+					<th><?php esc_html_e( '試行回数', 'wp-maintenance-audit-reporter' ); ?></th>
 					<th><?php esc_html_e( '更新日時 (UTC)', 'wp-maintenance-audit-reporter' ); ?></th>
 					<th></th>
 				</tr>
@@ -146,6 +147,7 @@ class WPMAR_Log_Viewer {
 						<td><code><?php echo esc_html( $job_id ); ?></code></td>
 						<td><?php echo esc_html( (string) $job['status'] ); ?></td>
 						<td><?php echo esc_html( (string) $job['step'] ); ?></td>
+						<td><?php echo esc_html( (string) absint( $job['attempts'] ?? 0 ) ); ?></td>
 						<td><?php echo esc_html( (string) $job['updated_at'] ); ?></td>
 						<td>
 							<a class="button button-small" href="<?php echo esc_url( $view_url ); ?>"><?php esc_html_e( '表示', 'wp-maintenance-audit-reporter' ); ?></a>
