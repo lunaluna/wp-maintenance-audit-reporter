@@ -27,6 +27,21 @@ class WPMAR_Logger {
 	const KEEP_LATEST = 20;
 
 	/**
+	 * Filename for the persistent per-segment outcome/duration history.
+	 *
+	 * Unlike `run-*.log` (one file per job, capped at {@see self::KEEP_LATEST} and
+	 * meaningless once the job's own DB rows are gone), this one file accumulates across
+	 * every network run indefinitely - it is the only place a segment's actual duration
+	 * survives, since {@see WPMAR_Network_Segments_Repository::delete_by_run()} deletes
+	 * the DB row once its run finishes. Exists so the unmeasured retry/timeout filter
+	 * defaults in {@see WPMAR_Job_Dispatcher} (`wpmar_network_segment_stale_minutes`,
+	 * `wpmar_network_aggregate_max_wait`, etc.) can eventually be checked against real
+	 * observed durations instead of staying permanent guesses. Growth is inherently slow
+	 * (one line per site per monthly run, not per request), so no rotation is applied.
+	 */
+	const SEGMENT_HISTORY_FILE = 'segment-history.log';
+
+	/**
 	 * Job id for the currently active log context, or '' when none is active.
 	 *
 	 * @var string
@@ -165,6 +180,43 @@ class WPMAR_Logger {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- unbuffered append under wp_upload_dir with a controlled, per-job filename.
 		file_put_contents( self::$log_file, $line, FILE_APPEND | LOCK_EX );
+	}
+
+	/**
+	 * Appends one line recording a finished network segment's outcome and duration.
+	 *
+	 * Independent of the per-job log context ({@see self::begin_job()}/{@see self::log()}):
+	 * segments run as their own Action Scheduler action/process with no job context of
+	 * their own, and this data needs to survive past the run - which a per-job file
+	 * (deleted down to {@see self::KEEP_LATEST} copies) is the wrong place for anyway,
+	 * since the DB row it would otherwise be reconstructed from is gone once the run's
+	 * `wpmar_network_segments` rows are deleted.
+	 *
+	 * @param string $run_id       Parent job id.
+	 * @param int    $blog_id      Target blog id.
+	 * @param string $status       `done` or `failed`.
+	 * @param int    $duration_sec Wall-clock seconds the segment took (best-effort; 0 if unknown).
+	 * @param int    $attempts     Retry count already spent on this segment before this outcome.
+	 * @return void
+	 */
+	public static function log_segment_outcome( $run_id, $blog_id, $status, $duration_sec, $attempts ) {
+		$dir = self::logs_dir();
+		if ( is_wp_error( $dir ) ) {
+			return;
+		}
+
+		$line = sprintf(
+			"[%s] run=%s blog=%d status=%s duration_sec=%d attempts=%d\n",
+			gmdate( 'c' ),
+			self::sanitize_label( $run_id ),
+			absint( $blog_id ),
+			sanitize_key( (string) $status ),
+			absint( $duration_sec ),
+			absint( $attempts )
+		);
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- unbuffered append under wp_upload_dir with a controlled, fixed filename.
+		file_put_contents( $dir . self::SEGMENT_HISTORY_FILE, $line, FILE_APPEND | LOCK_EX );
 	}
 
 	/**

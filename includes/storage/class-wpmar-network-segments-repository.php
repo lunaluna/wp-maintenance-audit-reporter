@@ -132,7 +132,7 @@ class WPMAR_Network_Segments_Repository {
 	 * @return bool
 	 */
 	public function mark_done( $run_id, $blog_id, array $segment ) {
-		return $this->update_fields(
+		$ok = $this->update_fields(
 			$run_id,
 			$blog_id,
 			array(
@@ -147,6 +147,12 @@ class WPMAR_Network_Segments_Repository {
 			),
 			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
 		);
+
+		if ( $ok ) {
+			$this->log_outcome( $run_id, $blog_id, self::STATUS_DONE );
+		}
+
+		return $ok;
 	}
 
 	/**
@@ -178,17 +184,49 @@ class WPMAR_Network_Segments_Repository {
 			array( '%s', '%s' )
 		);
 
-		if ( $ok && $retryable ) {
-			$row = $this->find_one( $run_id, $blog_id );
-			do_action(
-				'wpmar_network_segment_marked_failed',
-				self::sanitize_run_id( $run_id ),
-				absint( $blog_id ),
-				is_array( $row ) ? $row : array()
-			);
+		if ( $ok ) {
+			$row = $this->log_outcome( $run_id, $blog_id, self::STATUS_FAILED );
+
+			if ( $retryable ) {
+				do_action(
+					'wpmar_network_segment_marked_failed',
+					self::sanitize_run_id( $run_id ),
+					absint( $blog_id ),
+					is_array( $row ) ? $row : array()
+				);
+			}
 		}
 
 		return $ok;
+	}
+
+	/**
+	 * Records a finished segment's outcome to the persistent (never purged mid-run,
+	 * unlike this row itself) `segment-history.log` - the only place a segment's actual
+	 * duration survives once {@see self::delete_by_run()} clears its row. Duration is
+	 * measured `created_at` (dispatch time) to now, i.e. queue wait + audit execution
+	 * combined - the same end-to-end window `wpmar_network_aggregate_max_wait` budgets
+	 * against.
+	 *
+	 * @param string $run_id  Parent job id.
+	 * @param int    $blog_id Target blog id.
+	 * @param string $status  `done` or `failed`.
+	 * @return array<string,mixed>|null The segment row fetched to build the log line, so
+	 *                                  callers already needing it (e.g. for the retry hook) don't re-query.
+	 */
+	protected function log_outcome( $run_id, $blog_id, $status ) {
+		$row = $this->find_one( $run_id, $blog_id );
+		if ( ! is_array( $row ) ) {
+			return $row;
+		}
+
+		$created_ts = isset( $row['created_at'] ) ? strtotime( (string) $row['created_at'] . ' UTC' ) : false;
+		$duration   = ( false !== $created_ts ) ? max( 0, time() - $created_ts ) : 0;
+		$attempts   = isset( $row['attempts'] ) ? absint( $row['attempts'] ) : 0;
+
+		WPMAR_Logger::log_segment_outcome( $run_id, $blog_id, $status, $duration, $attempts );
+
+		return $row;
 	}
 
 	/**
