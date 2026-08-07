@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-07
+
 ### Added
 
 - **wp.org plugin/theme metadata now cached (`wpmar_wporg_cache_ttl` filter, default 12h)** — `WPMAR_WPOrg_Client::fetch_plugin_information()`/`fetch_theme_information()` previously called `wp_remote_get()` unconditionally on every run. Results are now cached via `set_site_transient()`/`get_site_transient()` under `wpmar_wporg_plugin_{slug}`/`wpmar_wporg_theme_{slug}` keys — a network-wide cache (not per-blog), so on a multisite audit the first site to ask for a given slug primes it and every other site's segment hits cache instead of re-querying wp.org. Cache hit/miss counts are logged on the `gather:inventory-done` step for visibility. The 12h default TTL is an unmeasured estimate of wp.org metadata churn, not a benchmarked value — adjust via the filter if the logged hit rate suggests otherwise.
