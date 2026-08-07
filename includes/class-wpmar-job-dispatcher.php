@@ -51,6 +51,8 @@ class WPMAR_Job_Dispatcher {
 		add_action( self::HOOK, array( __CLASS__, 'run_audit_job' ), 10, 1 );
 		add_action( self::HOOK_NETWORK_SITE_SEGMENT, array( __CLASS__, 'run_network_site_segment' ), 10, 3 );
 		add_action( self::HOOK_NETWORK_AGGREGATE, array( __CLASS__, 'run_network_aggregate' ), 10, 1 );
+		add_action( 'wpmar_job_marked_failed', array( __CLASS__, 'maybe_retry_job' ), 10, 2 );
+		add_action( 'wpmar_network_segment_marked_failed', array( __CLASS__, 'maybe_retry_segment' ), 10, 3 );
 	}
 
 	/**
@@ -216,7 +218,14 @@ class WPMAR_Job_Dispatcher {
 		$persist_snapshots = WPMAR_Network_Runner::should_persist_snapshots( $args );
 
 		$segments_repo = new WPMAR_Network_Segments_Repository();
-		$created       = $segments_repo->create_queued_batch( $job_id, $blog_ids );
+
+		// A job-level retry (see maybe_retry_job()) resets this same $job_id back to
+		// `queued` and re-fires this whole dispatch - clear any segments a prior failed
+		// attempt already created for this run_id, so create_queued_batch() below starts
+		// from a clean slate instead of hitting the run_id+blog_id UNIQUE key.
+		$segments_repo->delete_by_run( $job_id );
+
+		$created = $segments_repo->create_queued_batch( $job_id, $blog_ids );
 
 		if ( count( $blog_ids ) !== $created ) {
 			WPMAR_Logger::log(
@@ -471,11 +480,14 @@ class WPMAR_Job_Dispatcher {
 			// Global timeout: whatever hasn't finished by now is forced to `failed` so
 			// sites that DID finish still get a report instead of waiting forever on
 			// stragglers (Action Scheduler wedged, a site that never even started, etc.).
+			// Not retryable: finalize runs immediately after, and the segment row is
+			// deleted once it does - a delayed retry would have nowhere to land.
 			foreach ( $incomplete as $row ) {
 				$segments_repo->mark_failed(
 					$run_id,
 					absint( $row['blog_id'] ),
-					__( 'ネットワーク全体のタイムアウトに達したため、このサイトの処理を打ち切りました。', 'wp-maintenance-audit-reporter' )
+					__( 'ネットワーク全体のタイムアウトに達したため、このサイトの処理を打ち切りました。', 'wp-maintenance-audit-reporter' ),
+					false
 				);
 			}
 
@@ -506,5 +518,139 @@ class WPMAR_Job_Dispatcher {
 		$jobs_repo->mark_done( $run_id, $result );
 		$segments_repo->delete_by_run( $run_id );
 		delete_site_transient( WPMAR_Network_Runner::LOCK_TRANSIENT );
+	}
+
+	/**
+	 * Retry policy for a failed parent job (`wpmar_jobs`; single-site cron audits and
+	 * network dispatch/aggregate jobs alike). Listens on `wpmar_job_marked_failed`,
+	 * fired by {@see WPMAR_Jobs_Repository::mark_failed()} - the one place every
+	 * `mark_failed()` caller (this dispatcher's own catch block, its own stale-heartbeat
+	 * sweep, {@see WPMAR_Logger::handle_shutdown()}) converges on, so this is the only
+	 * place retry scheduling needs to live.
+	 *
+	 * This targets *transient* failures (a passing server load spike, a momentary wp.org
+	 * timeout) - a site whose data volume is structurally too large is meant to be solved
+	 * by the per-site segment split above, not by retrying the same failure repeatedly.
+	 * A retry here means "reset the whole job to `queued` and re-fire `wpmar/run_audit`",
+	 * which for a network job re-dispatches from scratch (see the `delete_by_run()` call
+	 * in {@see self::dispatch_network_rollup_on_main_site()}) rather than resuming only
+	 * the step that failed - acceptable because a dispatch-stage failure has nothing to
+	 * resume, and an aggregate-stage failure is expected to be rare enough that redoing
+	 * already-`done` segments' cheap DB writes isn't a real cost (their site audits
+	 * already ran and aren't re-executed - only the segment rows get re-created empty and
+	 * the per-site jobs re-queued).
+	 *
+	 * @param string              $job_id Job id that was just marked `failed`.
+	 * @param array<string,mixed> $job    The job row (already reflects the failure).
+	 * @return void
+	 */
+	public static function maybe_retry_job( $job_id, array $job ) {
+		if ( ! wpmar_action_scheduler_available() ) {
+			return; // No delayed-scheduling mechanism - stays `failed` until the next cycle.
+		}
+
+		$attempts = isset( $job['attempts'] ) ? absint( $job['attempts'] ) : 0;
+
+		/**
+		 * Filters the maximum number of total attempts (original run + retries) for a
+		 * failed job or network segment before it is left `failed` permanently. Shared by
+		 * both {@see self::maybe_retry_job()} and {@see self::maybe_retry_segment()}.
+		 *
+		 * @since 1.4.0
+		 *
+		 * @param int $max_attempts Default 2 (one retry).
+		 */
+		$max_attempts = max( 1, (int) apply_filters( 'wpmar_job_max_attempts', 2 ) );
+
+		if ( $attempts >= ( $max_attempts - 1 ) ) {
+			return; // Retry budget already spent.
+		}
+
+		$repo = new WPMAR_Jobs_Repository();
+		if ( ! $repo->requeue_for_retry( $job_id ) ) {
+			return;
+		}
+
+		/**
+		 * Filters the backoff (seconds) before a failed parent job is retried.
+		 * Unmeasured default: 15 minutes is a guess at "long enough for a transient
+		 * server-load spike to pass", not benchmarked against real failure recovery times.
+		 *
+		 * @since 1.4.0
+		 *
+		 * @param int $seconds Default 15 * MINUTE_IN_SECONDS.
+		 */
+		$delay = (int) apply_filters( 'wpmar_job_retry_delay', 15 * MINUTE_IN_SECONDS );
+
+		as_schedule_single_action( time() + $delay, self::HOOK, array( $job_id ), self::GROUP );
+	}
+
+	/**
+	 * Retry policy for a failed network site segment. Listens on
+	 * `wpmar_network_segment_marked_failed`, fired by
+	 * {@see WPMAR_Network_Segments_Repository::mark_failed()} - the one place both
+	 * genuinely-transient-failure call sites ({@see self::run_network_site_segment_on_main_site()}'s
+	 * catch block, the aggregate step's stale-heartbeat sweep) converge on.
+	 *
+	 * This is the main point of Stream 3 for multisite: a single site's transient
+	 * failure gets retried independently, with zero effect on sibling sites' segments or
+	 * already-`done` data - unlike the parent-job retry above, this never touches
+	 * anything outside the one (run_id, blog_id) row.
+	 *
+	 * @param string              $run_id  Parent job id.
+	 * @param int                 $blog_id Target blog id.
+	 * @param array<string,mixed> $segment The segment row (already reflects the failure).
+	 * @return void
+	 */
+	public static function maybe_retry_segment( $run_id, $blog_id, array $segment ) {
+		if ( ! wpmar_action_scheduler_available() ) {
+			return;
+		}
+
+		$attempts     = isset( $segment['attempts'] ) ? absint( $segment['attempts'] ) : 0;
+		$max_attempts = max( 1, (int) apply_filters( 'wpmar_job_max_attempts', 2 ) );
+
+		if ( $attempts >= ( $max_attempts - 1 ) ) {
+			return; // Retry budget already spent - stays `failed`, reported with the error note.
+		}
+
+		// persist_snapshots isn't stored on the segment row (it's uniform for the whole
+		// run) - re-derive it from the parent job's own args, the same source dispatch
+		// used originally.
+		$jobs_repo = new WPMAR_Jobs_Repository();
+		$job       = $jobs_repo->find( $run_id );
+		if ( null === $job ) {
+			return; // Parent job purged/unknown - nothing to retry against.
+		}
+
+		$exec = isset( $job['args_json'] ) ? json_decode( (string) $job['args_json'], true ) : array();
+		if ( ! is_array( $exec ) ) {
+			$exec = array();
+		}
+		$persist_snapshots = WPMAR_Network_Runner::should_persist_snapshots( $exec );
+
+		$segments_repo = new WPMAR_Network_Segments_Repository();
+		if ( ! $segments_repo->requeue_for_retry( $run_id, $blog_id ) ) {
+			return;
+		}
+
+		/**
+		 * Filters the backoff (seconds) before a failed network site segment is retried.
+		 * Unmeasured default: 5 minutes is a guess, not benchmarked against real recovery
+		 * times for the transient failures this targets (server load spikes, wp.org
+		 * timeouts).
+		 *
+		 * @since 1.4.0
+		 *
+		 * @param int $seconds Default 5 * MINUTE_IN_SECONDS.
+		 */
+		$delay = (int) apply_filters( 'wpmar_segment_retry_delay', 5 * MINUTE_IN_SECONDS );
+
+		as_schedule_single_action(
+			time() + $delay,
+			self::HOOK_NETWORK_SITE_SEGMENT,
+			array( $run_id, $blog_id, $persist_snapshots ),
+			self::GROUP
+		);
 	}
 }

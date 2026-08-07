@@ -152,13 +152,23 @@ class WPMAR_Network_Segments_Repository {
 	/**
 	 * Marks one segment failed with a human-readable message.
 	 *
-	 * @param string $run_id  Parent job id.
-	 * @param int    $blog_id Target blog id.
-	 * @param string $message Failure detail.
+	 * Fires `wpmar_network_segment_marked_failed` ($run_id, $blog_id, $segment row) on
+	 * success when `$retryable` - the single point every genuinely-transient failure
+	 * (a Throwable from the site audit, a stale-heartbeat sweep) converges on, so retry
+	 * policy lives in one listener instead of being duplicated at each call site.
+	 * `$retryable = false` is for a segment force-failed by the *run's own* global wait
+	 * timeout ({@see WPMAR_Job_Dispatcher::run_network_aggregate()}) - by the time that
+	 * fires, the run is finalizing immediately after, so a delayed retry would have
+	 * nowhere to land (the segment row is deleted once the run finishes).
+	 *
+	 * @param string $run_id    Parent job id.
+	 * @param int    $blog_id   Target blog id.
+	 * @param string $message   Failure detail.
+	 * @param bool   $retryable Whether this failure is eligible for the retry listener.
 	 * @return bool
 	 */
-	public function mark_failed( $run_id, $blog_id, $message ) {
-		return $this->update_fields(
+	public function mark_failed( $run_id, $blog_id, $message, $retryable = true ) {
+		$ok = $this->update_fields(
 			$run_id,
 			$blog_id,
 			array(
@@ -167,6 +177,18 @@ class WPMAR_Network_Segments_Repository {
 			),
 			array( '%s', '%s' )
 		);
+
+		if ( $ok && $retryable ) {
+			$row = $this->find_one( $run_id, $blog_id );
+			do_action(
+				'wpmar_network_segment_marked_failed',
+				self::sanitize_run_id( $run_id ),
+				absint( $blog_id ),
+				is_array( $row ) ? $row : array()
+			);
+		}
+
+		return $ok;
 	}
 
 	/**
@@ -298,6 +320,10 @@ class WPMAR_Network_Segments_Repository {
 	 * process kill never reaches a shutdown handler for that one site's job, so the
 	 * aggregate step is the backstop that notices a segment stopped updating.
 	 *
+	 * Goes through {@see self::mark_failed()} per row (retryable - a stale heartbeat is
+	 * exactly the transient-failure case retry exists for) rather than a single bulk
+	 * `UPDATE`, so `wpmar_network_segment_marked_failed` fires for each.
+	 *
 	 * @param string $run_id  Parent job id to scope the sweep to.
 	 * @param int    $minutes Heartbeat age, in minutes, beyond which a running segment is considered abandoned.
 	 * @return int Number of rows flipped to `failed`.
@@ -316,20 +342,25 @@ class WPMAR_Network_Segments_Repository {
 
 		$cutoff = gmdate( 'Y-m-d H:i:s', (int) $cutoff_ts );
 
-		$updated = $this->db->query(
+		$stale_blog_ids = $this->db->get_col(
 			$this->db->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table slug from prefix literal.
-				"UPDATE `{$this->table}` SET status=%s, error=%s, updated_at=%s WHERE run_id=%s AND status=%s AND updated_at<%s",
-				self::STATUS_FAILED,
-				__( 'ハートビート途絶 — プロセスが強制終了された可能性があります(OOM/タイムアウト)。ログを参照してください。', 'wp-maintenance-audit-reporter' ),
-				gmdate( 'Y-m-d H:i:s' ),
+				"SELECT blog_id FROM `{$this->table}` WHERE run_id=%s AND status=%s AND updated_at<%s",
 				$run_id,
 				self::STATUS_RUNNING,
 				$cutoff
 			)
 		);
 
-		return is_numeric( $updated ) ? (int) $updated : 0;
+		$message = __( 'ハートビート途絶 — プロセスが強制終了された可能性があります(OOM/タイムアウト)。ログを参照してください。', 'wp-maintenance-audit-reporter' );
+		$flipped = 0;
+		foreach ( (array) $stale_blog_ids as $stale_blog_id ) {
+			if ( $this->mark_failed( $run_id, absint( $stale_blog_id ), $message ) ) {
+				++$flipped;
+			}
+		}
+
+		return $flipped;
 	}
 
 	/**
