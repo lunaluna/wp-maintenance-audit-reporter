@@ -149,6 +149,11 @@ class WPMAR_Runner {
 				$payload_summary = '{}';
 			}
 
+			// Bodies are rendered and payload_summary is built - $dataset's heavy raw payloads
+			// (checksums, wp.org intel) are never read again. PDF generation is memory-hungry;
+			// free this now rather than let it sit until function exit.
+			self::release_heavy_dataset_memory( $dataset );
+
 			// Mail intentionally precedes INSERT so mail_sent captures the factual dispatch result.
 			$mail_sent_flag = 0;
 			if ( $domain_gate_ok && ! empty( $settings['mail']['enabled'] ) ) {
@@ -303,6 +308,11 @@ class WPMAR_Runner {
 		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
 		WPMAR_Logger::step( "site:{$blog_id}:render:done" );
 
+		// Only the rendered bodies below are used by the network aggregate step; the raw
+		// $dataset (checksums, wp.org intel) would otherwise sit in $segments[] for every
+		// site until the whole network run finishes.
+		self::release_heavy_dataset_memory( $dataset );
+
 		return array(
 			'blog_id'          => (int) $blog_id,
 			'site_name'        => $site_name,
@@ -315,6 +325,32 @@ class WPMAR_Runner {
 			'admin_body'       => $admin_body,
 			'duration_sec'     => $duration_sec,
 		);
+	}
+
+	/**
+	 * Frees the raw dataset payloads once only the rendered Markdown bodies are still needed.
+	 *
+	 * Checksums and wp.org intel are the largest parts of `$dataset` (full core/theme/plugin
+	 * file lists and per-slug directory metadata) but nothing after rendering reads them again -
+	 * `merge_network_client_markup()`/`merge_network_operator_markup()` only use `client_body`/
+	 * `admin_body`. `gc_collect_cycles()` is called once so mPDF (invoked shortly after in
+	 * {@see self::run()}) starts from a lower baseline.
+	 *
+	 * @param array<string,mixed> $dataset Passed by reference; heavy keys are removed in place.
+	 * @return void
+	 */
+	protected static function release_heavy_dataset_memory( array &$dataset ) {
+		unset( $dataset['checksums'] );
+
+		if ( isset( $dataset['plugins']['org'] ) ) {
+			unset( $dataset['plugins']['org'] );
+		}
+
+		if ( isset( $dataset['themes']['org'] ) ) {
+			unset( $dataset['themes']['org'] );
+		}
+
+		gc_collect_cycles();
 	}
 
 	/**
