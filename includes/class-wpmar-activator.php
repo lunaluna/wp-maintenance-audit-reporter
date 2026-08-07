@@ -181,6 +181,11 @@ class WPMAR_Activator {
 		// Only the main site's copy is ever populated (network site-segment jobs run
 		// switch_to_blog()'d to the main site), but it follows the same per-blog dbDelta
 		// pattern as the three tables above rather than being special-cased.
+		//
+		// No standalone KEY on run_id or status: every repository query already filters
+		// on run_id first (a standalone run_id index would be a redundant left-prefix of
+		// the UNIQUE key below), and rows for a run are deleted once the aggregate step
+		// finishes, so row counts never exceed one run's site count.
 		$sql_segments = "CREATE TABLE {$segments_table} (
 	id bigint unsigned NOT NULL auto_increment,
 	run_id varchar(40) NOT NULL,
@@ -197,9 +202,7 @@ class WPMAR_Activator {
 	created_at datetime NOT NULL,
 	updated_at datetime NOT NULL,
 	PRIMARY KEY (id),
-	UNIQUE KEY idx_run_blog (run_id, blog_id),
-	KEY idx_run_id (run_id),
-	KEY idx_status (status)
+	UNIQUE KEY idx_run_blog (run_id, blog_id)
 ) {$charset_collate};";
 
 		dbDelta( $sql_reports );
