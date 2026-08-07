@@ -95,11 +95,41 @@ class WPMAR_Logger {
 	 */
 	public static function step( $name, array $context = array() ) {
 		self::log( self::LEVEL_INFO, 'step: ' . (string) $name, $context );
+		self::maybe_warn_high_memory();
 
 		if ( '' !== self::$job_id ) {
 			$repo = new WPMAR_Jobs_Repository();
 			$repo->mark_step( self::$job_id, (string) $name );
 		}
+	}
+
+	/**
+	 * Emits one WARN line the first time a step observes memory_get_usage(true) crossing
+	 * 80% of `memory_limit`. Checked from every {@see self::step()} call (not just the
+	 * handful that already log `mem` in their context) so an OOM is visible from whichever
+	 * phase happened to be running, not only the phases that thought to measure it.
+	 *
+	 * @return void
+	 */
+	protected static function maybe_warn_high_memory() {
+		$limit = wp_convert_hr_to_bytes( (string) ini_get( 'memory_limit' ) );
+		if ( $limit <= 0 ) {
+			return; // "-1"/unset means unlimited - no ceiling to warn against.
+		}
+
+		$used = memory_get_usage( true );
+		if ( $used < $limit * 0.8 ) {
+			return;
+		}
+
+		self::log(
+			self::LEVEL_WARN,
+			sprintf( 'memory usage at %d%% of memory_limit', (int) round( ( $used / $limit ) * 100 ) ),
+			array(
+				'used'  => size_format( $used ),
+				'limit' => size_format( $limit ),
+			)
+		);
 	}
 
 	/**
@@ -180,7 +210,15 @@ class WPMAR_Logger {
 		$job  = $repo->find( self::$job_id );
 		if ( is_array( $job ) && WPMAR_Jobs_Repository::STATUS_RUNNING === $job['status'] ) {
 			$repo->mark_failed( self::$job_id, __( '処理が異常終了しました(致命的エラー、またはプロセスの強制終了)。ログを参照してください。', 'wp-maintenance-audit-reporter' ) );
-			delete_transient( 'wpmar_run_lock' );
+
+			// Only the lock matching this job's own scope: releasing the other one here could
+			// clobber a legitimately in-progress run of the opposite scope on the same request.
+			$scope = isset( $job['scope'] ) ? (string) $job['scope'] : 'single';
+			if ( 'network' === $scope ) {
+				delete_site_transient( WPMAR_Network_Runner::LOCK_TRANSIENT );
+			} else {
+				delete_transient( 'wpmar_run_lock' );
+			}
 		}
 	}
 
