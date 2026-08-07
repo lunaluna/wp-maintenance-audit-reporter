@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **wp.org plugin/theme metadata now cached (`wpmar_wporg_cache_ttl` filter, default 12h)** — `WPMAR_WPOrg_Client::fetch_plugin_information()`/`fetch_theme_information()` previously called `wp_remote_get()` unconditionally on every run. Results are now cached via `set_site_transient()`/`get_site_transient()` under `wpmar_wporg_plugin_{slug}`/`wpmar_wporg_theme_{slug}` keys — a network-wide cache (not per-blog), so on a multisite audit the first site to ask for a given slug primes it and every other site's segment hits cache instead of re-querying wp.org. Cache hit/miss counts are logged on the `gather:inventory-done` step for visibility. The 12h default TTL is an unmeasured estimate of wp.org metadata churn, not a benchmarked value — adjust via the filter if the logged hit rate suggests otherwise.
+
 ### Changed
 
 - **Dev dependency: WordPress Coding Standards bumped to 3.4.1 (CVE-2026-45293)** — WPCS 0.14.1–3.4.0 evaluate the `$ver` argument of `wp_enqueue_script()` and friends through `eval()` in `WordPress.WP.EnqueuedResourceParameters::is_falsy()`, so running PHPCS over untrusted PHP could execute arbitrary code ([GHSA-3pwp-g2mj-5p3v](https://github.com/WordPress/WordPress-Coding-Standards/security/advisories/GHSA-3pwp-g2mj-5p3v), CVSS 8.6). This repository's `phpcs.xml.dist` uses the affected `WordPress` ruleset. `require-dev` now floors `wp-coding-standards/wpcs` at `^3.4.1` and `squizlabs/php_codesniffer` at `^3.13.5` (PHPCS 4.x is not supported by WPCS 3.x). **No impact on the distributed plugin**: `vendor/` is gitignored and excluded from the release zip, which is built with `composer install --no-dev` — WPCS never ships to users. The `composer audit` step in CI was failing on this advisory and is green again.
