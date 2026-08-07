@@ -130,6 +130,7 @@ class WPMAR_Activator {
 		$reports_table   = $wpdb->prefix . 'wpmar_reports';
 		$snapshots_table = $wpdb->prefix . 'wpmar_snapshots';
 		$jobs_table      = $wpdb->prefix . 'wpmar_jobs';
+		$segments_table  = $wpdb->prefix . 'wpmar_network_segments';
 
 		$sql_reports = "CREATE TABLE {$reports_table} (
 	id bigint unsigned NOT NULL auto_increment,
@@ -163,6 +164,7 @@ class WPMAR_Activator {
 	id varchar(40) NOT NULL,
 	status varchar(20) NOT NULL default 'queued',
 	scope varchar(20) NOT NULL default 'single',
+	attempts tinyint unsigned NOT NULL default 0,
 	step varchar(100) NOT NULL default '',
 	loopback_blocked tinyint(1) NOT NULL default 0,
 	log_path varchar(255) NULL,
@@ -176,9 +178,34 @@ class WPMAR_Activator {
 	KEY idx_created_at (created_at)
 ) {$charset_collate};";
 
+		// Only the main site's copy is ever populated (network site-segment jobs run
+		// switch_to_blog()'d to the main site), but it follows the same per-blog dbDelta
+		// pattern as the three tables above rather than being special-cased.
+		$sql_segments = "CREATE TABLE {$segments_table} (
+	id bigint unsigned NOT NULL auto_increment,
+	run_id varchar(40) NOT NULL,
+	blog_id bigint unsigned NOT NULL,
+	status varchar(20) NOT NULL default 'queued',
+	attempts tinyint unsigned NOT NULL default 0,
+	domain_gate_ok tinyint(1) NOT NULL default 1,
+	site_name varchar(255) NOT NULL default '',
+	home_url varchar(255) NOT NULL default '',
+	changelog_counts int unsigned NOT NULL default 0,
+	client_body longtext NULL,
+	admin_body longtext NULL,
+	error text NULL,
+	created_at datetime NOT NULL,
+	updated_at datetime NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE KEY idx_run_blog (run_id, blog_id),
+	KEY idx_run_id (run_id),
+	KEY idx_status (status)
+) {$charset_collate};";
+
 		dbDelta( $sql_reports );
 		dbDelta( $sql_snapshots );
 		dbDelta( $sql_jobs );
+		dbDelta( $sql_segments );
 	}
 
 	/**

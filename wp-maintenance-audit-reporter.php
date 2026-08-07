@@ -67,6 +67,7 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
 		'includes/storage/class-wpmar-jobs-repository.php',
+		'includes/storage/class-wpmar-network-segments-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
 		'includes/storage/class-wpmar-private-storage.php',
 		'includes/storage/class-wpmar-storage-migrator.php',
