@@ -172,151 +172,190 @@ class WPMAR_Network_Runner {
 				}
 			}
 
-			$client_body = WPMAR_Runner::merge_network_client_markup( $segments );
-			$admin_body  = WPMAR_Runner::merge_network_operator_markup( $segments );
+			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
-			$domain_ok_count = 0;
-			$total_changes   = 0;
-			$per_blog        = array();
-			foreach ( $segments as $segment ) {
-				if ( ! is_array( $segment ) ) {
-					continue;
-				}
-				$bid = isset( $segment['blog_id'] ) ? absint( $segment['blog_id'] ) : 0;
-				if ( $bid <= 0 ) {
-					continue;
-				}
-				$ok = ! empty( $segment['domain_gate_ok'] );
-				if ( $ok ) {
-					++$domain_ok_count;
-				}
-				$changes          = isset( $segment['changelog_counts'] ) ? absint( $segment['changelog_counts'] ) : 0;
-				$total_changes   += $changes;
-				$per_blog[ $bid ] = array(
-					'blog_id'   => $bid,
-					'site_name' => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
-					'home_url'  => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
-					'domain_ok' => $ok,
-					'changes'   => $changes,
-				);
-			}
-
-			$any_domain_ok = ( $domain_ok_count > 0 );
-			$status_flag   = $any_domain_ok ? 'success' : 'skipped_domain';
-			$duration_sec  = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
-
-			$md_relative = '';
-			if ( $any_domain_ok && ! empty( $delivery['output']['md_enabled'] ) ) {
-				$domain_slug = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
-				if ( '' === $domain_slug ) {
-					$domain_slug = 'site';
-				}
-				$file_result = WPMAR_MD_Writer::write_markdown_file(
-					sprintf( 'wpmar-network-report-%s-admin-%s', $domain_slug, gmdate( 'Ymd-His' ) ),
-					$admin_body
-				);
-				if ( ! is_wp_error( $file_result ) && is_string( $file_result ) ) {
-					$md_relative = $file_result;
-				}
-			}
-
-			$payload_summary = wp_json_encode(
-				array(
-					'network_rollup'  => true,
-					'blog_ids'        => array_values( array_map( 'absint', $blog_ids ) ),
-					'sites_audited'   => count( $segments ),
-					'sites_domain_ok' => $domain_ok_count,
-					'changes'         => $total_changes,
-					'domain_ok'       => $any_domain_ok,
-					'per_blog'        => array_values( $per_blog ),
-				),
-				JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
-			);
-			if ( false === $payload_summary ) {
-				$payload_summary = '{}';
-			}
-
-			$mail_sent_flag = 0;
-			if ( $any_domain_ok && ! empty( $delivery['mail']['enabled'] ) ) {
-				$mail_sent_flag = WPMAR_Notifier_Mail::send_pair(
-					$delivery,
-					$client_body,
-					$admin_body,
-					array(),
-					isset( $exec['mail_qa_extra'] ) ? (string) $exec['mail_qa_extra'] : ''
-				)
-					? 1
-					: 0;
-			}
-
-			$report_repo = new WPMAR_Report_Repository();
-			$row_id      = $report_repo->insert(
-				array(
-					'status'         => $status_flag,
-					'triggered_by'   => sanitize_key( $exec['triggered_by'] ),
-					'domain_matched' => $any_domain_ok ? 1 : 0,
-					'mail_sent'      => $mail_sent_flag,
-					'change_count'   => absint( $total_changes ),
-					'duration_sec'   => $duration_sec,
-					'summary_json'   => $payload_summary,
-					'body_md'        => $admin_body,
-					'body_client_md' => $client_body,
-					'md_file_path'   => $md_relative,
-				)
-			);
-
-			if ( $any_domain_ok && null !== $row_id ) {
-				WPMAR_Notification_Dispatcher::dispatch(
-					$delivery,
-					array(
-						'report_id'      => (int) $row_id,
-						'body_client_md' => $client_body,
-						'body_admin_md'  => $admin_body,
-						'mail_sent'      => (bool) $mail_sent_flag,
-						'triggered_by'   => sanitize_key( $exec['triggered_by'] ),
-						'home_url'       => network_home_url(),
-					)
-				);
-			}
-
-			if ( null !== $row_id && $any_domain_ok && ! empty( $delivery['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
-				$domain_slug_pdf = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
-				if ( '' === $domain_slug_pdf ) {
-					$domain_slug_pdf = 'site';
-				}
-				$pdf_rel = WPMAR_PDF_Writer::write_pdf_from_markdown(
-					WPMAR_PDF_Writer::markdown_body_for_client_pdf(
-						array(
-							'body_client_md' => $client_body,
-						)
-					),
-					sprintf( 'wpmar-network-report-%s-client-%s-%d', $domain_slug_pdf, gmdate( 'Ymd' ), (int) $row_id )
-				);
-				if ( ! is_wp_error( $pdf_rel ) && is_string( $pdf_rel ) && '' !== $pdf_rel ) {
-					$report_repo->update_pdf_file_path( (int) $row_id, $pdf_rel );
-				}
-			}
-
-			$retention_months = isset( $delivery['retention']['months'] ) ? absint( $delivery['retention']['months'] ) : 12;
-			if ( $retention_months > 0 && null !== $row_id ) {
-				$report_repo->purge_older_than_months( $retention_months );
-			}
-
-			WPMAR_Scheduler::reschedule();
-
-			update_site_option( 'wpmar_last_network_audit_completed_at', gmdate( 'c' ) );
-
-			return array(
-				'report_id'      => $row_id,
-				'mail_sent'      => (bool) $mail_sent_flag,
-				'status'         => $status_flag,
-				'sites_audited'  => count( $segments ),
-				'network_rollup' => true,
-			);
-
+			return self::finalize_rollup( $segments, $exec, $delivery, $blog_ids, $duration_sec );
 		} finally {
 			delete_site_transient( self::LOCK_TRANSIENT );
 		}
+	}
+
+	/**
+	 * Merges per-site segment rows into one report: markup, mail, PDF, `wpmar_reports`
+	 * insert, retention purge, and cron rescheduling.
+	 *
+	 * Split out of {@see self::run_on_main_site()} so {@see WPMAR_Job_Dispatcher::run_network_aggregate()}
+	 * can run the exact same finish line once every site's independent async segment job
+	 * has reached `done`/`failed`, instead of duplicating this logic for the per-site-job
+	 * design. Every caller is expected to already be running on the main site (this
+	 * writes to `wpmar_reports`, `wpmar_last_network_audit_completed_at`, etc., which -
+	 * like {@see self::LOCK_TRANSIENT} - only have meaningful data on the main site).
+	 *
+	 * $segments accepts either shape interchangeably: the array
+	 * {@see WPMAR_Runner::run_site_segment()} returns (synchronous path), or a
+	 * `wpmar_network_segments` DB row (async aggregate path) - both carry the same
+	 * `blog_id`/`site_name`/`home_url`/`domain_gate_ok`/`changelog_counts`/`client_body`/
+	 * `admin_body` keys. A DB row additionally carries `status`; when it's `failed`,
+	 * {@see WPMAR_Runner::merge_network_markup_segments()} renders the "this site errored"
+	 * note instead of that site's (nonexistent) body.
+	 *
+	 * @param array<int,array<string,mixed>> $segments     Per-site rows (see above).
+	 * @param array<string,mixed>            $exec         Normalised run options; only `triggered_by`/`mail_qa_extra` are read here.
+	 * @param array<string,mixed>            $delivery     {@see WPMAR_Network_Settings::rollup_delivery_settings()}.
+	 * @param array<int,int>                 $blog_ids     Every blog id targeted by this run (for the summary JSON), not only the ones with a segment row.
+	 * @param int                            $duration_sec Wall-clock seconds the overall run took, however the caller chooses to measure that.
+	 * @return array<string,mixed>
+	 */
+	public static function finalize_rollup( array $segments, array $exec, array $delivery, array $blog_ids, $duration_sec ) {
+		$exec = wp_parse_args(
+			$exec,
+			array(
+				'triggered_by'  => 'cron_network',
+				'mail_qa_extra' => '',
+			)
+		);
+
+		$client_body = WPMAR_Runner::merge_network_client_markup( $segments );
+		$admin_body  = WPMAR_Runner::merge_network_operator_markup( $segments );
+
+		$domain_ok_count = 0;
+		$total_changes   = 0;
+		$per_blog        = array();
+		foreach ( $segments as $segment ) {
+			if ( ! is_array( $segment ) ) {
+				continue;
+			}
+			$bid = isset( $segment['blog_id'] ) ? absint( $segment['blog_id'] ) : 0;
+			if ( $bid <= 0 ) {
+				continue;
+			}
+			$ok = ! empty( $segment['domain_gate_ok'] );
+			if ( $ok ) {
+				++$domain_ok_count;
+			}
+			$changes          = isset( $segment['changelog_counts'] ) ? absint( $segment['changelog_counts'] ) : 0;
+			$total_changes   += $changes;
+			$per_blog[ $bid ] = array(
+				'blog_id'   => $bid,
+				'site_name' => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
+				'home_url'  => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
+				'domain_ok' => $ok,
+				'changes'   => $changes,
+				'status'    => isset( $segment['status'] ) ? sanitize_key( (string) $segment['status'] ) : 'done',
+			);
+		}
+
+		$any_domain_ok = ( $domain_ok_count > 0 );
+		$status_flag   = $any_domain_ok ? 'success' : 'skipped_domain';
+
+		$md_relative = '';
+		if ( $any_domain_ok && ! empty( $delivery['output']['md_enabled'] ) ) {
+			$domain_slug = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
+			if ( '' === $domain_slug ) {
+				$domain_slug = 'site';
+			}
+			$file_result = WPMAR_MD_Writer::write_markdown_file(
+				sprintf( 'wpmar-network-report-%s-admin-%s', $domain_slug, gmdate( 'Ymd-His' ) ),
+				$admin_body
+			);
+			if ( ! is_wp_error( $file_result ) && is_string( $file_result ) ) {
+				$md_relative = $file_result;
+			}
+		}
+
+		$payload_summary = wp_json_encode(
+			array(
+				'network_rollup'  => true,
+				'blog_ids'        => array_values( array_map( 'absint', $blog_ids ) ),
+				'sites_audited'   => count( $segments ),
+				'sites_domain_ok' => $domain_ok_count,
+				'changes'         => $total_changes,
+				'domain_ok'       => $any_domain_ok,
+				'per_blog'        => array_values( $per_blog ),
+			),
+			JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+		);
+		if ( false === $payload_summary ) {
+			$payload_summary = '{}';
+		}
+
+		$mail_sent_flag = 0;
+		if ( $any_domain_ok && ! empty( $delivery['mail']['enabled'] ) ) {
+			$mail_sent_flag = WPMAR_Notifier_Mail::send_pair(
+				$delivery,
+				$client_body,
+				$admin_body,
+				array(),
+				isset( $exec['mail_qa_extra'] ) ? (string) $exec['mail_qa_extra'] : ''
+			)
+				? 1
+				: 0;
+		}
+
+		$report_repo = new WPMAR_Report_Repository();
+		$row_id      = $report_repo->insert(
+			array(
+				'status'         => $status_flag,
+				'triggered_by'   => sanitize_key( $exec['triggered_by'] ),
+				'domain_matched' => $any_domain_ok ? 1 : 0,
+				'mail_sent'      => $mail_sent_flag,
+				'change_count'   => absint( $total_changes ),
+				'duration_sec'   => (int) max( 0, $duration_sec ),
+				'summary_json'   => $payload_summary,
+				'body_md'        => $admin_body,
+				'body_client_md' => $client_body,
+				'md_file_path'   => $md_relative,
+			)
+		);
+
+		if ( $any_domain_ok && null !== $row_id ) {
+			WPMAR_Notification_Dispatcher::dispatch(
+				$delivery,
+				array(
+					'report_id'      => (int) $row_id,
+					'body_client_md' => $client_body,
+					'body_admin_md'  => $admin_body,
+					'mail_sent'      => (bool) $mail_sent_flag,
+					'triggered_by'   => sanitize_key( $exec['triggered_by'] ),
+					'home_url'       => network_home_url(),
+				)
+			);
+		}
+
+		if ( null !== $row_id && $any_domain_ok && ! empty( $delivery['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
+			$domain_slug_pdf = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
+			if ( '' === $domain_slug_pdf ) {
+				$domain_slug_pdf = 'site';
+			}
+			$pdf_rel = WPMAR_PDF_Writer::write_pdf_from_markdown(
+				WPMAR_PDF_Writer::markdown_body_for_client_pdf(
+					array(
+						'body_client_md' => $client_body,
+					)
+				),
+				sprintf( 'wpmar-network-report-%s-client-%s-%d', $domain_slug_pdf, gmdate( 'Ymd' ), (int) $row_id )
+			);
+			if ( ! is_wp_error( $pdf_rel ) && is_string( $pdf_rel ) && '' !== $pdf_rel ) {
+				$report_repo->update_pdf_file_path( (int) $row_id, $pdf_rel );
+			}
+		}
+
+		$retention_months = isset( $delivery['retention']['months'] ) ? absint( $delivery['retention']['months'] ) : 12;
+		if ( $retention_months > 0 && null !== $row_id ) {
+			$report_repo->purge_older_than_months( $retention_months );
+		}
+
+		WPMAR_Scheduler::reschedule();
+
+		update_site_option( 'wpmar_last_network_audit_completed_at', gmdate( 'c' ) );
+
+		return array(
+			'report_id'      => $row_id,
+			'mail_sent'      => (bool) $mail_sent_flag,
+			'status'         => $status_flag,
+			'sites_audited'  => count( $segments ),
+			'network_rollup' => true,
+		);
 	}
 
 	/**

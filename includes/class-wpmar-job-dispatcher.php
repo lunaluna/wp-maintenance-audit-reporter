@@ -32,6 +32,11 @@ class WPMAR_Job_Dispatcher {
 	const HOOK_NETWORK_SITE_SEGMENT = 'wpmar/run_network_site_segment';
 
 	/**
+	 * Action Scheduler hook that waits for a network rollup's segments and finalizes the report.
+	 */
+	const HOOK_NETWORK_AGGREGATE = 'wpmar/run_network_aggregate';
+
+	/**
 	 * Action Scheduler group, for grouping/filtering in the admin queue screen.
 	 */
 	const GROUP = 'wpmar';
@@ -45,6 +50,7 @@ class WPMAR_Job_Dispatcher {
 	public static function init() {
 		add_action( self::HOOK, array( __CLASS__, 'run_audit_job' ), 10, 1 );
 		add_action( self::HOOK_NETWORK_SITE_SEGMENT, array( __CLASS__, 'run_network_site_segment' ), 10, 3 );
+		add_action( self::HOOK_NETWORK_AGGREGATE, array( __CLASS__, 'run_network_aggregate' ), 10, 1 );
 	}
 
 	/**
@@ -259,5 +265,160 @@ class WPMAR_Job_Dispatcher {
 				error_log( "WPMAR network site segment run={$run_id} blog={$blog_id} failed: " . $e->getMessage() );
 			}
 		}
+	}
+
+	/**
+	 * Waits for every site segment of a network run to reach `done`/`failed`, then
+	 * finalizes the report exactly as the old single-action synchronous loop did.
+	 *
+	 * Invoked repeatedly by Action Scheduler (self-reschedules while segments are still
+	 * `queued`/`running`) rather than blocking - this action's own memory footprint stays
+	 * flat regardless of how many sites are still mid-flight, since it only ever reads
+	 * status counts and small per-site rows, never re-runs anything.
+	 *
+	 * `wpmar_network_segments`/`wpmar_jobs`/`wpmar_reports` only have real data in the
+	 * main site's copy of their tables - see the same rationale in
+	 * {@see self::run_network_site_segment()}.
+	 *
+	 * @param string $run_id Parent job id.
+	 * @return void
+	 */
+	public static function run_network_aggregate( $run_id ) {
+		$run_id = WPMAR_Jobs_Repository::sanitize_id( $run_id );
+		if ( '' === $run_id ) {
+			return;
+		}
+
+		WPMAR_Network::on_main_site(
+			function () use ( $run_id ) {
+				self::run_network_aggregate_on_main_site( $run_id );
+			}
+		);
+	}
+
+	/**
+	 * Body of {@see self::run_network_aggregate()}, guaranteed to already be running on
+	 * the main site.
+	 *
+	 * @param string $run_id Parent job id.
+	 * @return void
+	 */
+	protected static function run_network_aggregate_on_main_site( $run_id ) {
+		$jobs_repo = new WPMAR_Jobs_Repository();
+		$job       = $jobs_repo->find( $run_id );
+
+		if ( null === $job ) {
+			return; // Unknown id (purged or never created) — nothing to do.
+		}
+
+		$status = isset( $job['status'] ) ? (string) $job['status'] : '';
+		if ( ! in_array( $status, array( WPMAR_Jobs_Repository::STATUS_QUEUED, WPMAR_Jobs_Repository::STATUS_RUNNING ), true ) ) {
+			return; // Already finalized (or unknown state) - a duplicate/late tick is a no-op.
+		}
+
+		if ( WPMAR_Jobs_Repository::STATUS_QUEUED === $status ) {
+			$jobs_repo->mark_running( $run_id );
+		}
+
+		$segments_repo = new WPMAR_Network_Segments_Repository();
+
+		/**
+		 * Filters how long (minutes) a segment may sit `running` with no heartbeat before
+		 * this aggregate step force-fails it as abandoned (OOM kill, timeout).
+		 *
+		 * Unmeasured default: 20 minutes is a guess at "longer than one site's audit
+		 * should ever take", not a benchmarked value against real per-site durations.
+		 *
+		 * @since 1.4.0
+		 *
+		 * @param int $minutes Default 20.
+		 */
+		$stale_minutes = (int) apply_filters( 'wpmar_network_segment_stale_minutes', 20 );
+		$segments_repo->sweep_stale_running( $run_id, $stale_minutes );
+
+		$rows = $segments_repo->find_by_run( $run_id );
+
+		$incomplete = array_filter(
+			$rows,
+			static function ( $row ) {
+				$row_status = isset( $row['status'] ) ? (string) $row['status'] : '';
+				return WPMAR_Network_Segments_Repository::STATUS_QUEUED === $row_status
+					|| WPMAR_Network_Segments_Repository::STATUS_RUNNING === $row_status;
+			}
+		);
+
+		if ( ! empty( $incomplete ) ) {
+			$created_ts = isset( $job['created_at'] ) ? strtotime( (string) $job['created_at'] . ' UTC' ) : false;
+			$elapsed    = ( false !== $created_ts ) ? ( time() - $created_ts ) : 0;
+
+			/**
+			 * Filters the overall wall-clock budget (seconds) a network rollup gets before
+			 * this aggregate step stops waiting on stragglers and finalizes with whatever
+			 * finished. Unmeasured default: 90 minutes is a guess, not benchmarked against
+			 * a real network's per-site audit durations at scale.
+			 *
+			 * @since 1.4.0
+			 *
+			 * @param int $seconds Default 90 * MINUTE_IN_SECONDS.
+			 */
+			$max_wait_sec = (int) apply_filters( 'wpmar_network_aggregate_max_wait', 90 * MINUTE_IN_SECONDS );
+
+			if ( $elapsed < $max_wait_sec ) {
+				/**
+				 * Filters the delay (seconds) before this aggregate step re-checks segment
+				 * status while sites are still `queued`/`running`. Unmeasured default: 3
+				 * minutes is a guess at a check-in cadence, not a benchmarked value.
+				 *
+				 * @since 1.4.0
+				 *
+				 * @param int $seconds Default 3 * MINUTE_IN_SECONDS.
+				 */
+				$recheck_delay = (int) apply_filters( 'wpmar_network_aggregate_recheck_delay', 3 * MINUTE_IN_SECONDS );
+
+				if ( wpmar_action_scheduler_available() ) {
+					as_schedule_single_action( time() + $recheck_delay, self::HOOK_NETWORK_AGGREGATE, array( $run_id ), self::GROUP );
+				}
+
+				return; // Still within the overall wait budget - try again shortly.
+			}
+
+			// Global timeout: whatever hasn't finished by now is forced to `failed` so
+			// sites that DID finish still get a report instead of waiting forever on
+			// stragglers (Action Scheduler wedged, a site that never even started, etc.).
+			foreach ( $incomplete as $row ) {
+				$segments_repo->mark_failed(
+					$run_id,
+					absint( $row['blog_id'] ),
+					__( 'ネットワーク全体のタイムアウトに達したため、このサイトの処理を打ち切りました。', 'wp-maintenance-audit-reporter' )
+				);
+			}
+
+			$rows = $segments_repo->find_by_run( $run_id );
+		}
+
+		$exec = isset( $job['args_json'] ) ? json_decode( (string) $job['args_json'], true ) : array();
+		if ( ! is_array( $exec ) ) {
+			$exec = array();
+		}
+
+		$delivery     = WPMAR_Network_Settings::rollup_delivery_settings();
+		$blog_ids     = array_values(
+			array_unique(
+				array_map(
+					static function ( $row ) {
+						return absint( $row['blog_id'] );
+					},
+					$rows
+				)
+			)
+		);
+		$created_ts   = isset( $job['created_at'] ) ? strtotime( (string) $job['created_at'] . ' UTC' ) : false;
+		$duration_sec = ( false !== $created_ts ) ? max( 0, time() - $created_ts ) : 0;
+
+		$result = WPMAR_Network_Runner::finalize_rollup( $rows, $exec, $delivery, $blog_ids, $duration_sec );
+
+		$jobs_repo->mark_done( $run_id, $result );
+		$segments_repo->delete_by_run( $run_id );
+		delete_site_transient( WPMAR_Network_Runner::LOCK_TRANSIENT );
 	}
 }

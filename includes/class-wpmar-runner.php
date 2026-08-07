@@ -384,6 +384,11 @@ class WPMAR_Runner {
 	/**
 	 * Joins per-site Markdown segments under a network title.
 	 *
+	 * A segment whose `status` is `failed` (only set on a `wpmar_network_segments` DB row -
+	 * the synchronous {@see WPMAR_Runner::run_site_segment()} return array never carries
+	 * this key, so that path's behaviour is unchanged) gets an error note instead of a
+	 * body: the site errored out (or timed out) independently and never produced one.
+	 *
 	 * @param array<int,array<string,mixed>> $segments  Per-site rows.
 	 * @param string                         $audience  client|admin.
 	 * @param string                         $title     Document title line.
@@ -406,6 +411,11 @@ class WPMAR_Runner {
 				'' !== $site_name ? $site_name : sprintf( 'Blog #%d', $blog_id ),
 				'' !== $home_url ? $home_url : '—'
 			);
+
+			if ( isset( $segment['status'] ) && 'failed' === (string) $segment['status'] ) {
+				$blocks[] = $heading . __( '※ このサイトはエラーのため取得できませんでした（ログを参照してください）。', 'wp-maintenance-audit-reporter' );
+				continue;
+			}
 
 			if ( empty( $segment['domain_gate_ok'] ) ) {
 				$blocks[] = $heading . __( '※ ドメインゲートにより、このサイトの監査結果は保存・通知対象外として扱われました。', 'wp-maintenance-audit-reporter' );
