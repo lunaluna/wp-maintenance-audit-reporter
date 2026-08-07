@@ -2,7 +2,7 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 7.0.1
+Tested up to: 7.0.3
 Requires PHP: 7.4
 Stable tag: 1.4.0
 License: GPLv2 or later
@@ -256,7 +256,7 @@ v0.2 以降、管理 UI は専用のトップレベル **Maintenance Audit** メ
 
 == 開発 ==
 
-WordPress / 実行環境の目安: **PHP 7.4+**。WordPress **6.0+**、動作確認済みは **7.0.1**。
+WordPress / 実行環境の目安: **PHP 7.4+**。WordPress **6.0+**、動作確認済みは **7.0.3**。
 
 Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／PDF・クライアント向け HTML メール）は、CI およびローカルの `composer install` に **PHP 8.0+** が必要です。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
 

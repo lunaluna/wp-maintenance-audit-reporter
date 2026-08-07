@@ -351,7 +351,7 @@ WordPress / 実行環境の目安: **PHP 7.4+**。
 
 Composer の開発ツールおよび **ランタイム依存**（mPDF / Parsedown／PDF および **クライアント向け HTML メール**）: CI およびローカルで `composer install` には **PHP 8.0+**。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
 
-WordPress **6.0+**。動作確認済み: **7.0.1**。
+WordPress **6.0+**。動作確認済み: **7.0.3**。
 
 ### Composer
 

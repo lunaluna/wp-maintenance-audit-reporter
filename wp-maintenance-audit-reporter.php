@@ -5,7 +5,7 @@
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
  * Version:           1.4.0
  * Requires at least: 6.0
- * Tested up to:      7.0.2
+ * Tested up to:      7.0.3
  * Requires PHP:      7.4
  * Network:           true
  * Author:            lunaluna_dev

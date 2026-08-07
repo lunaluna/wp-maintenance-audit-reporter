@@ -2,7 +2,7 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 7.0.1
+Tested up to: 7.0.3
 Requires PHP: 7.4
 Stable tag: 1.4.0
 License: GPLv2 or later
@@ -256,7 +256,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 == Development ==
 
-WordPress/runtime target: **PHP 7.4+**. WordPress **6.0+**, tested up to **7.0.1**.
+WordPress/runtime target: **PHP 7.4+**. WordPress **6.0+**, tested up to **7.0.3**.
 
 Composer dev tooling and runtime libraries (mPDF, Parsedown) for PDF and client HTML mail need **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
 
