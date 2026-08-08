@@ -234,6 +234,8 @@ class WPMAR_Runner {
 
 			update_option( 'wpmar_last_audit_completed_at', gmdate( 'c' ), false );
 
+			WPMAR_Logger::log_run_outcome( 'done', (int) max( round( microtime( true ) - $t0, 0 ), 0 ), memory_get_peak_usage( true ) );
+
 			return array(
 				'report_id' => $row_id,
 				'mail_sent' => (bool) $mail_sent_flag,

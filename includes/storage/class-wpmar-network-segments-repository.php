@@ -224,7 +224,7 @@ class WPMAR_Network_Segments_Repository {
 		$duration   = ( false !== $created_ts ) ? max( 0, time() - $created_ts ) : 0;
 		$attempts   = isset( $row['attempts'] ) ? absint( $row['attempts'] ) : 0;
 
-		WPMAR_Logger::log_segment_outcome( $run_id, $blog_id, $status, $duration, $attempts );
+		WPMAR_Logger::log_segment_outcome( $run_id, $blog_id, $status, $duration, $attempts, memory_get_peak_usage( true ) );
 
 		return $row;
 	}

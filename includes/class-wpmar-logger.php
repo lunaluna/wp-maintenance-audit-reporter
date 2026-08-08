@@ -42,6 +42,18 @@ class WPMAR_Logger {
 	const SEGMENT_HISTORY_FILE = 'segment-history.log';
 
 	/**
+	 * Filename for the persistent single-site run peak-memory/duration history.
+	 *
+	 * Mirrors {@see self::SEGMENT_HISTORY_FILE} for the single-site
+	 * ({@see WPMAR_Runner::run()}) path. The point isn't only this plugin's own footprint -
+	 * comparing peak usage against the site's `memory_limit` over time gives a sense of
+	 * how much headroom the site has overall (other plugins, theme, traffic), not just
+	 * whether this plugin alone is the pressure. Growth is similarly slow (once per
+	 * scheduled/manual run, not per request), so no rotation is applied.
+	 */
+	const RUN_HISTORY_FILE = 'run-history.log';
+
+	/**
 	 * Job id for the currently active log context, or '' when none is active.
 	 *
 	 * @var string
@@ -192,31 +204,78 @@ class WPMAR_Logger {
 	 * since the DB row it would otherwise be reconstructed from is gone once the run's
 	 * `wpmar_network_segments` rows are deleted.
 	 *
+	 * `mem_bytes` is `memory_get_peak_usage(true)` read at the moment this line is written -
+	 * for a `done`/Throwable-`failed` segment that's the same PHP process that just ran
+	 * the site's own audit, so the peak reflects that segment's real worst-case footprint.
+	 * For a segment force-failed by the *aggregate's* own stale-heartbeat sweep, it instead
+	 * reflects the aggregate process's own peak, not the original (already-dead) segment
+	 * process's peak - a dead process's peak can't be recovered after the fact, so this is
+	 * the closest available proxy rather than a claim about that specific run.
+	 *
 	 * @param string $run_id       Parent job id.
 	 * @param int    $blog_id      Target blog id.
 	 * @param string $status       `done` or `failed`.
 	 * @param int    $duration_sec Wall-clock seconds the segment took (best-effort; 0 if unknown).
 	 * @param int    $attempts     Retry count already spent on this segment before this outcome.
+	 * @param int    $mem_bytes    `memory_get_peak_usage(true)` at the time of this outcome.
 	 * @return void
 	 */
-	public static function log_segment_outcome( $run_id, $blog_id, $status, $duration_sec, $attempts ) {
+	public static function log_segment_outcome( $run_id, $blog_id, $status, $duration_sec, $attempts, $mem_bytes = 0 ) {
 		$dir = self::logs_dir();
 		if ( is_wp_error( $dir ) ) {
 			return;
 		}
 
 		$line = sprintf(
-			"[%s] run=%s blog=%d status=%s duration_sec=%d attempts=%d\n",
+			"[%s] run=%s blog=%d status=%s duration_sec=%d attempts=%d mem=%s\n",
 			gmdate( 'c' ),
 			self::sanitize_label( $run_id ),
 			absint( $blog_id ),
 			sanitize_key( (string) $status ),
 			absint( $duration_sec ),
-			absint( $attempts )
+			absint( $attempts ),
+			size_format( absint( $mem_bytes ) )
 		);
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- unbuffered append under wp_upload_dir with a controlled, fixed filename.
 		file_put_contents( $dir . self::SEGMENT_HISTORY_FILE, $line, FILE_APPEND | LOCK_EX );
+	}
+
+	/**
+	 * Appends one line recording a finished single-site run's peak memory usage and
+	 * duration, alongside the site's own `memory_limit` for direct comparison.
+	 *
+	 * Uses the active job context ({@see self::$job_id}, set by {@see self::begin_job()})
+	 * the same implicit way {@see self::log()} already does - a job-less caller (e.g. the
+	 * admin dry-run fallback that never calls `begin_job()`) simply logs an empty job id,
+	 * same as that path's per-job log lines already would if it had a log file open.
+	 *
+	 * @param string $status       `done` or `failed`.
+	 * @param int    $duration_sec Wall-clock seconds the run took.
+	 * @param int    $peak_bytes   `memory_get_peak_usage(true)` at the time of this outcome.
+	 * @return void
+	 */
+	public static function log_run_outcome( $status, $duration_sec, $peak_bytes ) {
+		$dir = self::logs_dir();
+		if ( is_wp_error( $dir ) ) {
+			return;
+		}
+
+		$limit_bytes = wp_convert_hr_to_bytes( (string) ini_get( 'memory_limit' ) );
+		$limit_label = $limit_bytes > 0 ? size_format( $limit_bytes ) : __( '無制限', 'wp-maintenance-audit-reporter' );
+
+		$line = sprintf(
+			"[%s] job=%s status=%s duration_sec=%d peak_mem=%s memory_limit=%s\n",
+			gmdate( 'c' ),
+			self::$job_id,
+			sanitize_key( (string) $status ),
+			absint( $duration_sec ),
+			size_format( absint( $peak_bytes ) ),
+			$limit_label
+		);
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- unbuffered append under wp_upload_dir with a controlled, fixed filename.
+		file_put_contents( $dir . self::RUN_HISTORY_FILE, $line, FILE_APPEND | LOCK_EX );
 	}
 
 	/**
