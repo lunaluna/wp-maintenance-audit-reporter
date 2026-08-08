@@ -71,13 +71,18 @@ function wpmar_uninstall_cleanup_options_and_cron( $wp_db ) {
 }
 
 /**
- * Multisite-only: repeats the per-blog table/option cleanup on every blog, then clears
+ * Multisite-only: repeats the per-blog table/option/file cleanup on every blog, then clears
  * the network-wide (sitemeta) data that a single blog's `$wpdb->options` cleanup never
  * reaches.
  *
  * Mirrors the same `get_sites()` + `switch_to_blog()` loop {@see WPMAR_Activator::activate_network()}
  * uses to provision these same per-blog tables, so every blog that got a table on activation
  * gets it dropped here too.
+ *
+ * The file deletions run inside this loop as well: both storage locations are per-site
+ * (`wp_upload_dir()` splits itself, the private base directory gets a `site-{blog_id}`
+ * subdirectory), and the private base directory may additionally be filtered per blog, so
+ * both have to be resolved under each blog's own context.
  *
  * @param wpdb $wp_db WP database object.
  */
@@ -88,6 +93,9 @@ function wpmar_uninstall_multisite_cleanup( $wp_db ) {
 
 	$sites = get_sites( array( 'number' => 0 ) );
 
+	// Keyed by path so a base directory shared by every blog is only rmdir'd once at the end.
+	$shared_bases = array();
+
 	foreach ( $sites as $site ) {
 		if ( ! is_object( $site ) || ! isset( $site->blog_id ) ) {
 			continue;
@@ -96,7 +104,20 @@ function wpmar_uninstall_multisite_cleanup( $wp_db ) {
 		switch_to_blog( (int) $site->blog_id );
 		wpmar_uninstall_drop_tables( $wp_db );
 		wpmar_uninstall_cleanup_options_and_cron( $wp_db );
+		wpmar_uninstall_delete_uploads();
+
+		$base = wpmar_uninstall_delete_private_storage();
+		if ( '' !== $base ) {
+			$shared_bases[ $base ] = true;
+		}
+
 		restore_current_blog();
+	}
+
+	// The `site-{blog_id}` subdirectories are gone now; drop the parent that held them,
+	// unless something not ours (or a pre-multisite era leftover) still lives there.
+	foreach ( array_keys( $shared_bases ) as $base ) {
+		wpmar_uninstall_rmdir_if_empty( $base );
 	}
 
 	wpmar_uninstall_cleanup_sitemeta( $wp_db );
@@ -127,7 +148,13 @@ function wpmar_uninstall_cleanup_sitemeta( $wp_db ) {
 }
 
 /**
- * Removes uploads/wpmar directory tree.
+ * Removes the uploads/wpmar directory tree of the current blog.
+ *
+ * This is only the write-fallback location {@see WPMAR_Private_Storage::fallback_base_dir()}
+ * uses when the configured private base directory is not writable; the primary location is
+ * handled by {@see wpmar_uninstall_delete_private_storage()}. `wp_upload_dir()` is already
+ * per-site on multisite, which is why no `site-{blog_id}` segment is appended here — call
+ * this once per blog (inside `switch_to_blog()`) instead.
  *
  * @return void
  */
@@ -149,6 +176,109 @@ function wpmar_uninstall_delete_uploads() {
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 
 	wpmar_uninstall_rrmdir( $dir );
+}
+
+/**
+ * Resolves the shared private storage base directory, before the per-site segment.
+ *
+ * Deliberately duplicates {@see WPMAR_Private_Storage::configured_base_dir()} instead of
+ * loading that class: `uninstall.php` is included by core with only `WP_UNINSTALL_PLUGIN`
+ * defined, so none of this plugin's own classes are available here — the same reason
+ * {@see wpmar_uninstall_drop_tables()} restates its table names locally.
+ *
+ * The `WPMAR_PRIVATE_STORAGE_DIR` constant (`wp-config.php`) and the
+ * `wpmar_private_storage_dir` filter (mu-plugin / another plugin / the theme) *are* in
+ * effect during uninstall, since both are loaded as part of the normal WP bootstrap.
+ *
+ * @return string Absolute path without a trailing slash, or '' when unresolvable.
+ */
+function wpmar_uninstall_private_storage_base_dir() {
+	if ( defined( 'WPMAR_PRIVATE_STORAGE_DIR' ) && '' !== trim( (string) WPMAR_PRIVATE_STORAGE_DIR ) ) {
+		$base = (string) WPMAR_PRIVATE_STORAGE_DIR;
+	} else {
+		$base = WP_CONTENT_DIR . '/wpmar-private';
+	}
+
+	/** This filter is documented in includes/storage/class-wpmar-private-storage.php */
+	$base = (string) apply_filters( 'wpmar_private_storage_dir', $base );
+	$base = wp_normalize_path( untrailingslashit( trim( $base ) ) );
+
+	// A filter returning an empty value would otherwise turn into a delete of '/'.
+	if ( '' === $base || '/' === $base ) {
+		return '';
+	}
+
+	return $base;
+}
+
+/**
+ * Removes the private storage tree (reports/, pdf/, logs/, tmp/) of the current blog.
+ *
+ * This is the primary storage location introduced in 1.3.1, i.e. everything
+ * {@see WPMAR_Private_Storage} writes when the configured base directory is usable.
+ * Unlike the uploads fallback, the base directory is shared network-wide, so on multisite
+ * only this blog's `site-{blog_id}` subdirectory is removed here — call this once per blog
+ * (inside `switch_to_blog()`, so a blog-dependent filter resolves correctly) and let the
+ * caller drop the emptied parent afterwards.
+ *
+ * @return string The resolved shared base directory (no trailing slash) so the caller can
+ *                clean it up once every blog is done, or '' when nothing was resolvable.
+ */
+function wpmar_uninstall_delete_private_storage() {
+	$base = wpmar_uninstall_private_storage_base_dir();
+	if ( '' === $base ) {
+		return '';
+	}
+
+	$dir = is_multisite() ? $base . '/site-' . get_current_blog_id() : $base;
+
+	wpmar_uninstall_rrmdir( $dir );
+
+	return $base;
+}
+
+/**
+ * Removes a directory only when it has no entries left (uninstall-only).
+ *
+ * Used for the shared private storage parent: an operator-chosen path (or one holding
+ * leftovers this uninstall does not own) must never be removed recursively.
+ *
+ * @param string $path Absolute path (with or without trailing slash).
+ * @return void
+ */
+function wpmar_uninstall_rmdir_if_empty( $path ) {
+	$path = rtrim( (string) $path, '/\\' );
+
+	if ( '' === $path || ! is_dir( $path ) ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_opendir -- uninstall uses direct FS.
+	$handle = opendir( $path );
+	if ( false === $handle ) {
+		return;
+	}
+
+	$is_empty = true;
+	$filename = readdir( $handle );
+	while ( false !== $filename ) {
+		if ( '.' !== $filename && '..' !== $filename ) {
+			$is_empty = false;
+			break;
+		}
+
+		$filename = readdir( $handle );
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_closedir -- direct handle.
+	closedir( $handle );
+
+	if ( ! $is_empty ) {
+		return;
+	}
+
+	// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged,WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Uninstall cleanup; WP_Filesystem may be unavailable during plugin deletion.
+	@rmdir( $path );
 }
 
 /**
@@ -196,10 +326,11 @@ function wpmar_uninstall_rrmdir( $path ) {
 }
 
 if ( is_multisite() ) {
+	// Both file deletions run per blog inside this call — see its docblock.
 	wpmar_uninstall_multisite_cleanup( $wpdb );
 } else {
 	wpmar_uninstall_drop_tables( $wpdb );
 	wpmar_uninstall_cleanup_options_and_cron( $wpdb );
+	wpmar_uninstall_delete_uploads();
+	wpmar_uninstall_delete_private_storage();
 }
-
-wpmar_uninstall_delete_uploads();
