@@ -151,7 +151,7 @@ class WPMAR_Network_System_Status_Page {
 
 			<h2><?php esc_html_e( 'セグメント処理履歴（所要時間・メモリ使用量）', 'wp-maintenance-audit-reporter' ); ?></h2>
 			<p class="description">
-				<?php esc_html_e( 'サイト単位ジョブが完了・失敗した際の所要時間とメモリ使用量の記録です。実行中のセグメント行は集約完了時に削除されますが、このログは削除されずに残るため、リトライ・タイムアウトの各フィルタ値を実測データに基づいて調整する際の参考になります。新しい行ほど下に追加されます。', 'wp-maintenance-audit-reporter' ); ?>
+				<?php esc_html_e( 'サイト単位ジョブが完了・失敗した際の所要時間とメモリ使用量の記録です。実行中のセグメント行は集約完了時に削除されますが、このログは削除されずに残るため、リトライ・タイムアウトの各フィルタ値を実測データに基づいて調整する際の参考になります。新しい行ほど上に表示されます。', 'wp-maintenance-audit-reporter' ); ?>
 			</p>
 			<?php $segment_history = self::segment_history_tail(); ?>
 			<?php if ( '' === $segment_history ) : ?>
@@ -280,6 +280,9 @@ class WPMAR_Network_System_Status_Page {
 	 * since every `mark_done()`/`mark_failed()` call that writes it runs from there (same
 	 * rationale as {@see self::active_network_runs()}'s siblings on this page).
 	 *
+	 * Newest entry first (the file itself is append-only oldest-to-newest; this reverses
+	 * just the returned, already-trimmed slice for display).
+	 *
 	 * @param int $max_lines Maximum trailing lines to return.
 	 * @return string
 	 */
@@ -304,7 +307,7 @@ class WPMAR_Network_System_Status_Page {
 
 				$lines = explode( "\n", trim( $contents ) );
 
-				return implode( "\n", array_slice( $lines, -$max_lines ) );
+				return implode( "\n", array_reverse( array_slice( $lines, -$max_lines ) ) );
 			}
 		);
 	}

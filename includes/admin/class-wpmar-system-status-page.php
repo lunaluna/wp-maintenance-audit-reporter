@@ -96,7 +96,7 @@ class WPMAR_System_Status_Page {
 
 			<h2><?php esc_html_e( '実行履歴（所要時間・メモリ使用量）', 'wp-maintenance-audit-reporter' ); ?></h2>
 			<p class="description">
-				<?php esc_html_e( '監査実行が完了した際の所要時間とピークメモリ使用量、その時点の memory_limit の記録です。このプラグイン単体の負荷だけでなく、サイト全体でメモリにどれだけ余裕があるかを見る参考にもなります。新しい行ほど下に追加されます。', 'wp-maintenance-audit-reporter' ); ?>
+				<?php esc_html_e( '監査実行が完了した際の所要時間とピークメモリ使用量、その時点の memory_limit の記録です。このプラグイン単体の負荷だけでなく、サイト全体でメモリにどれだけ余裕があるかを見る参考にもなります。新しい行ほど上に表示されます。', 'wp-maintenance-audit-reporter' ); ?>
 			</p>
 			<?php $run_history = self::run_history_tail(); ?>
 			<?php if ( '' === $run_history ) : ?>
@@ -235,6 +235,9 @@ class WPMAR_System_Status_Page {
 	 * Tail of the persistent single-site run peak-memory/duration history
 	 * ({@see WPMAR_Logger::log_run_outcome()}).
 	 *
+	 * Newest entry first (the file itself is append-only oldest-to-newest; this reverses
+	 * just the returned, already-trimmed slice for display).
+	 *
 	 * @param int $max_lines Maximum trailing lines to return.
 	 * @return string
 	 */
@@ -257,6 +260,6 @@ class WPMAR_System_Status_Page {
 
 		$lines = explode( "\n", trim( $contents ) );
 
-		return implode( "\n", array_slice( $lines, -$max_lines ) );
+		return implode( "\n", array_reverse( array_slice( $lines, -$max_lines ) ) );
 	}
 }
