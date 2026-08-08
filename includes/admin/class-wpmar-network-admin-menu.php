@@ -68,8 +68,8 @@ class WPMAR_Network_Admin_Menu {
 
 		add_submenu_page(
 			WPMAR_NETWORK_ADMIN_PAGE_SLUG,
-			__( 'Maintenance Audit — システム状態', 'wp-maintenance-audit-reporter' ),
-			__( 'システム状態', 'wp-maintenance-audit-reporter' ),
+			__( 'Maintenance Audit — システム機能', 'wp-maintenance-audit-reporter' ),
+			__( 'システム機能', 'wp-maintenance-audit-reporter' ),
 			self::CAPABILITY,
 			WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG,
 			array( 'WPMAR_Network_System_Status_Page', 'render' )

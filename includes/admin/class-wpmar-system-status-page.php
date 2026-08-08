@@ -1,6 +1,6 @@
 <?php
 /**
- * Site-level "システム状態" screen: wp.org cache size, run-lock state, manual recovery actions.
+ * Site-level "システム機能" screen: wp.org cache size, run-lock state, manual recovery actions.
  *
  * @package WPMAR
  */

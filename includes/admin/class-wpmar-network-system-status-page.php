@@ -1,6 +1,6 @@
 <?php
 /**
- * Network-level "システム状態" screen: wp.org cache size, both run locks, and any
+ * Network-level "システム機能" screen: wp.org cache size, both run locks, and any
  * currently in-flight network run's per-site segment status.
  *
  * @package WPMAR
