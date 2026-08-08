@@ -31,11 +31,15 @@ class WPMAR_System_Status_Page {
 		$action_url  = WPMAR_Admin_Menu::admin_screen_url( WPMAR_SYSTEM_STATUS_PAGE_SLUG );
 		?>
 		<div class="wrap">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'システム状態', 'wp-maintenance-audit-reporter' ); ?></h1>
+			<h1 class="wp-heading-inline"><?php esc_html_e( 'システム機能', 'wp-maintenance-audit-reporter' ); ?></h1>
 			<hr class="wp-header-end" />
 			<p class="description">
 				<?php esc_html_e( 'wp.org キャッシュや実行ロックの状態を確認し、スタックした定期実行を手動で復旧できます。', 'wp-maintenance-audit-reporter' ); ?>
 			</p>
+
+			<?php WPMAR_Log_Viewer::render_section(); ?>
+
+			<hr />
 
 			<h2><?php esc_html_e( 'wp.org メタデータキャッシュ', 'wp-maintenance-audit-reporter' ); ?></h2>
 			<p>
@@ -60,7 +64,10 @@ class WPMAR_System_Status_Page {
 				</button>
 			</form>
 
-			<h2><?php esc_html_e( '実行ロック（このサイト）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<h2><?php esc_html_e( '実行ロック（多重実行防止）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( '定期実行や手動実行が同時に重複しないようにするための仕組みです。実行が完了すれば自動的に解除されます。実行が異常終了してロックが残ったままになっている場合のみ、下のボタンで強制解除してください。', 'wp-maintenance-audit-reporter' ); ?>
+			</p>
 			<?php if ( $lock['active'] ) : ?>
 				<p>
 					<?php
@@ -85,6 +92,17 @@ class WPMAR_System_Status_Page {
 				</form>
 			<?php else : ?>
 				<p><?php esc_html_e( 'ロックされていません。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<?php endif; ?>
+
+			<h2><?php esc_html_e( '実行履歴（所要時間・メモリ使用量）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( '監査実行が完了した際の所要時間とピークメモリ使用量、その時点の memory_limit の記録です。このプラグイン単体の負荷だけでなく、サイト全体でメモリにどれだけ余裕があるかを見る参考にもなります。新しい行ほど下に追加されます。', 'wp-maintenance-audit-reporter' ); ?>
+			</p>
+			<?php $run_history = self::run_history_tail(); ?>
+			<?php if ( '' === $run_history ) : ?>
+				<p><?php esc_html_e( '記録はまだありません。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<?php else : ?>
+				<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( $run_history ); ?></pre>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -211,5 +229,34 @@ class WPMAR_System_Status_Page {
 	 */
 	public static function force_unlock_run() {
 		delete_transient( 'wpmar_run_lock' );
+	}
+
+	/**
+	 * Tail of the persistent single-site run peak-memory/duration history
+	 * ({@see WPMAR_Logger::log_run_outcome()}).
+	 *
+	 * @param int $max_lines Maximum trailing lines to return.
+	 * @return string
+	 */
+	public static function run_history_tail( $max_lines = 200 ) {
+		$dir = WPMAR_Logger::logs_dir();
+		if ( is_wp_error( $dir ) ) {
+			return '';
+		}
+
+		$path = $dir . WPMAR_Logger::RUN_HISTORY_FILE;
+		if ( ! is_readable( $path ) ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads our own small, slow-growing history file; no HTTP request involved.
+		$contents = file_get_contents( $path );
+		if ( ! is_string( $contents ) || '' === trim( $contents ) ) {
+			return '';
+		}
+
+		$lines = explode( "\n", trim( $contents ) );
+
+		return implode( "\n", array_slice( $lines, -$max_lines ) );
 	}
 }

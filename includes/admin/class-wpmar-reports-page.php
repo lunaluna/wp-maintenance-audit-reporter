@@ -442,9 +442,6 @@ class WPMAR_Reports_Page {
 					</div>
 				</div>
 			</div>
-
-			<hr />
-			<?php WPMAR_Log_Viewer::render_section(); ?>
 		</div>
 		<?php
 	}

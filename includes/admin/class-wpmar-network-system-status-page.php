@@ -38,7 +38,7 @@ class WPMAR_Network_System_Status_Page {
 		$action_url = network_admin_url( 'edit.php?action=wpmar_network_settings' );
 		?>
 		<div class="wrap">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'システム状態（ネットワーク）', 'wp-maintenance-audit-reporter' ); ?></h1>
+			<h1 class="wp-heading-inline"><?php esc_html_e( 'システム機能（ネットワーク）', 'wp-maintenance-audit-reporter' ); ?></h1>
 			<hr class="wp-header-end" />
 			<p class="description">
 				<?php esc_html_e( 'ネットワーク集約監査の実行ロック・進行中セグメントの状態を確認し、スタックした実行を手動で復旧できます。wp.org キャッシュはサイト単位画面と共有です。', 'wp-maintenance-audit-reporter' ); ?>
@@ -68,7 +68,10 @@ class WPMAR_Network_System_Status_Page {
 				</button>
 			</form>
 
-			<h2><?php esc_html_e( '実行ロック（ネットワーク）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<h2><?php esc_html_e( '実行ロック（ネットワーク・多重実行防止）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( 'ネットワーク集約監査が同時に重複しないようにするための仕組みです。実行が完了すれば自動的に解除されます。実行が異常終了してロックが残ったままになっている場合のみ、下のボタンで強制解除してください。', 'wp-maintenance-audit-reporter' ); ?>
+			</p>
 			<?php if ( $lock['active'] ) : ?>
 				<p>
 					<?php
@@ -144,6 +147,17 @@ class WPMAR_Network_System_Status_Page {
 						</table>
 					<?php endif; ?>
 				<?php endforeach; ?>
+			<?php endif; ?>
+
+			<h2><?php esc_html_e( 'セグメント処理履歴（所要時間・メモリ使用量）', 'wp-maintenance-audit-reporter' ); ?></h2>
+			<p class="description">
+				<?php esc_html_e( 'サイト単位ジョブが完了・失敗した際の所要時間とメモリ使用量の記録です。実行中のセグメント行は集約完了時に削除されますが、このログは削除されずに残るため、リトライ・タイムアウトの各フィルタ値を実測データに基づいて調整する際の参考になります。新しい行ほど下に追加されます。', 'wp-maintenance-audit-reporter' ); ?>
+			</p>
+			<?php $segment_history = self::segment_history_tail(); ?>
+			<?php if ( '' === $segment_history ) : ?>
+				<p><?php esc_html_e( '記録はまだありません。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<?php else : ?>
+				<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( $segment_history ); ?></pre>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -258,5 +272,40 @@ class WPMAR_Network_System_Status_Page {
 		}
 
 		return $runs;
+	}
+
+	/**
+	 * Tail of the persistent per-segment duration/memory history
+	 * ({@see WPMAR_Logger::log_segment_outcome()}). Always resolves the main site's copy,
+	 * since every `mark_done()`/`mark_failed()` call that writes it runs from there (same
+	 * rationale as {@see self::active_network_runs()}'s siblings on this page).
+	 *
+	 * @param int $max_lines Maximum trailing lines to return.
+	 * @return string
+	 */
+	public static function segment_history_tail( $max_lines = 200 ) {
+		return WPMAR_Network::on_main_site(
+			static function () use ( $max_lines ) {
+				$dir = WPMAR_Logger::logs_dir();
+				if ( is_wp_error( $dir ) ) {
+					return '';
+				}
+
+				$path = $dir . WPMAR_Logger::SEGMENT_HISTORY_FILE;
+				if ( ! is_readable( $path ) ) {
+					return '';
+				}
+
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- reads our own small, slow-growing history file (see the class doc on SEGMENT_HISTORY_FILE); no HTTP request involved.
+				$contents = file_get_contents( $path );
+				if ( ! is_string( $contents ) || '' === trim( $contents ) ) {
+					return '';
+				}
+
+				$lines = explode( "\n", trim( $contents ) );
+
+				return implode( "\n", array_slice( $lines, -$max_lines ) );
+			}
+		);
 	}
 }

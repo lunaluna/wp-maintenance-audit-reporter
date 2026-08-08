@@ -273,6 +273,7 @@ class WPMAR_Admin_Menu {
 					get_plugin_page_hookname( WPMAR_ADMIN_PAGE_SLUG, '' ),
 					get_plugin_page_hookname( WPMAR_ADMIN_PAGE_SLUG, WPMAR_ADMIN_PAGE_SLUG ),
 					get_plugin_page_hookname( WPMAR_REPORTS_PAGE_SLUG, WPMAR_ADMIN_PAGE_SLUG ),
+					get_plugin_page_hookname( WPMAR_SYSTEM_STATUS_PAGE_SLUG, WPMAR_ADMIN_PAGE_SLUG ),
 				)
 			)
 		);

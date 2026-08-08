@@ -263,7 +263,7 @@ class WPMAR_Network_Settings_Page {
 							<td>
 								<label>
 									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
-									<?php esc_html_e( '実行時に自動で `uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
+									<?php esc_html_e( '実行時に自動で `wp-content/uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
 								<?php if ( ! WPMAR_PDF_Installer::is_installed() ) : ?>
 									<p class="description" style="color:#996800;margin-top:4px;">

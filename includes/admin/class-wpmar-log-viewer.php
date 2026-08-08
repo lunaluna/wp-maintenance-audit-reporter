@@ -32,7 +32,7 @@ class WPMAR_Log_Viewer {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce checked below after the capability gate; this is a read-only stream.
-		if ( ! isset( $_GET['page'] ) || WPMAR_REPORTS_PAGE_SLUG !== $_GET['page'] ) {
+		if ( ! isset( $_GET['page'] ) || WPMAR_SYSTEM_STATUS_PAGE_SLUG !== $_GET['page'] ) {
 			return;
 		}
 
@@ -127,7 +127,7 @@ class WPMAR_Log_Viewer {
 					$job_id       = (string) $job['id'];
 					$view_url     = add_query_arg(
 						array(
-							'page'           => WPMAR_REPORTS_PAGE_SLUG,
+							'page'           => WPMAR_SYSTEM_STATUS_PAGE_SLUG,
 							'wpmar_log_view' => $job_id,
 						),
 						admin_url( 'admin.php' )
@@ -135,7 +135,7 @@ class WPMAR_Log_Viewer {
 					$download_url = wp_nonce_url(
 						add_query_arg(
 							array(
-								'page'      => WPMAR_REPORTS_PAGE_SLUG,
+								'page'      => WPMAR_SYSTEM_STATUS_PAGE_SLUG,
 								'wpmar_log' => $job_id,
 							),
 							admin_url( 'admin.php' )
