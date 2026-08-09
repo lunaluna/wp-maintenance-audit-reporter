@@ -3,9 +3,9 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           1.3.1
+ * Version:           1.4.0
  * Requires at least: 6.0
- * Tested up to:      7.0.2
+ * Tested up to:      7.0.3
  * Requires PHP:      7.4
  * Network:           true
  * Author:            lunaluna_dev
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.3.1' );
+define( 'WPMAR_VERSION', '1.4.0' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -33,7 +33,9 @@ define( 'WPMAR_HOOK_SCHEDULED', 'wpmar_run_audit' );
 define( 'WPMAR_HOOK_NETWORK_MANUAL_RUN', 'wpmar_run_network_audit_manual' );
 define( 'WPMAR_ADMIN_PAGE_SLUG', 'wpmar-maintenance-report' );
 define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
+define( 'WPMAR_SYSTEM_STATUS_PAGE_SLUG', 'wpmar-system-status' );
 define( 'WPMAR_NETWORK_ADMIN_PAGE_SLUG', 'wpmar-network-maintenance-report' );
+define( 'WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG', 'wpmar-network-system-status' );
 
 /*
  * Action Scheduler must load at plugin-file inclusion time — before the
@@ -67,6 +69,7 @@ function wpmar_get_include_manifest() {
 		'includes/storage/class-wpmar-snapshot-repository.php',
 		'includes/storage/class-wpmar-report-repository.php',
 		'includes/storage/class-wpmar-jobs-repository.php',
+		'includes/storage/class-wpmar-network-segments-repository.php',
 		'includes/storage/class-wpmar-md-writer.php',
 		'includes/storage/class-wpmar-private-storage.php',
 		'includes/storage/class-wpmar-storage-migrator.php',
@@ -88,6 +91,8 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-reports-list-table.php',
 		'includes/admin/class-wpmar-reports-page.php',
 		'includes/admin/class-wpmar-log-viewer.php',
+		'includes/admin/class-wpmar-system-status-page.php',
+		'includes/admin/class-wpmar-network-system-status-page.php',
 		'includes/admin/class-wpmar-loopback-notice.php',
 		'includes/admin/class-wpmar-storage-fallback-notice.php',
 		'includes/admin/class-wpmar-storage-migration-notice.php',

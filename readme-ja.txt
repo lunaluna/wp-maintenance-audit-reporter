@@ -2,9 +2,9 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 7.0.1
+Tested up to: 7.0.3
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -256,7 +256,7 @@ v0.2 以降、管理 UI は専用のトップレベル **Maintenance Audit** メ
 
 == 開発 ==
 
-WordPress / 実行環境の目安: **PHP 7.4+**。WordPress **6.0+**、動作確認済みは **7.0.1**。
+WordPress / 実行環境の目安: **PHP 7.4+**。WordPress **6.0+**、動作確認済みは **7.0.3**。
 
 Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／PDF・クライアント向け HTML メール）は、CI およびローカルの `composer install` に **PHP 8.0+** が必要です。プラグイン本体は PHP 7.4 で動く構文に収めているため、サイトは将来まで PHP 7.4 のままにできます。
 
@@ -289,6 +289,17 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.4.0 =
+* 変更：ネットワーク集約監査が、全サイトを1プロセス内でループする方式から、サイトごとに独立したバックグラウンドジョブとして実行する方式に変わりました。サイト数に比例してピークメモリが増え、1サイトの失敗が全体を止めてしまう構造的な問題を解消します。その代わり親ジョブが `done` になるまでの時間は長くなります（管理画面のポーリングUIの契約・最終的なレポート内容は変わりません）。
+* 追加：一時的なジョブ/サイト単位セグメントの失敗に対する、上限付きの自動リトライ（`wpmar_job_max_attempts` フィルター、既定は1回まで再試行）。
+* 追加：wp.org のプラグイン/テーマ情報をネットワーク全体でキャッシュするようになりました（`wpmar_wporg_cache_ttl` フィルター）。マルチサイト監査で同じプラグイン/テーマを毎回サイトごとに問い合わせ直すことがなくなります。
+* 追加：wp.org キャッシュの確認・クリア、スタックした実行ロックの手動復旧、実行履歴（1回ごとの所要時間とピークメモリ、新しい順）の閲覧ができる新規「システム機能」画面（サイト単位・ネットワーク単位）。「診断ログ」セクションはレポート画面からこの画面へ移動しました。
+* 修正：プラグインのアンインストール時に、保存先ディレクトリ `wp-content/wpmar-private/`（レポート・クライアント向けPDF・診断ログ）が削除されるようになりました。従来は v1.3.1 より前のフォールバック先 `uploads/wpmar` のみが削除対象で、v1.3.1 以降に書き出されたファイルはすべて残っていました。`WPMAR_PRIVATE_STORAGE_DIR` 定数・`wpmar_private_storage_dir` フィルターによる保存先変更にも対応し、マルチサイトでは全サブサイトの `site-{blog_id}/` を削除します。共有される親ディレクトリは、空になった場合にのみ削除します。
+* 修正：`uninstall.php` が、マルチサイトの全サブサイトのテーブルとネットワーク単位（sitemeta）の設定を削除するようになりました。従来は現在のブログのテーブルしか削除されませんでした。
+* 修正：ネットワーク集約監査が致命的エラーで異常終了した場合、実行ロックが即座に解放されず20分のタイムアウトを待つ必要がありましたが、即座に解放されるようになりました。
+* 修正：設定画面のPDF添付チェックボックスの説明文が保存先を `uploads/wpmar/pdf/` と表記しており、`wp-content/` が欠けていました（表記のみの修正で、実際の保存先は変わりません）。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.3.1 =
 * セキュリティ: レポート・PDF・診断ログの保存先を既定で保護済みの `wp-content/wpmar-private/` ディレクトリへ変更（ランダムトークン付きファイル名、`.htaccess`/`index.php` の自動生成、`WPMAR_PRIVATE_STORAGE_DIR` による退避に対応）。未認証でのレポート・PDF・ログ取得を修正。v1.3.0 以前の既存ファイルはアップグレード後に自動移行されます。`wp wpmar storage migrate [--dry-run] [--network] [--batch=<n>] [--revert]` で手動確認・実行が可能です。

@@ -158,12 +158,17 @@ class WPMAR_Jobs_Repository {
 	/**
 	 * Marks a job failed with a human-readable message.
 	 *
+	 * Fires `wpmar_job_marked_failed` ($id, $job row) on success - the single point every
+	 * caller (this class's own {@see self::sweep_stale_running()}, the dispatcher's catch
+	 * block, {@see WPMAR_Logger::handle_shutdown()}) converges on, so retry policy lives
+	 * in one listener instead of being duplicated at each call site.
+	 *
 	 * @param string $id      Job id.
 	 * @param string $message Failure detail.
 	 * @return bool
 	 */
 	public function mark_failed( $id, $message ) {
-		return $this->update_fields(
+		$ok = $this->update_fields(
 			$id,
 			array(
 				'status' => self::STATUS_FAILED,
@@ -171,6 +176,40 @@ class WPMAR_Jobs_Repository {
 			),
 			array( '%s', '%s' )
 		);
+
+		if ( $ok ) {
+			$job = $this->find( $id );
+			do_action( 'wpmar_job_marked_failed', self::sanitize_id( $id ), is_array( $job ) ? $job : array() );
+		}
+
+		return $ok;
+	}
+
+	/**
+	 * Resets a failed/stale job back to `queued` and bumps `attempts`, ahead of a retry
+	 * re-schedule.
+	 *
+	 * @param string $id Job id.
+	 * @return bool
+	 */
+	public function requeue_for_retry( $id ) {
+		$id = self::sanitize_id( $id );
+		if ( '' === $id ) {
+			return false;
+		}
+
+		$ok = $this->db->query(
+			$this->db->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table slug from prefix literal.
+				"UPDATE `{$this->table}` SET status=%s, attempts=attempts+1, error=%s, updated_at=%s WHERE id=%s",
+				self::STATUS_QUEUED,
+				'',
+				gmdate( 'Y-m-d H:i:s' ),
+				$id
+			)
+		);
+
+		return false !== $ok;
 	}
 
 	/**
@@ -214,6 +253,10 @@ class WPMAR_Jobs_Repository {
 	 * `running`. This sweep is the backstop — called opportunistically whenever
 	 * someone is looking at job state (REST poll, reports page load).
 	 *
+	 * Goes through {@see self::mark_failed()} per row (one id at a time) rather than a
+	 * single bulk `UPDATE`, so `wpmar_job_marked_failed` fires for each - the retry
+	 * listener otherwise never sees a job this sweep force-failed.
+	 *
 	 * @param int $minutes Heartbeat age, in minutes, beyond which a running job is
 	 *                     considered abandoned. Should exceed the runner's own mutex TTL.
 	 * @return int Number of rows flipped to `failed`.
@@ -231,19 +274,24 @@ class WPMAR_Jobs_Repository {
 
 		$cutoff = gmdate( 'Y-m-d H:i:s', (int) $cutoff_ts );
 
-		$updated = $this->db->query(
+		$stale_ids = $this->db->get_col(
 			$this->db->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table slug from prefix literal.
-				"UPDATE `{$this->table}` SET status=%s, error=%s, updated_at=%s WHERE status=%s AND updated_at<%s",
-				self::STATUS_FAILED,
-				__( 'ハートビート途絶 — プロセスが強制終了された可能性があります(OOM/タイムアウト)。ログを参照してください。', 'wp-maintenance-audit-reporter' ),
-				gmdate( 'Y-m-d H:i:s' ),
+				"SELECT id FROM `{$this->table}` WHERE status=%s AND updated_at<%s",
 				self::STATUS_RUNNING,
 				$cutoff
 			)
 		);
 
-		return is_numeric( $updated ) ? (int) $updated : 0;
+		$message = __( 'ハートビート途絶 — プロセスが強制終了された可能性があります(OOM/タイムアウト)。ログを参照してください。', 'wp-maintenance-audit-reporter' );
+		$flipped = 0;
+		foreach ( (array) $stale_ids as $stale_id ) {
+			if ( $this->mark_failed( (string) $stale_id, $message ) ) {
+				++$flipped;
+			}
+		}
+
+		return $flipped;
 	}
 
 	/**
@@ -260,7 +308,7 @@ class WPMAR_Jobs_Repository {
 		$rows = $this->db->get_results(
 			$this->db->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal.
-				"SELECT id, status, scope, step, log_path, created_at, updated_at FROM `{$this->table}` WHERE log_path IS NOT NULL AND log_path != '' ORDER BY created_at DESC LIMIT %d",
+				"SELECT id, status, scope, step, attempts, log_path, created_at, updated_at FROM `{$this->table}` WHERE log_path IS NOT NULL AND log_path != '' ORDER BY created_at DESC LIMIT %d",
 				$limit
 			),
 			ARRAY_A

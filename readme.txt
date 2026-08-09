@@ -2,9 +2,9 @@
 Contributors: lunaluna_dev
 Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
-Tested up to: 7.0.1
+Tested up to: 7.0.3
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -256,7 +256,7 @@ From v0.2 onward the UI lives under a dedicated **Maintenance Audit** top-level 
 
 == Development ==
 
-WordPress/runtime target: **PHP 7.4+**. WordPress **6.0+**, tested up to **7.0.1**.
+WordPress/runtime target: **PHP 7.4+**. WordPress **6.0+**, tested up to **7.0.3**.
 
 Composer dev tooling and runtime libraries (mPDF, Parsedown) for PDF and client HTML mail need **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
 
@@ -289,6 +289,17 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.4.0 =
+* Changed: a network rollup now runs each site as its own independent background job instead of looping every site inside one process — fixes a structural memory ceiling where peak memory grew with site count and one site's failure took the whole run down. The parent job takes longer to reach `done` in exchange (admin polling UI contract and the final report are unchanged).
+* Added: automatic, capped retry for transient job/site-segment failures (`wpmar_job_max_attempts` filter, default one retry).
+* Added: wp.org plugin/theme metadata is now cached network-wide (`wpmar_wporg_cache_ttl` filter), so a multisite audit no longer re-queries wp.org once per site for the same plugin/theme.
+* Added: new "システム機能" (System Tools) screens (site + network) for viewing/clearing the wp.org cache, manually recovering a stuck run lock, and reading the run/segment history (duration and peak memory per run, newest first). The "診断ログ" section moved here from the Reports screen.
+* Fixed: uninstalling the plugin now deletes the `wp-content/wpmar-private/` storage directory (reports, client PDFs, diagnostics logs) — previously only the pre-1.3.1 `uploads/wpmar` fallback was removed, so everything written since 1.3.1 was left behind. The `WPMAR_PRIVATE_STORAGE_DIR` constant / `wpmar_private_storage_dir` filter are honoured, every sub-site's `site-{blog_id}/` directory is removed on multisite, and a shared parent directory is only removed when empty.
+* Fixed: `uninstall.php` now removes every sub-site's tables and network-wide (sitemeta) settings on a multisite network — previously only the current blog's tables were dropped.
+* Fixed: a network rollup killed by a fatal error left its run lock held until a 20-minute timeout instead of being released immediately.
+* Fixed: the PDF attachment checkbox on the settings screens described the storage path as `uploads/wpmar/pdf/`, dropping the `wp-content/` prefix (text only; the actual location is unchanged).
+* See CHANGELOG.md for full details.
 
 = 1.3.1 =
 * Security: report/PDF/log storage moved to a protected `wp-content/wpmar-private/` directory by default (random-token filenames, auto-generated `.htaccess`/`index.php`, `WPMAR_PRIVATE_STORAGE_DIR` override) — fixes unauthenticated report/PDF/log disclosure. Existing v1.3.0 files migrate automatically after upgrading; `wp wpmar storage migrate [--dry-run] [--network] [--batch=<n>] [--revert]` drives or previews it manually.

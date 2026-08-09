@@ -65,6 +65,15 @@ class WPMAR_Network_Admin_Menu {
 			'dashicons-clipboard',
 			81
 		);
+
+		add_submenu_page(
+			WPMAR_NETWORK_ADMIN_PAGE_SLUG,
+			__( 'Maintenance Audit — システム機能', 'wp-maintenance-audit-reporter' ),
+			__( 'システム機能', 'wp-maintenance-audit-reporter' ),
+			self::CAPABILITY,
+			WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG,
+			array( 'WPMAR_Network_System_Status_Page', 'render' )
+		);
 	}
 
 	/**
@@ -211,6 +220,11 @@ class WPMAR_Network_Admin_Menu {
 				}
 				break;
 
+			case 'clear_wporg_cache':
+			case 'force_unlock_network_run':
+				WPMAR_Network_System_Status_Page::handle_post_action( $action );
+				break;
+
 			case 'save':
 			default:
 				$merged = WPMAR_Network_Settings::merge_form_input( $input, WPMAR_Network_Settings::get_all() );
@@ -250,8 +264,16 @@ class WPMAR_Network_Admin_Menu {
 
 		set_transient( 'settings_errors', get_settings_errors(), 30 );
 
+		// Every other action's form has no reason to leave the settings screen; only the
+		// system-status screen's own forms set this, so they land back on themselves
+		// instead of being bounced to settings after a cache-clear/force-unlock click.
+		$return_page = isset( $input['wpmar_return_page'] ) ? sanitize_key( $input['wpmar_return_page'] ) : WPMAR_NETWORK_ADMIN_PAGE_SLUG;
+		if ( ! in_array( $return_page, array( WPMAR_NETWORK_ADMIN_PAGE_SLUG, WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG ), true ) ) {
+			$return_page = WPMAR_NETWORK_ADMIN_PAGE_SLUG;
+		}
+
 		$redirect_args = array(
-			'page'              => WPMAR_NETWORK_ADMIN_PAGE_SLUG,
+			'page'              => $return_page,
 			'wpmar_network_msg' => '1',
 		);
 		if ( '' !== $queued_job_id ) {

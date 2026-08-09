@@ -72,8 +72,10 @@ class WPMAR_Data_Collector {
 		WPMAR_Logger::step(
 			'gather:inventory-done',
 			array(
-				'themes'  => count( $dataset['themes']['inventory'] ?? array() ),
-				'plugins' => count( $dataset['plugins']['inventory'] ?? array() ),
+				'themes'           => count( $dataset['themes']['inventory'] ?? array() ),
+				'plugins'          => count( $dataset['plugins']['inventory'] ?? array() ),
+				'wporg_cache_hit'  => $this->org->get_cache_stats()['hits'],
+				'wporg_cache_miss' => $this->org->get_cache_stats()['misses'],
 			)
 		);
 
