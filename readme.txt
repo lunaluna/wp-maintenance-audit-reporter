@@ -295,6 +295,7 @@ If you manage this plugin in a project under Git version control, it is recommen
 * Added: automatic, capped retry for transient job/site-segment failures (`wpmar_job_max_attempts` filter, default one retry).
 * Added: wp.org plugin/theme metadata is now cached network-wide (`wpmar_wporg_cache_ttl` filter), so a multisite audit no longer re-queries wp.org once per site for the same plugin/theme.
 * Added: new "システム状態" (System Status) screens (site + network) for viewing/clearing the wp.org cache and manually recovering a stuck run lock.
+* Fixed: uninstalling the plugin now deletes the `wp-content/wpmar-private/` storage directory (reports, client PDFs, diagnostics logs) — previously only the pre-1.3.1 `uploads/wpmar` fallback was removed, so everything written since 1.3.1 was left behind. The `WPMAR_PRIVATE_STORAGE_DIR` constant / `wpmar_private_storage_dir` filter are honoured, every sub-site's `site-{blog_id}/` directory is removed on multisite, and a shared parent directory is only removed when empty.
 * Fixed: `uninstall.php` now removes every sub-site's tables and network-wide (sitemeta) settings on a multisite network — previously only the current blog's tables were dropped.
 * Fixed: a network rollup killed by a fatal error left its run lock held until a 20-minute timeout instead of being released immediately.
 * See CHANGELOG.md for full details.

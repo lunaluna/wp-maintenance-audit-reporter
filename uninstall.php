@@ -94,6 +94,8 @@ function wpmar_uninstall_multisite_cleanup( $wp_db ) {
 	$sites = get_sites( array( 'number' => 0 ) );
 
 	// Keyed by path so a base directory shared by every blog is only rmdir'd once at the end.
+	// A blog-dependent filter (or a relocated install, which adds the well-known default as a
+	// second location) can contribute more than one distinct path here.
 	$shared_bases = array();
 
 	foreach ( $sites as $site ) {
@@ -106,8 +108,7 @@ function wpmar_uninstall_multisite_cleanup( $wp_db ) {
 		wpmar_uninstall_cleanup_options_and_cron( $wp_db );
 		wpmar_uninstall_delete_uploads();
 
-		$base = wpmar_uninstall_delete_private_storage();
-		if ( '' !== $base ) {
+		foreach ( wpmar_uninstall_delete_private_storage() as $base ) {
 			$shared_bases[ $base ] = true;
 		}
 
@@ -212,29 +213,58 @@ function wpmar_uninstall_private_storage_base_dir() {
 }
 
 /**
- * Removes the private storage tree (reports/, pdf/, logs/, tmp/) of the current blog.
+ * The plugin's well-known default private storage base, ignoring constant/filter overrides.
+ *
+ * Duplicates {@see WPMAR_Private_Storage::default_base_dir()}. Files stay where they were
+ * written: an operator who later defines `WPMAR_PRIVATE_STORAGE_DIR` (or adds the filter)
+ * only changes where *new* files go, which is exactly why
+ * {@see WPMAR_Private_Storage::resolve()} keeps probing this location on read — so uninstall
+ * has to clean it too, not just the currently configured base.
+ *
+ * @return string Absolute path without a trailing slash.
+ */
+function wpmar_uninstall_private_storage_default_base_dir() {
+	return wp_normalize_path( untrailingslashit( WP_CONTENT_DIR . '/wpmar-private' ) );
+}
+
+/**
+ * Removes the private storage trees (reports/, pdf/, logs/, tmp/) of the current blog.
  *
  * This is the primary storage location introduced in 1.3.1, i.e. everything
- * {@see WPMAR_Private_Storage} writes when the configured base directory is usable.
- * Unlike the uploads fallback, the base directory is shared network-wide, so on multisite
- * only this blog's `site-{blog_id}` subdirectory is removed here — call this once per blog
- * (inside `switch_to_blog()`, so a blog-dependent filter resolves correctly) and let the
- * caller drop the emptied parent afterwards.
+ * {@see WPMAR_Private_Storage} writes when the configured base directory is usable. Both the
+ * configured base and the well-known default are cleaned, since a relocated install can hold
+ * files under either.
  *
- * @return string The resolved shared base directory (no trailing slash) so the caller can
- *                clean it up once every blog is done, or '' when nothing was resolvable.
+ * Unlike the uploads fallback, these base directories are shared network-wide, so on
+ * multisite only this blog's `site-{blog_id}` subdirectory is removed here — call this once
+ * per blog (inside `switch_to_blog()`, so a blog-dependent filter resolves correctly) and let
+ * the caller drop the emptied parents afterwards.
+ *
+ * @return string[] The resolved shared base directories (no trailing slash) so the caller can
+ *                  clean them up once every blog is done; empty when none was resolvable.
  */
 function wpmar_uninstall_delete_private_storage() {
-	$base = wpmar_uninstall_private_storage_base_dir();
-	if ( '' === $base ) {
-		return '';
+	$bases   = array();
+	$default = wpmar_uninstall_private_storage_default_base_dir();
+
+	$configured = wpmar_uninstall_private_storage_base_dir();
+	if ( '' !== $configured ) {
+		$bases[ $configured ] = true;
 	}
 
-	$dir = is_multisite() ? $base . '/site-' . get_current_blog_id() : $base;
+	// Only a relocated install adds a second location; normally this is the same path.
+	if ( '' !== $default ) {
+		$bases[ $default ] = true;
+	}
 
-	wpmar_uninstall_rrmdir( $dir );
+	$bases = array_keys( $bases );
 
-	return $base;
+	foreach ( $bases as $base ) {
+		$dir = is_multisite() ? $base . '/site-' . get_current_blog_id() : $base;
+		wpmar_uninstall_rrmdir( $dir );
+	}
+
+	return $bases;
 }
 
 /**
