@@ -350,7 +350,7 @@ WordPress/runtime target: **PHP 7.4+**.
 
 Composer dev tooling and **runtime libraries** (mPDF, Parsedown) for PDF and **client HTML mail**: **PHP 8.0+** on CI and local `composer install`. The plugin bootstrap avoids PHP-only syntax beyond 7.4 so sites may stay on PHP 7.4 until you raise the declared minimum later.
 
-WordPress **6.0+**. Tested up to **7.0.3**.
+WordPress **6.0+**. Tested up to **7.1**.
 
 ### Composer
 
