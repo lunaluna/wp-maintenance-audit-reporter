@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -289,6 +289,15 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.4.1 =
+* Fixed: the update checker no longer falls back to GitHub's auto-generated zipball when a release has no matching plugin asset — that zipball's inner directory name differs from the plugin's, which would have deactivated the plugin on install. Missing asset now correctly reports "no update available".
+* Fixed: update-availability comparison now uses the version WordPress actually has installed (read from the plugin header via `$transient->checked`) instead of the `WPMAR_VERSION` constant, so drift between the two can no longer leave a stale "update available" notice or suppress a real one.
+* Fixed: the update-checker cache is now a site-wide transient (matching `update_plugins` itself) instead of a per-blog one, so a multisite network no longer queries the GitHub API once per sub-site.
+* Fixed: the "Requires PHP" / "Tested up to" values shown in the update details modal are now read from the plugin header instead of being hardcoded, so they can't drift from it.
+* Changed: the release workflow now verifies the tag against 5 version-bearing locations (plugin header, `WPMAR_VERSION`, both readme files' `Stable tag`, and `composer.json`), up from 1, catching a version mismatch before it ships.
+* Changed: `release.yml` and `bin/build-zip.sh` now share one exclusion list (`.distignore`) for what the distributed zip omits, instead of two separately maintained lists that had already drifted (the CI-built zip previously bundled `bin/`; a local build with fonts pre-generated could bundle `fonts/`).
+* See CHANGELOG.md for full details.
 
 = 1.4.0 =
 * Changed: a network rollup now runs each site as its own independent background job instead of looping every site inside one process — fixes a structural memory ceiling where peak memory grew with site count and one site's failure took the whole run down. The parent job takes longer to reach `done` in exchange (admin polling UI contract and the final report are unchanged).

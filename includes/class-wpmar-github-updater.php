@@ -56,7 +56,7 @@ class WPMAR_GitHub_Updater {
 	 * @return mixed
 	 */
 	public static function check_for_update( $transient ) {
-		if ( empty( $transient->checked ) ) {
+		if ( ! is_object( $transient ) || empty( $transient->checked ) ) {
 			return $transient;
 		}
 
@@ -67,7 +67,11 @@ class WPMAR_GitHub_Updater {
 
 		$latest_version = $release['version'];
 
-		if ( version_compare( $latest_version, WPMAR_VERSION, '>' ) ) {
+		// Compare against the version WordPress actually sees in the plugin header
+		// (update.php:497), not the WPMAR_VERSION constant, which can drift.
+		$installed = $transient->checked[ WPMAR_PLUGIN_BASENAME ] ?? WPMAR_VERSION;
+
+		if ( version_compare( $latest_version, $installed, '>' ) ) {
 			$transient->response[ WPMAR_PLUGIN_BASENAME ] = self::build_plugin_update_object( $release );
 		} else {
 			// Up-to-date: actively remove any stale "update available" entry left
@@ -103,14 +107,16 @@ class WPMAR_GitHub_Updater {
 			return $result;
 		}
 
+		$requirements = self::plugin_requirements();
+
 		return (object) array(
 			'name'          => 'WP Maintenance Audit Reporter',
 			'slug'          => self::PLUGIN_SLUG,
 			'version'       => $release['version'],
 			'author'        => '<a href="https://profiles.wordpress.org/lunaluna_dev/">lunaluna_dev</a>',
 			'homepage'      => 'https://github.com/' . self::GITHUB_REPO,
-			'requires'      => '6.0',
-			'requires_php'  => '7.4',
+			'requires'      => $requirements['requires'],
+			'requires_php'  => $requirements['requires_php'],
 			'last_updated'  => $release['published_at'],
 			'download_link' => $release['zip_url'],
 			'sections'      => array(
@@ -138,7 +144,7 @@ class WPMAR_GitHub_Updater {
 
 		$plugins = $options['plugins'] ?? array();
 		if ( in_array( WPMAR_PLUGIN_BASENAME, $plugins, true ) ) {
-			delete_transient( self::CACHE_KEY );
+			delete_site_transient( self::CACHE_KEY );
 			// Force WordPress to rebuild the plugin update transient on the next
 			// load so the stale "update available" entry is recomputed (and
 			// dropped by check_for_update()) immediately after updating, rather
@@ -166,7 +172,7 @@ class WPMAR_GitHub_Updater {
 	 * @return array{version:string,zip_url:string,body:string,published_at:string}|null
 	 */
 	private static function fetch_latest_release() {
-		$cached = get_transient( self::CACHE_KEY );
+		$cached = get_site_transient( self::CACHE_KEY );
 
 		// Empty array signals a back-off period (rate limit / network error).
 		if ( array() === $cached ) {
@@ -190,37 +196,37 @@ class WPMAR_GitHub_Updater {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$status = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== (int) $status ) {
 			// 403/429 = rate limit; back off longer to avoid hammering the API.
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( ! is_array( $body ) || empty( $body['tag_name'] ) ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$zip_url = self::extract_zip_url( $body );
 		if ( ! $zip_url ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$release = array(
-			'version'      => ltrim( $body['tag_name'], 'v' ),
+			'version'      => self::normalize_version( $body['tag_name'] ),
 			'zip_url'      => $zip_url,
 			'body'         => $body['body'] ?? '',
 			'published_at' => $body['published_at'] ?? '',
 		);
 
-		set_transient( self::CACHE_KEY, $release, self::get_cache_ttl() );
+		set_site_transient( self::CACHE_KEY, $release, self::get_cache_ttl() );
 
 		return $release;
 	}
@@ -256,8 +262,25 @@ class WPMAR_GitHub_Updater {
 			}
 		}
 
-		// Fall back to GitHub's auto-generated zipball (directory name may differ).
-		return $body['zipball_url'] ?? null;
+		// No plugin asset on this release: report "no update available" rather than
+		// falling back to GitHub's auto-generated zipball, whose inner directory is
+		// `owner-repo-<sha>/` and would rename the plugin directory on install,
+		// deactivating the plugin.
+		return null;
+	}
+
+	/**
+	 * Strips a leading `v`/`V` from a GitHub release tag to get a bare semver
+	 * string (e.g. `v1.4.1` -> `1.4.1`).
+	 *
+	 * Uses a prefix-anchored regex rather than `ltrim()`, which trims by
+	 * character set and would also strip characters from a value like `vv1.0`.
+	 *
+	 * @param  string $tag Raw tag name from the GitHub API.
+	 * @return string
+	 */
+	private static function normalize_version( $tag ) {
+		return preg_replace( '/^v/i', '', (string) $tag );
 	}
 
 	/**
@@ -268,6 +291,8 @@ class WPMAR_GitHub_Updater {
 	 * @return \stdClass
 	 */
 	private static function build_plugin_update_object( array $release ) {
+		$requirements = self::plugin_requirements();
+
 		return (object) array(
 			'id'            => 'github.com/' . self::GITHUB_REPO,
 			'slug'          => self::PLUGIN_SLUG,
@@ -278,9 +303,26 @@ class WPMAR_GitHub_Updater {
 			'icons'         => array(),
 			'banners'       => array(),
 			'banners_rtl'   => array(),
-			'tested'        => '',
-			'requires_php'  => '7.4',
+			'tested'        => $requirements['tested'],
+			'requires_php'  => $requirements['requires_php'],
 			'compatibility' => new \stdClass(),
+		);
+	}
+
+	/**
+	 * Reads plugin compatibility metadata from the plugin file header so it
+	 * stays in sync with the header instead of being duplicated as literals.
+	 *
+	 * @return array{requires:string,tested:string,requires_php:string}
+	 */
+	private static function plugin_requirements() {
+		return get_file_data(
+			WPMAR_PLUGIN_FILE,
+			array(
+				'requires'     => 'Requires at least',
+				'tested'       => 'Tested up to',
+				'requires_php' => 'Requires PHP',
+			)
 		);
 	}
 

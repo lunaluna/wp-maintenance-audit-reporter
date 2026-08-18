@@ -1,0 +1,31 @@
+# Single source of truth for paths excluded from the distributed plugin zip.
+# Read by both bin/build-zip.sh (local) and .github/workflows/release.yml (CI)
+# so the two never drift out of sync again.
+#
+# vendor/ is excluded on purpose: mPDF and its dependencies ship on demand via
+# the admin installer, not bundled in the release zip. Action Scheduler is
+# copied into lib/action-scheduler/ by a separate, explicit step in
+# bin/build-zip.sh, not through this generic exclude list.
+
+.git
+.github
+.gitignore
+.gitattributes
+.editorconfig
+.markdownlint.json
+.distignore
+.claude
+.DS_Store
+.phpunit.result.cache
+bin
+tests
+examples
+vendor
+vendor-pdf.zip
+vendor-pdf.zip.sha256
+fonts
+node_modules
+phpunit.xml.dist
+phpcs.xml.dist
+composer.json
+composer.lock
