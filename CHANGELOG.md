@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-18
+
+### Fixed
+
+- **GitHub-Releases update checker no longer falls back to the auto-generated zipball** — `WPMAR_GitHub_Updater::extract_zip_url()` fell back to `$body['zipball_url']` when no release asset matched the plugin slug by name. That zipball's inner directory is `owner-repo-<sha>/`, not the plugin's own directory name, so installing it would rename the plugin directory and deactivate the plugin. The fallback is removed; a release with no matching asset now correctly reports "no update available" (fail closed) instead of risking a broken install.
+- **Update-availability comparison no longer trusts the `WPMAR_VERSION` constant alone** — `check_for_update()` compared the latest GitHub release against the `WPMAR_VERSION` constant, which can drift from the plugin header's `Version:` (the CI version check only ever covered the header, not this constant). A drifted constant could leave a stale "update available" notice in place after updating, or suppress a real update notice. The comparison now uses `$transient->checked[WPMAR_PLUGIN_BASENAME]` — the version WordPress core itself read from the plugin header — with `WPMAR_VERSION` kept only as a fallback and for the User-Agent string. Also added an `is_object( $transient )` guard, and the tag-name normalization now uses `preg_replace( '/^v/i', ... )` instead of `ltrim( $tag, 'v' )`, which trims by character set rather than by prefix.
+- **Update-checker cache is now a site-wide transient, matching `Network: true`** — The cache (`wpmar_github_release_cache`) used `get_transient()`/`set_transient()` (per-blog), while the `update_plugins` transient it feeds is itself network-wide. On a multisite network this meant one GitHub API request per sub-site instead of one per network, unnecessarily consuming the unauthenticated rate limit (60 req/h). Switched to `get_site_transient()`/`set_site_transient()`/`delete_site_transient()` throughout; `uninstall.php` already covered the site-transient key pattern, so no change was needed there.
+- **"Requires PHP" / "Tested up to" in the update details modal no longer hardcoded** — `plugin_info()` and `build_plugin_update_object()` each hardcoded `'6.0'` / `'7.4'` / `''` instead of reading the plugin header, so they could silently drift from the real `Requires at least:` / `Tested up to:` / `Requires PHP:` values (and the empty `tested` value meant the "Compatible up to" line never rendered in the modal). Both now read from the header via a shared `plugin_requirements()` helper using `get_file_data()`.
+- **Distributed plugin zip no longer risks bundling dev/build files** — `.github/workflows/release.yml` and `bin/build-zip.sh` each maintained their own exclusion list, and the two had already drifted: CI's list omitted `bin/` (so the release zip bundled the build scripts themselves), while the local script's list omitted `fonts/` and `vendor-pdf.zip.sha256` (so a local build run after generating the bundled PDF fonts could ship them in the main zip). Introduced `.distignore` as the single source of truth for both; `release.yml`'s "Assemble plugin zip" step now calls `bash bin/build-zip.sh` directly instead of duplicating its logic.
+
+### Changed
+
+- **CI version check now covers 5 locations instead of 1** — `release.yml` previously verified only the release tag against the plugin header's `Version:`. It now also verifies the `WPMAR_VERSION` constant, `readme.txt`'s and `readme-ja.txt`'s `Stable tag:`, and `composer.json`'s `"version"`, failing the release job if any one of them drifts from the tag.
+
 ## [1.4.0] - 2026-08-09
 
 ### Added

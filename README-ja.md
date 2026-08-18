@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.4.0**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.4.1**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -327,6 +327,7 @@ Basic 認証環境で定期的にレポートを生成したい場合は、サ�
 
 各バージョンの詳しい変更内容はすべて [CHANGELOG.md](CHANGELOG.md) に記載しています。
 
+- **v1.4.1**（2026-08-18） — GitHub Releases 更新機構の不具合修正リリース。新機能はありません。アセットが見つからない場合にプラグインを無効化しうるzipballフォールバック（`extract_zip_url()`）を削除し、更新の有無判定を `WPMAR_VERSION` 定数ではなく WordPress が実際にヘッダーから読んだバージョンに変更（両者のずれによる通知の残留・欠落を解消)、更新チェッカーのキャッシュを `Network: true` に合わせてサイト単位のトランジェントへ変更、更新詳細モーダルの「Requires PHP」「Tested up to」をハードコードではなくヘッダーから読むように変更しました。加えて配布ZIPの除外リストを `.distignore` に一本化(既にずれていた `release.yml` と `bin/build-zip.sh` の2つのリストを統合)し、CIのタグ／バージョン突合を1箇所から5箇所に拡張しました。
 - **v1.4.0**（2026-08-09） — マルチサイトのメモリ対策リリース。ネットワーク集約監査が、全サイトを1プロセスでループする方式から、サイトごとに独立したバックグラウンドジョブ（＋集約ジョブ1件）として実行する方式に変わり、サイト数に比例してピークメモリが増える構造と、1サイトの失敗が全体を止める挙動を解消しました。一時的な失敗には上限付きの自動リトライ（`wpmar_job_max_attempts`、既定は1回）を追加し、wp.org のプラグイン/テーマ情報はネットワーク全体でキャッシュします（`wpmar_wporg_cache_ttl`）。wp.org キャッシュ・実行ロックの復旧・診断ログ・実行履歴（所要時間とピークメモリを永続記録）を扱う「システム機能」画面（サイト単位・ネットワーク単位）を追加。アンインストール時に `wp-content/wpmar-private/`（レポート・PDF・ログ）と全サブサイトのテーブル／sitemeta が残る問題、致命的エラー後にネットワーク実行ロックがタイムアウトまで保持される問題も修正しました。
 - **v1.3.1**（2026-07-27） — セキュリティリリース。レポート・PDF・診断ログの保存先を既定で保護済みの `wp-content/wpmar-private/` ディレクトリへ変更し（ランダムトークン付きファイル名、`.htaccess`/`index.php` 自動生成、`WPMAR_PRIVATE_STORAGE_DIR` による退避対応）、未認証での取得可能だった問題を修正。v1.3.0 以前の既存ファイルは自動移行されます（`wp wpmar storage migrate`、`--dry-run`/`--network`/`--revert` 対応）。PDF 生成の Parsedown safe mode を HTML メール経路と統一、`vendor-pdf.zip` のチェックサム検証を既定で有効化、`Update URI` ヘッダ・全ダウンロードへの `nosniff`・PDF インストーラーの capability→nonce 順序統一・`SECURITY.md`・CI ハードニングも追加。
 - **v1.3.0**（2026-07-14） — チェックサム除外リスト（コア・プラグイン）で、完全一致・ディレクトリ前方一致に加えて `fnmatch()` によるグロブパターン（`*`、`?`）を指定できるようになりました。`wordfence:*/.htaccess` のような1行で、ネストしたどの深さの同名ファイルも一括除外できます。
@@ -383,14 +384,16 @@ composer run phpunit
 
 **`.github/workflows/release.yml`** として実装済み。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。
 
-1. タグを解析し、`wp-maintenance-audit-reporter.php` の `Version:` ヘッダと一致するか検証。一致しなければジョブが失敗。
+1. タグを解析し、バージョンを記載している5箇所と一致するか検証: `wp-maintenance-audit-reporter.php` の `Version:` ヘッダと `WPMAR_VERSION` 定数、`readme.txt` / `readme-ja.txt` の `Stable tag:`、`composer.json` の `"version"`。1つでも不一致ならジョブが失敗。
 2. **`composer install --no-dev --optimize-autoloader`** を実行してプロダクション依存をインストール。
-3. `wp-maintenance-audit-reporter/` ディレクトリにステージング（`.git` / `.github` / `tests/` / **`vendor/`** / `phpunit.xml.dist` / `phpcs.xml.dist` / `.phpunit.result.cache` などを除外）し、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。
+3. **`bash bin/build-zip.sh`** が `wp-maintenance-audit-reporter/` ディレクトリにステージングし、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。CI とローカルビルドはこの1本のスクリプトを共有するため、両者がずれることはない。除外パス（`tests/` / `bin/` / `vendor/` / `fonts/` など開発・ビルド用のパス）は **`.distignore`**（配布しないものの単一の正）から読み込む。Action Scheduler は `vendor/` 自体を除外しているため、同スクリプト内の別ステップで `lib/action-scheduler/` に個別バンドルする。
 4. インストール済みの `vendor/` から **`vendor-pdf.zip`** を別途作成し、管理画面からのオンデマンドインストール用の追加アセットとして添付。
 5. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
 6. `gh release create` で GitHub Release を作成し、両 zip を添付。
 
 PR 向け CI（**`.github/workflows/ci.yml`**）はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回します。
+
+同じ ZIP をローカルで作る（タグを打つ前に内容を確認したい場合など）には、プラグイン直下で `bash bin/build-zip.sh` を実行する。`../wp-maintenance-audit-reporter.<version>.zip` に出力される。
 
 ### リリース手順
 
