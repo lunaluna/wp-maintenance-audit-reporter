@@ -100,4 +100,45 @@ class GitHubUpdaterTest extends TestCase {
 
 		$this->assertSame( 'https://example.com/wp-maintenance-audit-reporter.1.4.1.zip', $url );
 	}
+
+	/**
+	 * @dataProvider provide_tags_to_normalize
+	 * @param string $tag Raw tag name.
+	 */
+	public function test_normalize_version_strips_a_leading_v( $tag ) {
+		$version = $this->updater_method( 'normalize_version' )->invoke( null, $tag );
+
+		$this->assertSame( '1.4.1', $version );
+	}
+
+	/**
+	 * @return array<string, array{0: string}>
+	 */
+	public function provide_tags_to_normalize() {
+		return array(
+			'no prefix'      => array( '1.4.1' ),
+			'lowercase v'    => array( 'v1.4.1' ),
+			'uppercase v'    => array( 'V1.4.1' ),
+		);
+	}
+
+	public function test_build_plugin_update_object_has_the_required_keys() {
+		if ( ! defined( 'WPMAR_PLUGIN_BASENAME' ) ) {
+			define( 'WPMAR_PLUGIN_BASENAME', 'wp-maintenance-audit-reporter/wp-maintenance-audit-reporter.php' );
+		}
+
+		$release = array(
+			'version'      => '1.4.1',
+			'zip_url'      => 'https://example.com/wp-maintenance-audit-reporter.1.4.1.zip',
+			'body'         => 'Release notes.',
+			'published_at' => '2026-08-18T00:00:00Z',
+		);
+
+		$object = $this->updater_method( 'build_plugin_update_object' )->invoke( null, $release );
+
+		$this->assertSame( 'wp-maintenance-audit-reporter', $object->slug );
+		$this->assertSame( WPMAR_PLUGIN_BASENAME, $object->plugin );
+		$this->assertSame( '1.4.1', $object->new_version );
+		$this->assertSame( 'https://example.com/wp-maintenance-audit-reporter.1.4.1.zip', $object->package );
+	}
 }

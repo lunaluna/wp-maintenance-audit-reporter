@@ -56,7 +56,7 @@ class WPMAR_GitHub_Updater {
 	 * @return mixed
 	 */
 	public static function check_for_update( $transient ) {
-		if ( empty( $transient->checked ) ) {
+		if ( ! is_object( $transient ) || empty( $transient->checked ) ) {
 			return $transient;
 		}
 
@@ -67,7 +67,11 @@ class WPMAR_GitHub_Updater {
 
 		$latest_version = $release['version'];
 
-		if ( version_compare( $latest_version, WPMAR_VERSION, '>' ) ) {
+		// Compare against the version WordPress actually sees in the plugin header
+		// (update.php:497), not the WPMAR_VERSION constant, which can drift.
+		$installed = $transient->checked[ WPMAR_PLUGIN_BASENAME ] ?? WPMAR_VERSION;
+
+		if ( version_compare( $latest_version, $installed, '>' ) ) {
 			$transient->response[ WPMAR_PLUGIN_BASENAME ] = self::build_plugin_update_object( $release );
 		} else {
 			// Up-to-date: actively remove any stale "update available" entry left
@@ -214,7 +218,7 @@ class WPMAR_GitHub_Updater {
 		}
 
 		$release = array(
-			'version'      => ltrim( $body['tag_name'], 'v' ),
+			'version'      => self::normalize_version( $body['tag_name'] ),
 			'zip_url'      => $zip_url,
 			'body'         => $body['body'] ?? '',
 			'published_at' => $body['published_at'] ?? '',
@@ -261,6 +265,20 @@ class WPMAR_GitHub_Updater {
 		// `owner-repo-<sha>/` and would rename the plugin directory on install,
 		// deactivating the plugin.
 		return null;
+	}
+
+	/**
+	 * Strips a leading `v`/`V` from a GitHub release tag to get a bare semver
+	 * string (e.g. `v1.4.1` -> `1.4.1`).
+	 *
+	 * Uses a prefix-anchored regex rather than `ltrim()`, which trims by
+	 * character set and would also strip characters from a value like `vv1.0`.
+	 *
+	 * @param  string $tag Raw tag name from the GitHub API.
+	 * @return string
+	 */
+	private static function normalize_version( $tag ) {
+		return preg_replace( '/^v/i', '', (string) $tag );
 	}
 
 	/**
