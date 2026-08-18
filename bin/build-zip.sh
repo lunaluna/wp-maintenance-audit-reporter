@@ -47,26 +47,25 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. Stage files into a temp directory replicating the zip structure
+#
+# Excludes come from .distignore (the single source of truth shared with
+# release.yml), not a list duplicated in this script. rsync --exclude-from's
+# handling of comment lines (`#`) is unverified, so comments/blanks are
+# stripped here before rsync ever sees the file.
 # ---------------------------------------------------------------------------
+if [ ! -f ".distignore" ]; then
+  echo "Error: .distignore not found. Run this script from the plugin root." >&2
+  exit 1
+fi
+
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "${STAGE}/${SLUG}"
 
-rsync -a \
-  --exclude='.git' \
-  --exclude='.github' \
-  --exclude='.gitignore' \
-  --exclude='.gitattributes' \
-  --exclude='.phpunit.result.cache' \
-  --exclude='phpunit.xml.dist' \
-  --exclude='phpcs.xml.dist' \
-  --exclude='tests' \
-  --exclude='node_modules' \
-  --exclude='bin' \
-  --exclude='vendor' \
-  --exclude='vendor-pdf.zip' \
-  ./ "${STAGE}/${SLUG}/"
+grep -vE '^[[:space:]]*(#|$)' .distignore > "${STAGE}/excludes.txt"
+
+rsync -a --exclude-from="${STAGE}/excludes.txt" ./ "${STAGE}/${SLUG}/"
 
 # ---------------------------------------------------------------------------
 # 3b. Bundle mandatory libraries into lib/ (Action Scheduler).
