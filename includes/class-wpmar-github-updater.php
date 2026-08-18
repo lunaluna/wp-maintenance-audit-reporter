@@ -256,8 +256,11 @@ class WPMAR_GitHub_Updater {
 			}
 		}
 
-		// Fall back to GitHub's auto-generated zipball (directory name may differ).
-		return $body['zipball_url'] ?? null;
+		// No plugin asset on this release: report "no update available" rather than
+		// falling back to GitHub's auto-generated zipball, whose inner directory is
+		// `owner-repo-<sha>/` and would rename the plugin directory on install,
+		// deactivating the plugin.
+		return null;
 	}
 
 	/**
