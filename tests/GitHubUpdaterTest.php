@@ -19,6 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', __DIR__ . '/fixtures/fake-root/' );
 }
 
+if ( ! defined( 'WPMAR_PLUGIN_FILE' ) ) {
+	define( 'WPMAR_PLUGIN_FILE', __DIR__ . '/fixtures/plugin-header-fixture.php' );
+}
+
 require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-github-updater.php';
 
@@ -140,5 +144,29 @@ class GitHubUpdaterTest extends TestCase {
 		$this->assertSame( WPMAR_PLUGIN_BASENAME, $object->plugin );
 		$this->assertSame( '1.4.1', $object->new_version );
 		$this->assertSame( 'https://example.com/wp-maintenance-audit-reporter.1.4.1.zip', $object->package );
+	}
+
+	public function test_build_plugin_update_object_reads_compatibility_from_the_header() {
+		$release = array(
+			'version'      => '1.4.1',
+			'zip_url'      => 'https://example.com/wp-maintenance-audit-reporter.1.4.1.zip',
+			'body'         => 'Release notes.',
+			'published_at' => '2026-08-18T00:00:00Z',
+		);
+
+		$object = $this->updater_method( 'build_plugin_update_object' )->invoke( null, $release );
+
+		// Values come from tests/fixtures/plugin-header-fixture.php, not literals
+		// hardcoded in build_plugin_update_object().
+		$this->assertSame( '7.2', $object->tested );
+		$this->assertSame( '8.0', $object->requires_php );
+	}
+
+	public function test_plugin_requirements_reads_from_the_plugin_header() {
+		$requirements = $this->updater_method( 'plugin_requirements' )->invoke( null );
+
+		$this->assertSame( '6.1', $requirements['requires'] );
+		$this->assertSame( '7.2', $requirements['tested'] );
+		$this->assertSame( '8.0', $requirements['requires_php'] );
 	}
 }

@@ -490,6 +490,31 @@ if ( ! function_exists( 'as_enqueue_async_action' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_file_data' ) ) {
+	/**
+	 * Stub get_file_data: parses "Header Label: value" lines from a file's
+	 * leading doc comment, the same style WordPress plugin/theme headers use.
+	 *
+	 * @param  string $file            Path to the file to read.
+	 * @param  array  $default_headers Map of return key => header label.
+	 * @return array
+	 */
+	function get_file_data( $file, $default_headers ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$contents = (string) file_get_contents( $file, false, null, 0, 8192 );
+		$data     = array();
+
+		foreach ( $default_headers as $field => $label ) {
+			$value = '';
+			if ( preg_match( '/^[ \t\/*#@]*' . preg_quote( $label, '/' ) . ':(.*)$/mi', $contents, $matches ) ) {
+				$value = trim( $matches[1] );
+			}
+			$data[ $field ] = $value;
+		}
+
+		return $data;
+	}
+}
+
 if ( ! function_exists( 'get_transient' ) ) {
 	/**
 	 * In-memory transient store backed by $GLOBALS['_wpmar_test_transients'].

@@ -107,14 +107,16 @@ class WPMAR_GitHub_Updater {
 			return $result;
 		}
 
+		$requirements = self::plugin_requirements();
+
 		return (object) array(
 			'name'          => 'WP Maintenance Audit Reporter',
 			'slug'          => self::PLUGIN_SLUG,
 			'version'       => $release['version'],
 			'author'        => '<a href="https://profiles.wordpress.org/lunaluna_dev/">lunaluna_dev</a>',
 			'homepage'      => 'https://github.com/' . self::GITHUB_REPO,
-			'requires'      => '6.0',
-			'requires_php'  => '7.4',
+			'requires'      => $requirements['requires'],
+			'requires_php'  => $requirements['requires_php'],
 			'last_updated'  => $release['published_at'],
 			'download_link' => $release['zip_url'],
 			'sections'      => array(
@@ -289,6 +291,8 @@ class WPMAR_GitHub_Updater {
 	 * @return \stdClass
 	 */
 	private static function build_plugin_update_object( array $release ) {
+		$requirements = self::plugin_requirements();
+
 		return (object) array(
 			'id'            => 'github.com/' . self::GITHUB_REPO,
 			'slug'          => self::PLUGIN_SLUG,
@@ -299,9 +303,26 @@ class WPMAR_GitHub_Updater {
 			'icons'         => array(),
 			'banners'       => array(),
 			'banners_rtl'   => array(),
-			'tested'        => '',
-			'requires_php'  => '7.4',
+			'tested'        => $requirements['tested'],
+			'requires_php'  => $requirements['requires_php'],
 			'compatibility' => new \stdClass(),
+		);
+	}
+
+	/**
+	 * Reads plugin compatibility metadata from the plugin file header so it
+	 * stays in sync with the header instead of being duplicated as literals.
+	 *
+	 * @return array{requires:string,tested:string,requires_php:string}
+	 */
+	private static function plugin_requirements() {
+		return get_file_data(
+			WPMAR_PLUGIN_FILE,
+			array(
+				'requires'     => 'Requires at least',
+				'tested'       => 'Tested up to',
+				'requires_php' => 'Requires PHP',
+			)
 		);
 	}
 
