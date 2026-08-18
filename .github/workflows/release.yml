@@ -42,14 +42,43 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Verify tag matches plugin header version
+      - name: Verify tag matches all version-bearing files
         run: |
+          VERSION="${{ steps.tag.outputs.version }}"
+          FAILED=0
+
           HEADER_VERSION=$(grep -E '^[[:space:]]*\*[[:space:]]*Version:' wp-maintenance-audit-reporter.php \
             | head -n1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '\r')
-          echo "Plugin header version: $HEADER_VERSION"
-          echo "Release version:       ${{ steps.tag.outputs.version }}"
-          if [ "$HEADER_VERSION" != "${{ steps.tag.outputs.version }}" ]; then
-            echo "::error::Tag (${{ steps.tag.outputs.version }}) does not match plugin header version ($HEADER_VERSION)."
+          WPMAR_VERSION_CONST=$(grep -E "define\( *'WPMAR_VERSION'" wp-maintenance-audit-reporter.php \
+            | head -n1 | sed -E "s/.*'WPMAR_VERSION',[[:space:]]*'([^']*)'.*/\1/" | tr -d '\r')
+          README_STABLE_TAG=$(grep -E '^Stable tag:' readme.txt \
+            | head -n1 | sed -E 's/.*Stable tag:[[:space:]]*//' | tr -d '\r')
+          README_JA_STABLE_TAG=$(grep -E '^Stable tag:' readme-ja.txt \
+            | head -n1 | sed -E 's/.*Stable tag:[[:space:]]*//' | tr -d '\r')
+          COMPOSER_VERSION=$(grep -E '"version":' composer.json \
+            | head -n1 | sed -E 's/.*"version":[[:space:]]*"([^"]*)".*/\1/' | tr -d '\r')
+
+          echo "Release tag:                  $VERSION"
+          echo "Plugin header Version:        $HEADER_VERSION"
+          echo "WPMAR_VERSION constant:       $WPMAR_VERSION_CONST"
+          echo "readme.txt Stable tag:         $README_STABLE_TAG"
+          echo "readme-ja.txt Stable tag:      $README_JA_STABLE_TAG"
+          echo "composer.json version:        $COMPOSER_VERSION"
+
+          check() {
+            if [ "$2" != "$VERSION" ]; then
+              echo "::error::$1 ($2) does not match release tag ($VERSION)."
+              FAILED=1
+            fi
+          }
+
+          check "Plugin header Version" "$HEADER_VERSION"
+          check "WPMAR_VERSION constant" "$WPMAR_VERSION_CONST"
+          check "readme.txt Stable tag" "$README_STABLE_TAG"
+          check "readme-ja.txt Stable tag" "$README_JA_STABLE_TAG"
+          check "composer.json version" "$COMPOSER_VERSION"
+
+          if [ "$FAILED" != "0" ]; then
             exit 1
           fi
 
