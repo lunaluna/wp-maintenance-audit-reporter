@@ -142,7 +142,7 @@ class WPMAR_GitHub_Updater {
 
 		$plugins = $options['plugins'] ?? array();
 		if ( in_array( WPMAR_PLUGIN_BASENAME, $plugins, true ) ) {
-			delete_transient( self::CACHE_KEY );
+			delete_site_transient( self::CACHE_KEY );
 			// Force WordPress to rebuild the plugin update transient on the next
 			// load so the stale "update available" entry is recomputed (and
 			// dropped by check_for_update()) immediately after updating, rather
@@ -170,7 +170,7 @@ class WPMAR_GitHub_Updater {
 	 * @return array{version:string,zip_url:string,body:string,published_at:string}|null
 	 */
 	private static function fetch_latest_release() {
-		$cached = get_transient( self::CACHE_KEY );
+		$cached = get_site_transient( self::CACHE_KEY );
 
 		// Empty array signals a back-off period (rate limit / network error).
 		if ( array() === $cached ) {
@@ -194,26 +194,26 @@ class WPMAR_GitHub_Updater {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$status = wp_remote_retrieve_response_code( $response );
 		if ( 200 !== (int) $status ) {
 			// 403/429 = rate limit; back off longer to avoid hammering the API.
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( ! is_array( $body ) || empty( $body['tag_name'] ) ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
 		$zip_url = self::extract_zip_url( $body );
 		if ( ! $zip_url ) {
-			set_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
+			set_site_transient( self::CACHE_KEY, array(), self::get_backoff_ttl() );
 			return null;
 		}
 
@@ -224,7 +224,7 @@ class WPMAR_GitHub_Updater {
 			'published_at' => $body['published_at'] ?? '',
 		);
 
-		set_transient( self::CACHE_KEY, $release, self::get_cache_ttl() );
+		set_site_transient( self::CACHE_KEY, $release, self::get_cache_ttl() );
 
 		return $release;
 	}
