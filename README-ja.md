@@ -389,7 +389,7 @@ composer run phpunit
 3. **`bash bin/build-zip.sh`** が `wp-maintenance-audit-reporter/` ディレクトリにステージングし、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。CI とローカルビルドはこの1本のスクリプトを共有するため、両者がずれることはない。除外パス（`tests/` / `bin/` / `vendor/` / `fonts/` など開発・ビルド用のパス）は **`.distignore`**（配布しないものの単一の正）から読み込む。Action Scheduler は `vendor/` 自体を除外しているため、同スクリプト内の別ステップで `lib/action-scheduler/` に個別バンドルする。
 4. インストール済みの `vendor/` から **`vendor-pdf.zip`** を別途作成し、管理画面からのオンデマンドインストール用の追加アセットとして添付。
 5. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
-6. `gh release create` で GitHub Release を作成し、両 zip を添付。
+6. `gh release create` で GitHub Release を **draft** として作成し、両 zip を添付。draft は `/releases/latest` に出ないため、担当者がアセットを検証して `gh release edit <tag> --draft=false` で本公開するまで、どのサイトも自動更新で取り込まない。
 
 PR 向け CI（**`.github/workflows/ci.yml`**）はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回します。
 
@@ -406,6 +406,10 @@ git push origin main
 git tag 1.0.0
 git push origin 1.0.0
 # （v1.0.0 のような v 付きタグも受け付けます）
+
+# 3. release.yml は draft を作成する。アセットを検証してから本公開する:
+gh release download 1.0.0 -D /tmp/wpmar-release-check
+gh release edit 1.0.0 --draft=false
 ```
 
 ## ライセンス

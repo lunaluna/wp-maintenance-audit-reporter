@@ -176,9 +176,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # --draft で作成する: draft は /releases/latest に出ないため、
+          # アセットを検証し終えるまでどの利用サイトからも見えない。
+          # forced-auto-update-controller 同居サイトへの不良版の自動配布を
+          # 防ぐための安全弁(1.5.0 の更新機構移行に伴う変更)。
+          # 検証後に `gh release edit <tag> --draft=false` で本公開する。
           gh release create "${{ steps.tag.outputs.tag }}" \
             "${{ steps.zip.outputs.zip_path }}" \
             "${{ steps.vendor_zip.outputs.vendor_zip_path }}#vendor-pdf.zip" \
             "${{ steps.vendor_zip_sha.outputs.vendor_zip_sha_path }}#vendor-pdf.zip.sha256" \
             --title "${{ steps.tag.outputs.tag }}" \
-            --notes-file "${{ steps.notes.outputs.notes_path }}"
+            --notes-file "${{ steps.notes.outputs.notes_path }}" \
+            --draft
+          echo "::notice::Draft release created. Verify assets, then run: gh release edit ${{ steps.tag.outputs.tag }} --draft=false"

@@ -387,7 +387,7 @@ Implemented as **`.github/workflows/release.yml`**. Trigger: push of a `v*` tag 
 3. **`bash bin/build-zip.sh`** stages the plugin tree into `wp-maintenance-audit-reporter/` and zips it as `wp-maintenance-audit-reporter.<version>.zip`. CI and local builds share this one script so they can't drift apart. Excluded paths (`tests/`, `bin/`, `vendor/`, `fonts/`, and similar dev/build paths) come from **`.distignore`**, the single source of truth for what does *not* ship — Action Scheduler is bundled into `lib/action-scheduler/` by a separate step in the same script, since `vendor/` itself is excluded.
 4. A separate **`vendor-pdf.zip`** is created from the installed `vendor/` directory and attached to the release as an additional asset for on-demand installation via the admin UI.
 5. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
-6. `gh release create` publishes the GitHub Release with both zips attached.
+6. `gh release create` publishes the GitHub Release with both zips attached, as a **draft** — draft releases don't show up at `/releases/latest`, so no site picks them up via auto-update until a maintainer verifies the assets and publishes with `gh release edit <tag> --draft=false`.
 
 Pull-request CI continues to use **`composer install`** (dev deps) for PHPCS / PHPUnit via **`.github/workflows/ci.yml`**.
 
@@ -404,6 +404,10 @@ git push origin main
 git tag 1.0.0
 git push origin 1.0.0
 # (v-prefixed tags like v1.0.0 are also accepted.)
+
+# 3. release.yml publishes a draft. Download and verify the assets, then publish it:
+gh release download 1.0.0 -D /tmp/wpmar-release-check
+gh release edit 1.0.0 --draft=false
 ```
 
 ## License
