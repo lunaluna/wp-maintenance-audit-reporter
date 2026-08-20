@@ -564,6 +564,160 @@ if ( ! function_exists( 'delete_transient' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_site_transient' ) ) {
+	/**
+	 * In-memory site-transient store backed by $GLOBALS['_wpmar_test_site_transients'].
+	 * Kept separate from get_transient()'s store since real WP backs the two
+	 * with different tables/semantics (network-wide vs per-blog).
+	 *
+	 * @param string $transient Transient key.
+	 * @return mixed False when absent.
+	 */
+	function get_site_transient( $transient ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( isset( $GLOBALS['_wpmar_test_site_transients'][ $transient ] ) ) {
+			return $GLOBALS['_wpmar_test_site_transients'][ $transient ];
+		}
+		return false;
+	}
+}
+
+if ( ! function_exists( 'set_site_transient' ) ) {
+	/**
+	 * Stores a site transient in the in-memory store (expiration ignored).
+	 *
+	 * @param string $transient  Transient key.
+	 * @param mixed  $value      Value.
+	 * @param int    $expiration TTL (ignored).
+	 * @return bool
+	 */
+	function set_site_transient( $transient, $value, $expiration = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $expiration );
+		if ( ! isset( $GLOBALS['_wpmar_test_site_transients'] ) || ! is_array( $GLOBALS['_wpmar_test_site_transients'] ) ) {
+			$GLOBALS['_wpmar_test_site_transients'] = array();
+		}
+		$GLOBALS['_wpmar_test_site_transients'][ $transient ] = $value;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'delete_site_transient' ) ) {
+	/**
+	 * Removes a site transient from the in-memory store.
+	 *
+	 * @param string $transient Transient key.
+	 * @return bool
+	 */
+	function delete_site_transient( $transient ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $GLOBALS['_wpmar_test_site_transients'][ $transient ] );
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'plugin_basename' ) ) {
+	/**
+	 * Stub plugin_basename — set $GLOBALS['_wpmar_test_plugin_basename'] to
+	 * configure per-test; otherwise falls back to WP's real behaviour for a
+	 * plugin living in its own directory (last two path segments).
+	 *
+	 * @param string $file Absolute path to a plugin file.
+	 * @return string
+	 */
+	function plugin_basename( $file ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( isset( $GLOBALS['_wpmar_test_plugin_basename'] ) ) {
+			return (string) $GLOBALS['_wpmar_test_plugin_basename'];
+		}
+		$file = str_replace( '\\', '/', (string) $file );
+		return basename( dirname( $file ) ) . '/' . basename( $file );
+	}
+}
+
+if ( ! function_exists( '_doing_it_wrong' ) ) {
+	/**
+	 * Stub _doing_it_wrong — records calls for assertions instead of raising
+	 * a PHP notice.
+	 *
+	 * @param string $function_name Function/method name.
+	 * @param string $message       Message.
+	 * @param string $version       Version.
+	 * @return void
+	 */
+	function _doing_it_wrong( $function_name, $message, $version ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_doing_it_wrong'] ) || ! is_array( $GLOBALS['_wpmar_test_doing_it_wrong'] ) ) {
+			$GLOBALS['_wpmar_test_doing_it_wrong'] = array();
+		}
+		$GLOBALS['_wpmar_test_doing_it_wrong'][] = array( $function_name, $message, $version );
+	}
+}
+
+if ( ! function_exists( 'esc_html' ) ) {
+	/**
+	 * Stub esc_html.
+	 *
+	 * @param string $text Text.
+	 * @return string
+	 */
+	function esc_html( $text ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'esc_url' ) ) {
+	/**
+	 * Stub esc_url.
+	 *
+	 * @param string $url URL.
+	 * @return string
+	 */
+	function esc_url( $url ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return htmlspecialchars( (string) $url, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'wp_remote_get' ) ) {
+	/**
+	 * Fake HTTP GET: records calls, replies with a canned response.
+	 *
+	 * Configure via $GLOBALS['_wpmar_test_http_response'] (WP_Error or a
+	 * response array); defaults to HTTP 200.
+	 *
+	 * @param string              $url  Request URL.
+	 * @param array<string,mixed> $args Request args.
+	 * @return array<string,mixed>|WP_Error
+	 */
+	function wp_remote_get( $url, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_http_calls'] ) || ! is_array( $GLOBALS['_wpmar_test_http_calls'] ) ) {
+			$GLOBALS['_wpmar_test_http_calls'] = array();
+		}
+		$GLOBALS['_wpmar_test_http_calls'][] = array( $url, $args );
+
+		if ( isset( $GLOBALS['_wpmar_test_http_response'] ) ) {
+			return $GLOBALS['_wpmar_test_http_response'];
+		}
+
+		return array(
+			'response' => array( 'code' => 200 ),
+			'body'     => '',
+		);
+	}
+}
+
+if ( ! function_exists( 'wp_remote_retrieve_body' ) ) {
+	/**
+	 * Stub wp_remote_retrieve_body.
+	 *
+	 * @param array<string,mixed>|WP_Error $response HTTP response.
+	 * @return string
+	 */
+	function wp_remote_retrieve_body( $response ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( is_wp_error( $response ) || ! isset( $response['body'] ) ) {
+			return '';
+		}
+		return (string) $response['body'];
+	}
+}
+
 if ( ! function_exists( 'admin_url' ) ) {
 	/**
 	 * Stub admin_url.
@@ -578,21 +732,39 @@ if ( ! function_exists( 'admin_url' ) ) {
 
 if ( ! function_exists( 'apply_filters' ) ) {
 	/**
-	 * Pass-through apply_filters.
+	 * Pass-through apply_filters by default (matches every existing test's
+	 * expectation that registering a filter never makes it fire).
+	 *
+	 * Set $GLOBALS['_wpmar_test_apply_filters_functional'] = true to opt a
+	 * test into actually invoking callbacks recorded by add_filter()/
+	 * add_action() instead — needed by tests that must verify a filter hook
+	 * really changes a return value. Opt-in (rather than always-functional)
+	 * so this stays a no-risk addition for the many tests that don't expect
+	 * their registered filters to run.
 	 *
 	 * @param string $hook_name Hook name.
 	 * @param mixed  $value     Value.
+	 * @param mixed  ...$args   Extra args passed through to callbacks when functional.
 	 * @return mixed
 	 */
-	function apply_filters( $hook_name, $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-		unset( $hook_name );
+	function apply_filters( $hook_name, $value, ...$args ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( empty( $GLOBALS['_wpmar_test_apply_filters_functional'] ) || empty( $GLOBALS['_wpmar_test_filters'] ) ) {
+			return $value;
+		}
+		foreach ( $GLOBALS['_wpmar_test_filters'] as $registration ) {
+			if ( 'add' === $registration[0] && $hook_name === $registration[1] ) {
+				$value = call_user_func( $registration[3], $value, ...$args );
+			}
+		}
 		return $value;
 	}
 }
 
 if ( ! function_exists( 'add_filter' ) ) {
 	/**
-	 * Records filter registrations (callbacks are never invoked by the stubs).
+	 * Records filter registrations. The callback is kept (4th tuple element)
+	 * so tests can pull the registered object back out via Reflection; the
+	 * stubs themselves never invoke it (apply_filters() below is a pass-through).
 	 *
 	 * @param string   $hook_name     Hook name.
 	 * @param callable $callback      Callback.
@@ -601,13 +773,29 @@ if ( ! function_exists( 'add_filter' ) ) {
 	 * @return bool
 	 */
 	function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-		unset( $callback, $accepted_args );
+		unset( $accepted_args );
 		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
 			$GLOBALS['_wpmar_test_filters'] = array();
 		}
-		$GLOBALS['_wpmar_test_filters'][] = array( 'add', $hook_name, $priority );
+		$GLOBALS['_wpmar_test_filters'][] = array( 'add', $hook_name, $priority, $callback );
 
 		return true;
+	}
+}
+
+if ( ! function_exists( 'add_action' ) ) {
+	/**
+	 * Stub add_action — WordPress core implements add_action() as add_filter()
+	 * under the hood (both share the same hook registry), so this delegates.
+	 *
+	 * @param string   $hook_name     Hook name.
+	 * @param callable $callback      Callback.
+	 * @param int      $priority      Priority.
+	 * @param int      $accepted_args Accepted args.
+	 * @return bool
+	 */
+	function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return add_filter( $hook_name, $callback, $priority, $accepted_args );
 	}
 }
 
