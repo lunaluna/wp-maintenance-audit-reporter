@@ -130,8 +130,13 @@ class WPMAR_Scheduler {
 		}
 
 		$args = array(
-			'dry'          => false,
-			'triggered_by' => $is_network ? 'cron_network' : 'cron',
+			'dry'               => false,
+			'triggered_by'      => $is_network ? 'cron_network' : 'cron',
+			// WPMAR_Runner::should_persist_snapshots() / WPMAR_Network_Runner::should_persist_snapshots()
+			// treat an explicit `false` (their own default when the key is absent) as an opt-out that
+			// short-circuits before ever reaching the "cron/cli always save" branch. Without this key
+			// here, the scheduled monthly audit would silently never persist snapshots.
+			'persist_snapshots' => true,
 		);
 
 		$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job( $args, $is_network ? 'network' : 'single' );
