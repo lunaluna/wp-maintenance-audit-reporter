@@ -17,6 +17,8 @@
 .claude
 .DS_Store
 .phpunit.result.cache
+# Unanchored, so this also drops lib/l2d-updater/bin/ (the vendored library's
+# own build script), which must not ship inside our release zip.
 bin
 tests
 examples

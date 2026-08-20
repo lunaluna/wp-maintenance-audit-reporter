@@ -82,6 +82,7 @@ if [ -d "$AS_SRC" ]; then
   rsync -a \
     --exclude='.git' \
     --exclude='.github' \
+    --exclude='.claude' \
     --exclude='tests' \
     --exclude='docs' \
     "$AS_SRC/" "$AS_DEST/"
@@ -90,6 +91,19 @@ else
   echo "Error: $AS_SRC not found. Run 'composer install' so Action Scheduler can be bundled into lib/." >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# 3c. Guard: lib/l2d-updater/ must be present in the staged tree.
+#
+# lib/l2d-updater/ はメインファイルが require するため、欠落するとプラグインが
+# 起動時に fatal になる。Action Scheduler と同様に hard fail させる。
+# ---------------------------------------------------------------------------
+for required in loader.php class-l2d-github-updater.php; do
+  if [ ! -f "${STAGE}/${SLUG}/lib/l2d-updater/${required}" ]; then
+    echo "Error: lib/l2d-updater/${required} is missing from the staged tree." >&2
+    exit 1
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # 4. Create the zip

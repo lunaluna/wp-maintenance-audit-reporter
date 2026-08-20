@@ -9,6 +9,9 @@
 
 	<exclude-pattern>*/vendor/*</exclude-pattern>
 	<exclude-pattern>vendor/*</exclude-pattern>
+	<!-- Vendored copy of l2d-wp-github-update-lib (git subtree); WPCS applies
+	     only to code we own, not to the upstream library's own conventions. -->
+	<exclude-pattern>lib/*</exclude-pattern>
 	<exclude-pattern>languages/*\.mo</exclude-pattern>
 	<!-- PHPUnit test files follow PHPUnit conventions (camelCase methods,
 	     short doc blocks); apply WPCS only to production sources. -->
