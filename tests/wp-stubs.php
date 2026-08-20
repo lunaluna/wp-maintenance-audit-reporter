@@ -5,8 +5,16 @@
  * @package WPMAR\Tests
  */
 
+if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+	define( 'MINUTE_IN_SECONDS', 60 );
+}
+
 if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
 	define( 'HOUR_IN_SECONDS', 3600 );
+}
+
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+	define( 'DAY_IN_SECONDS', 86400 );
 }
 
 if ( ! function_exists( '__' ) ) {
@@ -971,6 +979,23 @@ if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wpmar_test_next_seq' ) ) {
+	/**
+	 * Shared monotonic counter so tests can assert cross-store ordering (e.g.
+	 * "mail was sent before the DB row was inserted") without the two events
+	 * living in the same array. wp_mail() and WPMAR_Test_Fake_Wpdb::insert()
+	 * both stamp their records with this.
+	 *
+	 * @return int
+	 */
+	function wpmar_test_next_seq() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_seq'] ) ) {
+			$GLOBALS['_wpmar_test_seq'] = 0;
+		}
+		return ++$GLOBALS['_wpmar_test_seq'];
+	}
+}
+
 if ( ! function_exists( 'wp_mail' ) ) {
 	/**
 	 * Records every call in $GLOBALS['_wpmar_test_mail_calls'] (args + order),
@@ -998,6 +1023,7 @@ if ( ! function_exists( 'wp_mail' ) ) {
 			'subject' => $subject,
 			'message' => $message,
 			'headers' => $headers,
+			'seq'     => wpmar_test_next_seq(),
 		);
 
 		if ( ! empty( $GLOBALS['_wpmar_test_mail_throw'] ) ) {
@@ -1502,6 +1528,105 @@ if ( ! function_exists( 'wp_update_themes' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_plugins' ) ) {
+	/**
+	 * Stub get_plugins — its only purpose here is to satisfy the
+	 * `function_exists( 'get_plugins' )` guards that would otherwise
+	 * `require_once ABSPATH . 'wp-admin/includes/plugin.php'` (a real WP core
+	 * file that doesn't exist under the fake ABSPATH tests use). Configure via
+	 * $GLOBALS['_wpmar_test_plugins'] when a test actually needs entries.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	function get_plugins() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return isset( $GLOBALS['_wpmar_test_plugins'] ) && is_array( $GLOBALS['_wpmar_test_plugins'] ) ? $GLOBALS['_wpmar_test_plugins'] : array();
+	}
+}
+
+if ( ! function_exists( 'is_plugin_active' ) ) {
+	/**
+	 * Stub is_plugin_active. Configure via $GLOBALS['_wpmar_test_active_plugins']
+	 * (list of basenames).
+	 *
+	 * @param string $plugin_file Plugin basename.
+	 * @return bool
+	 */
+	function is_plugin_active( $plugin_file ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$active = isset( $GLOBALS['_wpmar_test_active_plugins'] ) && is_array( $GLOBALS['_wpmar_test_active_plugins'] ) ? $GLOBALS['_wpmar_test_active_plugins'] : array();
+		return in_array( $plugin_file, $active, true );
+	}
+}
+
+if ( ! function_exists( 'get_core_updates' ) ) {
+	/**
+	 * Stub get_core_updates. Configure via $GLOBALS['_wpmar_test_core_updates'].
+	 *
+	 * @param array<string,mixed> $options Ignored.
+	 * @return array<int,object>|false
+	 */
+	function get_core_updates( $options = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $options );
+		return isset( $GLOBALS['_wpmar_test_core_updates'] ) ? $GLOBALS['_wpmar_test_core_updates'] : array();
+	}
+}
+
+if ( ! function_exists( 'wp_get_themes' ) ) {
+	/**
+	 * Stub wp_get_themes. Configure via $GLOBALS['_wpmar_test_themes'] (slug => object).
+	 *
+	 * @return array<string,object>
+	 */
+	function wp_get_themes() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return isset( $GLOBALS['_wpmar_test_themes'] ) && is_array( $GLOBALS['_wpmar_test_themes'] ) ? $GLOBALS['_wpmar_test_themes'] : array();
+	}
+}
+
+if ( ! function_exists( 'get_stylesheet' ) ) {
+	/**
+	 * Stub get_stylesheet. Configure via $GLOBALS['_wpmar_test_stylesheet'].
+	 *
+	 * @return string
+	 */
+	function get_stylesheet() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return isset( $GLOBALS['_wpmar_test_stylesheet'] ) ? (string) $GLOBALS['_wpmar_test_stylesheet'] : '';
+	}
+}
+
+if ( ! function_exists( 'get_users' ) ) {
+	/**
+	 * Stub get_users. Configure via $GLOBALS['_wpmar_test_users'] (list of WP_User-like objects).
+	 *
+	 * @param array<string,mixed> $args Ignored.
+	 * @return array<int,object>
+	 */
+	function get_users( $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $args );
+		return isset( $GLOBALS['_wpmar_test_users'] ) && is_array( $GLOBALS['_wpmar_test_users'] ) ? $GLOBALS['_wpmar_test_users'] : array();
+	}
+}
+
+if ( ! function_exists( 'user_can' ) ) {
+	/**
+	 * Stub user_can — reads a WP_User-like object's `roles` array/property against
+	 * a simplistic capability map (administrator/editor/author only, matching what
+	 * this plugin actually gates on: manage_options / edit_others_posts / publish_posts).
+	 *
+	 * @param object $user       User-like object with a `roles` property.
+	 * @param string $capability Capability to check.
+	 * @return bool
+	 */
+	function user_can( $user, $capability ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$roles = is_object( $user ) && isset( $user->roles ) ? (array) $user->roles : array();
+		$map   = array(
+			'manage_options'    => array( 'administrator' ),
+			'edit_others_posts' => array( 'administrator', 'editor' ),
+			'publish_posts'     => array( 'administrator', 'editor', 'author' ),
+		);
+		$allowed_roles = isset( $map[ $capability ] ) ? $map[ $capability ] : array();
+		return (bool) array_intersect( $roles, $allowed_roles );
+	}
+}
+
 if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 	/**
 	 * Minimal in-memory wpdb double for repository/dispatcher tests.
@@ -1526,6 +1651,8 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		public $update_calls = array();
 		/** @var array<int,array{0:string,1:array<string,mixed>}> */
 		public $delete_calls = array();
+		/** @var array<int,int> wpmar_test_next_seq() stamp for each insert_calls entry, same index. */
+		public $insert_seqs = array();
 		/** @var array<string,array<string,array<string,mixed>>> Rows keyed by table then by (string) id. */
 		public $tables = array();
 		/** @var array<int,mixed> Scriptable get_var() return queue; falls back to 0 once drained. */
@@ -1662,6 +1789,7 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		public function insert( $table, $data, $formats = null ) {
 			unset( $formats );
 			$this->insert_calls[] = $data;
+			$this->insert_seqs[]  = function_exists( 'wpmar_test_next_seq' ) ? wpmar_test_next_seq() : 0;
 			++$this->insert_id;
 
 			if ( ! isset( $this->tables[ $table ] ) || ! is_array( $this->tables[ $table ] ) ) {
