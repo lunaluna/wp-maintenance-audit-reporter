@@ -801,7 +801,8 @@ if ( ! function_exists( 'add_action' ) ) {
 
 if ( ! function_exists( 'remove_filter' ) ) {
 	/**
-	 * Records filter removals.
+	 * Records filter removals (keeps the callback too, so has_filter() below can
+	 * tell whether a specific callback is still registered on a hook).
 	 *
 	 * @param string   $hook_name Hook name.
 	 * @param callable $callback  Callback.
@@ -809,13 +810,99 @@ if ( ! function_exists( 'remove_filter' ) ) {
 	 * @return bool
 	 */
 	function remove_filter( $hook_name, $callback, $priority = 10 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-		unset( $callback );
 		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
 			$GLOBALS['_wpmar_test_filters'] = array();
 		}
-		$GLOBALS['_wpmar_test_filters'][] = array( 'remove', $hook_name, $priority );
+		$GLOBALS['_wpmar_test_filters'][] = array( 'remove', $hook_name, $priority, $callback );
 
 		return true;
+	}
+}
+
+if ( ! function_exists( 'remove_action' ) ) {
+	/**
+	 * Stub remove_action — delegates to remove_filter() (real WordPress shares
+	 * the same hook registry for actions and filters).
+	 *
+	 * @param string   $hook_name Hook name.
+	 * @param callable $callback  Callback.
+	 * @param int      $priority  Priority.
+	 * @return bool
+	 */
+	function remove_action( $hook_name, $callback, $priority = 10 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return remove_filter( $hook_name, $callback, $priority );
+	}
+}
+
+if ( ! function_exists( 'has_filter' ) ) {
+	/**
+	 * Replays the add/remove log for a hook (optionally narrowed to one
+	 * callback) and returns whatever the chronologically-last matching
+	 * registration left behind: the priority when still added, false when
+	 * removed or never registered.
+	 *
+	 * @param string         $hook_name Hook name.
+	 * @param callable|false $callback  Specific callback to check, or false for "any".
+	 * @return bool|int
+	 */
+	function has_filter( $hook_name, $callback = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_filters'] ) || ! is_array( $GLOBALS['_wpmar_test_filters'] ) ) {
+			return false;
+		}
+
+		$state = false;
+		foreach ( $GLOBALS['_wpmar_test_filters'] as $registration ) {
+			if ( $registration[1] !== $hook_name ) {
+				continue;
+			}
+			if ( false !== $callback && ( ! isset( $registration[3] ) || $registration[3] !== $callback ) ) {
+				continue;
+			}
+			$state = ( 'add' === $registration[0] ) ? ( isset( $registration[2] ) ? $registration[2] : true ) : false;
+		}
+
+		return $state;
+	}
+}
+
+if ( ! function_exists( 'has_action' ) ) {
+	/**
+	 * Stub has_action — delegates to has_filter() (same shared registry).
+	 *
+	 * @param string         $hook_name Hook name.
+	 * @param callable|false $callback  Specific callback to check, or false for "any".
+	 * @return bool|int
+	 */
+	function has_action( $hook_name, $callback = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return has_filter( $hook_name, $callback );
+	}
+}
+
+if ( ! function_exists( 'do_action' ) ) {
+	/**
+	 * Records fired hooks in $GLOBALS['_wpmar_test_actions_fired']. Like
+	 * apply_filters() above, callbacks only actually run when a test opts in via
+	 * $GLOBALS['_wpmar_test_apply_filters_functional'] — most tests only need to
+	 * assert that a hook fired, not that its side effects ran.
+	 *
+	 * @param string $hook_name Hook name.
+	 * @param mixed  ...$args   Args passed through to callbacks when functional.
+	 * @return void
+	 */
+	function do_action( $hook_name, ...$args ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_actions_fired'] ) || ! is_array( $GLOBALS['_wpmar_test_actions_fired'] ) ) {
+			$GLOBALS['_wpmar_test_actions_fired'] = array();
+		}
+		$GLOBALS['_wpmar_test_actions_fired'][] = array( $hook_name, $args );
+
+		if ( empty( $GLOBALS['_wpmar_test_apply_filters_functional'] ) || empty( $GLOBALS['_wpmar_test_filters'] ) ) {
+			return;
+		}
+		foreach ( $GLOBALS['_wpmar_test_filters'] as $registration ) {
+			if ( 'add' === $registration[0] && $hook_name === $registration[1] ) {
+				call_user_func_array( $registration[3], $args );
+			}
+		}
 	}
 }
 
@@ -877,9 +964,522 @@ if ( ! function_exists( 'wp_remote_retrieve_response_code' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_mail' ) ) {
+	/**
+	 * Records every call in $GLOBALS['_wpmar_test_mail_calls'] (args + order),
+	 * so mail tests can assert both content and send sequence. Return value and
+	 * failure mode are test-controllable:
+	 * - $GLOBALS['_wpmar_test_mail_results']: queue of return values, shifted in
+	 *   call order (defaults to true once drained).
+	 * - $GLOBALS['_wpmar_test_mail_throw']: when truthy, throws instead of
+	 *   returning — used to simulate a hard PHPMailer failure mid-send.
+	 *
+	 * @param string|string[]      $to          Recipient(s).
+	 * @param string               $subject     Subject.
+	 * @param string               $message     Body.
+	 * @param string|string[]      $headers     Headers.
+	 * @param string|string[]      $attachments Attachments (ignored).
+	 * @return bool
+	 */
+	function wp_mail( $to, $subject, $message, $headers = '', $attachments = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $attachments );
+		if ( ! isset( $GLOBALS['_wpmar_test_mail_calls'] ) || ! is_array( $GLOBALS['_wpmar_test_mail_calls'] ) ) {
+			$GLOBALS['_wpmar_test_mail_calls'] = array();
+		}
+		$GLOBALS['_wpmar_test_mail_calls'][] = array(
+			'to'      => $to,
+			'subject' => $subject,
+			'message' => $message,
+			'headers' => $headers,
+		);
+
+		if ( ! empty( $GLOBALS['_wpmar_test_mail_throw'] ) ) {
+			throw new RuntimeException( 'wpmar test: forced wp_mail() failure' );
+		}
+
+		if ( isset( $GLOBALS['_wpmar_test_mail_results'] ) && is_array( $GLOBALS['_wpmar_test_mail_results'] ) && ! empty( $GLOBALS['_wpmar_test_mail_results'] ) ) {
+			return (bool) array_shift( $GLOBALS['_wpmar_test_mail_results'] );
+		}
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_strip_all_tags' ) ) {
+	/**
+	 * Stub wp_strip_all_tags.
+	 *
+	 * @param string $text          Text.
+	 * @param bool   $remove_breaks Collapse whitespace/newlines when true.
+	 * @return string
+	 */
+	function wp_strip_all_tags( $text, $remove_breaks = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$text = (string) preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', (string) $text );
+		$text = strip_tags( $text );
+		if ( $remove_breaks ) {
+			$text = (string) preg_replace( '/[\r\n\t ]+/', ' ', $text );
+		}
+		return trim( $text );
+	}
+}
+
+if ( ! function_exists( 'wp_kses_post' ) ) {
+	/**
+	 * Stub wp_kses_post — pass-through (no allowlist filtering; tests control
+	 * the HTML they feed in, so there is nothing to strip).
+	 *
+	 * @param string $data HTML fragment.
+	 * @return string
+	 */
+	function wp_kses_post( $data ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return (string) $data;
+	}
+}
+
+if ( ! function_exists( 'wp_specialchars_decode' ) ) {
+	/**
+	 * Stub wp_specialchars_decode.
+	 *
+	 * @param string $text        Text.
+	 * @param mixed  $quote_style ENT_* quote style.
+	 * @return string
+	 */
+	function wp_specialchars_decode( $text, $quote_style = ENT_NOQUOTES ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return htmlspecialchars_decode( (string) $text, $quote_style );
+	}
+}
+
+if ( ! function_exists( 'get_bloginfo' ) ) {
+	/**
+	 * Stub get_bloginfo — configure per-field via $GLOBALS['_wpmar_test_bloginfo'][$show];
+	 * 'name' falls back to the get_option('blogname') store so tests only need
+	 * to set one or the other.
+	 *
+	 * @param string $show Field name.
+	 * @return string
+	 */
+	function get_bloginfo( $show = '' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$map = isset( $GLOBALS['_wpmar_test_bloginfo'] ) && is_array( $GLOBALS['_wpmar_test_bloginfo'] ) ? $GLOBALS['_wpmar_test_bloginfo'] : array();
+		if ( isset( $map[ $show ] ) ) {
+			return (string) $map[ $show ];
+		}
+		if ( 'name' === $show ) {
+			return (string) get_option( 'blogname', '' );
+		}
+		if ( 'version' === $show ) {
+			return '0.0.0';
+		}
+		return '';
+	}
+}
+
+if ( ! function_exists( 'get_locale' ) ) {
+	/**
+	 * Stub get_locale — set $GLOBALS['_wpmar_test_locale'] to configure per-test.
+	 *
+	 * @return string
+	 */
+	function get_locale() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return isset( $GLOBALS['_wpmar_test_locale'] ) ? (string) $GLOBALS['_wpmar_test_locale'] : 'en_US';
+	}
+}
+
+if ( ! function_exists( 'wp_timezone' ) ) {
+	/**
+	 * Stub wp_timezone — set $GLOBALS['_wpmar_test_timezone'] (a DateTimeZone
+	 * name) to configure per-test; defaults to 'UTC' (real WP's un-configured default).
+	 *
+	 * @return DateTimeZone
+	 */
+	function wp_timezone() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$slug = isset( $GLOBALS['_wpmar_test_timezone'] ) ? (string) $GLOBALS['_wpmar_test_timezone'] : 'UTC';
+		try {
+			return new DateTimeZone( $slug );
+		} catch ( Exception $ignored ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch -- explicit fallback below.
+			unset( $ignored );
+			return new DateTimeZone( 'UTC' );
+		}
+	}
+}
+
+if ( ! function_exists( 'wp_date' ) ) {
+	/**
+	 * Stub wp_date.
+	 *
+	 * @param string          $format    date() format string.
+	 * @param int|null        $timestamp Unix timestamp; defaults to now.
+	 * @param DateTimeZone|null $timezone  Timezone; defaults to wp_timezone().
+	 * @return string
+	 */
+	function wp_date( $format, $timestamp = null, $timezone = null ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( null === $timestamp ) {
+			$timestamp = time();
+		}
+		$tz       = $timezone instanceof DateTimeZone ? $timezone : wp_timezone();
+		$datetime = new DateTime( '@' . $timestamp );
+		$datetime->setTimezone( $tz );
+		return $datetime->format( $format );
+	}
+}
+
+if ( ! function_exists( 'current_time' ) ) {
+	/**
+	 * Stub current_time.
+	 *
+	 * @param string $type Either 'timestamp', 'mysql', or a date() format string.
+	 * @param bool   $gmt  Use UTC instead of wp_timezone() when true.
+	 * @return int|string
+	 */
+	function current_time( $type, $gmt = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$tz  = $gmt ? new DateTimeZone( 'UTC' ) : wp_timezone();
+		$now = new DateTime( 'now', $tz );
+		if ( 'timestamp' === $type ) {
+			return $now->getTimestamp();
+		}
+		if ( 'mysql' === $type ) {
+			return $now->format( 'Y-m-d H:i:s' );
+		}
+		return $now->format( (string) $type );
+	}
+}
+
+if ( ! function_exists( 'wp_next_scheduled' ) ) {
+	/**
+	 * In-memory cron store backed by $GLOBALS['_wpmar_test_cron'][$hook] (list of
+	 * {timestamp, args} entries), shared with wp_schedule_single_event() /
+	 * wp_unschedule_event() / wp_clear_scheduled_hook() below.
+	 *
+	 * @param string             $hook Hook name.
+	 * @param array<int,mixed>   $args Args the event was scheduled with.
+	 * @return int|false
+	 */
+	function wp_next_scheduled( $hook, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( empty( $GLOBALS['_wpmar_test_cron'][ $hook ] ) ) {
+			return false;
+		}
+		$matches = array();
+		foreach ( $GLOBALS['_wpmar_test_cron'][ $hook ] as $event ) {
+			if ( $event['args'] === $args ) {
+				$matches[] = $event['timestamp'];
+			}
+		}
+		if ( empty( $matches ) ) {
+			return false;
+		}
+		sort( $matches );
+		return $matches[0];
+	}
+}
+
+if ( ! function_exists( 'wp_schedule_single_event' ) ) {
+	/**
+	 * Stub wp_schedule_single_event — appends to the in-memory cron store.
+	 *
+	 * @param int              $timestamp Unix time to fire at.
+	 * @param string           $hook      Hook name.
+	 * @param array<int,mixed> $args      Args.
+	 * @return bool
+	 */
+	function wp_schedule_single_event( $timestamp, $hook, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_cron'][ $hook ] ) || ! is_array( $GLOBALS['_wpmar_test_cron'][ $hook ] ) ) {
+			$GLOBALS['_wpmar_test_cron'][ $hook ] = array();
+		}
+		$GLOBALS['_wpmar_test_cron'][ $hook ][] = array(
+			'timestamp' => (int) $timestamp,
+			'args'      => $args,
+		);
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_unschedule_event' ) ) {
+	/**
+	 * Stub wp_unschedule_event — removes one matching entry from the in-memory
+	 * cron store.
+	 *
+	 * @param int              $timestamp Unix time originally scheduled.
+	 * @param string           $hook      Hook name.
+	 * @param array<int,mixed> $args      Args.
+	 * @return bool
+	 */
+	function wp_unschedule_event( $timestamp, $hook, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( empty( $GLOBALS['_wpmar_test_cron'][ $hook ] ) ) {
+			return false;
+		}
+		foreach ( $GLOBALS['_wpmar_test_cron'][ $hook ] as $i => $event ) {
+			if ( $event['timestamp'] === (int) $timestamp && $event['args'] === $args ) {
+				unset( $GLOBALS['_wpmar_test_cron'][ $hook ][ $i ] );
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
+	/**
+	 * Stub wp_clear_scheduled_hook — drops every entry for a hook from the
+	 * in-memory cron store.
+	 *
+	 * @param string           $hook Hook name.
+	 * @param array<int,mixed> $args Ignored — clears all args variants like real WP.
+	 * @return int|false
+	 */
+	function wp_clear_scheduled_hook( $hook, $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $args );
+		$count = isset( $GLOBALS['_wpmar_test_cron'][ $hook ] ) ? count( $GLOBALS['_wpmar_test_cron'][ $hook ] ) : 0;
+		unset( $GLOBALS['_wpmar_test_cron'][ $hook ] );
+		return $count;
+	}
+}
+
+if ( ! function_exists( 'add_query_arg' ) ) {
+	/**
+	 * Stub add_query_arg — supports both call shapes: (key, value, url) and
+	 * (array $params, url).
+	 *
+	 * @param mixed ...$args Either ($key,$value,$url) or ($params,$url).
+	 * @return string
+	 */
+	function add_query_arg( ...$args ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( 2 === count( $args ) && is_array( $args[0] ) ) {
+			list( $params, $url ) = $args;
+		} elseif ( 3 === count( $args ) ) {
+			list( $key, $value, $url ) = $args;
+			$params = array( $key => $value );
+		} else {
+			return isset( $args[0] ) ? (string) $args[0] : '';
+		}
+
+		$parts = wp_parse_url( (string) $url );
+		$parts = is_array( $parts ) ? $parts : array();
+		$query = array();
+		if ( ! empty( $parts['query'] ) ) {
+			parse_str( $parts['query'], $query );
+		}
+		foreach ( $params as $k => $v ) {
+			$query[ $k ] = $v;
+		}
+
+		$base = '';
+		if ( ! empty( $parts['scheme'] ) && ! empty( $parts['host'] ) ) {
+			$base = $parts['scheme'] . '://' . $parts['host'];
+		}
+		$base .= isset( $parts['path'] ) ? $parts['path'] : '';
+
+		$query_string = http_build_query( $query );
+		return '' !== $query_string ? $base . '?' . $query_string : $base;
+	}
+}
+
+if ( ! function_exists( 'wp_create_nonce' ) ) {
+	/**
+	 * Stub wp_create_nonce — deterministic per action string, not a real nonce.
+	 *
+	 * @param string|int $action Nonce action.
+	 * @return string
+	 */
+	function wp_create_nonce( $action = -1 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return 'test-nonce-' . md5( (string) $action );
+	}
+}
+
+if ( ! function_exists( 'wp_nonce_url' ) ) {
+	/**
+	 * Stub wp_nonce_url.
+	 *
+	 * @param string     $actionurl Base URL.
+	 * @param string|int $action    Nonce action.
+	 * @param string     $name      Query arg name for the nonce.
+	 * @return string
+	 */
+	function wp_nonce_url( $actionurl, $action = -1, $name = '_wpnonce' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return add_query_arg( $name, wp_create_nonce( $action ), $actionurl );
+	}
+}
+
+if ( ! function_exists( 'rest_url' ) ) {
+	/**
+	 * Stub rest_url.
+	 *
+	 * @param string $path Path relative to the REST root.
+	 * @return string
+	 */
+	function rest_url( $path = '' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return trailingslashit( home_url( '/wp-json' ) ) . ltrim( (string) $path, '/' );
+	}
+}
+
+if ( ! function_exists( 'esc_attr' ) ) {
+	/**
+	 * Stub esc_attr.
+	 *
+	 * @param string $text Text.
+	 * @return string
+	 */
+	function esc_attr( $text ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'esc_attr__' ) ) {
+	/**
+	 * Stub esc_attr__.
+	 *
+	 * @param string $text   Text.
+	 * @param string $domain Text domain (ignored).
+	 * @return string
+	 */
+	function esc_attr__( $text, $domain = 'default' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $domain );
+		return esc_attr( $text );
+	}
+}
+
+if ( ! function_exists( 'esc_html_e' ) ) {
+	/**
+	 * Stub esc_html_e — echoes rather than returning, matching real WordPress.
+	 *
+	 * @param string $text   Text.
+	 * @param string $domain Text domain (ignored).
+	 * @return void
+	 */
+	function esc_html_e( $text, $domain = 'default' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $domain );
+		echo esc_html( $text ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_html() above already escaped it.
+	}
+}
+
+if ( ! function_exists( 'size_format' ) ) {
+	/**
+	 * Stub size_format.
+	 *
+	 * @param int|float $bytes    Byte count.
+	 * @param int       $decimals Decimal places.
+	 * @return string|false
+	 */
+	function size_format( $bytes, $decimals = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$bytes = (float) $bytes;
+		$units = array( 'B', 'KB', 'MB', 'GB', 'TB' );
+		$i     = 0;
+		while ( $bytes >= 1024 && $i < count( $units ) - 1 ) {
+			$bytes /= 1024;
+			++$i;
+		}
+		return number_format( $bytes, $decimals ) . ' ' . $units[ $i ];
+	}
+}
+
+if ( ! function_exists( 'number_format_i18n' ) ) {
+	/**
+	 * Stub number_format_i18n.
+	 *
+	 * @param float $number   Number.
+	 * @param int   $decimals Decimal places.
+	 * @return string
+	 */
+	function number_format_i18n( $number, $decimals = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return number_format( (float) $number, $decimals );
+	}
+}
+
+if ( ! function_exists( 'get_site_option' ) ) {
+	/**
+	 * In-memory site-option store backed by $GLOBALS['_wpmar_test_site_options'].
+	 * Kept separate from get_option()'s store since real WP backs the two with
+	 * different tables (network-wide vs per-blog).
+	 *
+	 * @param string $name          Option name.
+	 * @param mixed  $default_value Default when absent.
+	 * @return mixed
+	 */
+	function get_site_option( $name, $default_value = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_site_options'] ) || ! is_array( $GLOBALS['_wpmar_test_site_options'] ) ) {
+			$GLOBALS['_wpmar_test_site_options'] = array();
+		}
+		return array_key_exists( $name, $GLOBALS['_wpmar_test_site_options'] ) ? $GLOBALS['_wpmar_test_site_options'][ $name ] : $default_value;
+	}
+}
+
+if ( ! function_exists( 'update_site_option' ) ) {
+	/**
+	 * Stores a site option in the in-memory store.
+	 *
+	 * @param string $name  Option name.
+	 * @param mixed  $value Value.
+	 * @return bool
+	 */
+	function update_site_option( $name, $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_site_options'] ) || ! is_array( $GLOBALS['_wpmar_test_site_options'] ) ) {
+			$GLOBALS['_wpmar_test_site_options'] = array();
+		}
+		$GLOBALS['_wpmar_test_site_options'][ $name ] = $value;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wp_rand' ) ) {
+	/**
+	 * Stub wp_rand.
+	 *
+	 * @param int $min Minimum inclusive.
+	 * @param int $max Maximum inclusive (0 means "use PHP's getrandmax()").
+	 * @return int
+	 */
+	function wp_rand( $min = 0, $max = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( 0 === $max ) {
+			$max = getrandmax();
+		}
+		return random_int( $min, $max );
+	}
+}
+
+if ( ! function_exists( 'wp_version_check' ) ) {
+	/**
+	 * Stub wp_version_check — no-op (the real function's side effect is an HTTP
+	 * call to api.wordpress.org, which tests never want).
+	 *
+	 * @param array<string,mixed> $extra_stats Ignored.
+	 * @param bool                $force_check Ignored.
+	 * @return void
+	 */
+	function wp_version_check( $extra_stats = array(), $force_check = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $extra_stats, $force_check );
+	}
+}
+
+if ( ! function_exists( 'wp_update_plugins' ) ) {
+	/**
+	 * Stub wp_update_plugins — no-op.
+	 *
+	 * @param array<int,string>|null $plugin_data Ignored.
+	 * @return void
+	 */
+	function wp_update_plugins( $plugin_data = null ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $plugin_data );
+	}
+}
+
+if ( ! function_exists( 'wp_update_themes' ) ) {
+	/**
+	 * Stub wp_update_themes — no-op.
+	 *
+	 * @return void
+	 */
+	function wp_update_themes() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+	}
+}
+
 if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 	/**
 	 * Minimal in-memory wpdb double for repository/dispatcher tests.
+	 *
+	 * Two lookup paths coexist: the original `rows` map (keyed directly by an
+	 * arbitrary string id, e.g. job ids like "wpmar.done1") stays untouched for
+	 * back-compat; `tables` is a newer table-name-aware store that `insert()`
+	 * populates and `get_row()`/`get_results()`/`get_col()`/`delete()` can read
+	 * from by parsing the table name out of the SQL text. Both can be used in
+	 * the same test.
 	 */
 	class WPMAR_Test_Fake_Wpdb { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound
 		/** @var string */
@@ -892,6 +1492,12 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		public $insert_calls = array();
 		/** @var array<int,array<int,mixed>> */
 		public $update_calls = array();
+		/** @var array<int,array{0:string,1:array<string,mixed>}> */
+		public $delete_calls = array();
+		/** @var array<string,array<string,array<string,mixed>>> Rows keyed by table then by (string) id. */
+		public $tables = array();
+		/** @var array<int,mixed> Scriptable get_var() return queue; falls back to 0 once drained. */
+		public $var_returns = array();
 
 		/**
 		 * @param string $query Query with placeholders.
@@ -907,15 +1513,112 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		}
 
 		/**
+		 * Splits a prepare()d tuple (or a raw query string) into [sql, args].
+		 *
+		 * @param array{0:string,1:array<int,mixed>}|string $prepared Prepared tuple or raw SQL.
+		 * @return array{0:string,1:array<int,mixed>}
+		 */
+		protected function normalize_prepared( $prepared ) {
+			if ( is_array( $prepared ) && isset( $prepared[0] ) ) {
+				return array( (string) $prepared[0], isset( $prepared[1] ) && is_array( $prepared[1] ) ? $prepared[1] : array() );
+			}
+			return array( (string) $prepared, array() );
+		}
+
+		/**
+		 * Best-effort `FROM \`table\`` extraction from a SQL string.
+		 *
+		 * @param string $sql Query text.
+		 * @return string Table name, or '' when not found.
+		 */
+		protected function extract_table_from_sql( $sql ) {
+			if ( preg_match( '/FROM\s+`?([a-zA-Z0-9_]+)`?/i', $sql, $matches ) ) {
+				return $matches[1];
+			}
+			return '';
+		}
+
+		/**
 		 * @param array{0:string,1:array<int,mixed>}|string $prepared Prepared tuple.
 		 * @param mixed                                      $output   Output type (ignored).
 		 * @return array<string,mixed>|null
 		 */
 		public function get_row( $prepared, $output = null ) {
 			unset( $output );
-			$args = is_array( $prepared ) && isset( $prepared[1] ) ? $prepared[1] : array();
-			$id   = isset( $args[0] ) ? (string) $args[0] : '';
-			return isset( $this->rows[ $id ] ) ? $this->rows[ $id ] : null;
+			list( $sql, $args ) = $this->normalize_prepared( $prepared );
+			$id                 = isset( $args[0] ) ? (string) $args[0] : '';
+
+			if ( isset( $this->rows[ $id ] ) ) {
+				return $this->rows[ $id ];
+			}
+
+			$table = $this->extract_table_from_sql( $sql );
+			if ( '' !== $table && isset( $this->tables[ $table ][ $id ] ) ) {
+				return $this->tables[ $table ][ $id ];
+			}
+
+			return null;
+		}
+
+		/**
+		 * Table-aware row listing: newest-id-first, optionally LIMIT/OFFSET-sliced
+		 * using the trailing prepare() args (matches every ORDER BY id DESC usage
+		 * in this plugin's repositories).
+		 *
+		 * @param array{0:string,1:array<int,mixed>}|string $prepared Prepared tuple.
+		 * @param mixed                                      $output   Output type (ignored).
+		 * @return array<int,array<string,mixed>>
+		 */
+		public function get_results( $prepared, $output = null ) {
+			unset( $output );
+			list( $sql, $args ) = $this->normalize_prepared( $prepared );
+			$table               = $this->extract_table_from_sql( $sql );
+			$rows                = ( '' !== $table && isset( $this->tables[ $table ] ) ) ? $this->tables[ $table ] : array();
+
+			$items = array_values( $rows );
+			usort(
+				$items,
+				static function ( $a, $b ) {
+					return ( $b['id'] ?? 0 ) <=> ( $a['id'] ?? 0 );
+				}
+			);
+
+			if ( false !== stripos( $sql, 'OFFSET' ) && count( $args ) >= 2 ) {
+				$items = array_slice( $items, (int) $args[ count( $args ) - 1 ], (int) $args[ count( $args ) - 2 ] );
+			} elseif ( false !== stripos( $sql, 'LIMIT' ) && count( $args ) >= 1 ) {
+				$items = array_slice( $items, 0, (int) $args[ count( $args ) - 1 ] );
+			}
+
+			return $items;
+		}
+
+		/**
+		 * Table-aware single-column listing. Recognises `SELECT id` (returns each
+		 * row's id); anything else falls back to $var_returns-style scripting via
+		 * a dedicated queue so callers can still control the result explicitly.
+		 *
+		 * @param array{0:string,1:array<int,mixed>}|string $prepared Prepared tuple.
+		 * @return array<int,mixed>
+		 */
+		public function get_col( $prepared ) {
+			list( $sql, $args ) = $this->normalize_prepared( $prepared );
+			unset( $args );
+
+			$table = $this->extract_table_from_sql( $sql );
+			$rows  = ( '' !== $table && isset( $this->tables[ $table ] ) ) ? $this->tables[ $table ] : array();
+
+			if ( false !== stripos( $sql, 'SELECT id' ) ) {
+				return array_values(
+					array_map(
+						static function ( $row ) {
+							return $row['id'] ?? null;
+						},
+						$rows
+					)
+				);
+			}
+
+			return array();
 		}
 
 		/**
@@ -925,8 +1628,15 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		 * @return int
 		 */
 		public function insert( $table, $data, $formats = null ) {
-			unset( $table, $formats );
+			unset( $formats );
 			$this->insert_calls[] = $data;
+			++$this->insert_id;
+
+			if ( ! isset( $this->tables[ $table ] ) || ! is_array( $this->tables[ $table ] ) ) {
+				$this->tables[ $table ] = array();
+			}
+			$this->tables[ $table ][ (string) $this->insert_id ] = array_merge( array( 'id' => $this->insert_id ), $data );
+
 			return 1;
 		}
 
@@ -939,17 +1649,52 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		 * @return int
 		 */
 		public function update( $table, $data, $where, $data_format = null, $where_format = null ) {
-			unset( $table, $data_format, $where_format );
+			unset( $data_format, $where_format );
 			$this->update_calls[] = array( $data, $where );
+
+			if ( isset( $this->tables[ $table ] ) && isset( $where['id'] ) ) {
+				$id = (string) $where['id'];
+				if ( isset( $this->tables[ $table ][ $id ] ) ) {
+					$this->tables[ $table ][ $id ] = array_merge( $this->tables[ $table ][ $id ], $data );
+				}
+			}
+
 			return 1;
 		}
 
 		/**
+		 * @param string             $table        Table.
+		 * @param array<string,mixed> $where        Where.
+		 * @param array<int,string>  $where_format Where formats (ignored).
+		 * @return int Rows affected (1 when a matching row was removed, 0 otherwise).
+		 */
+		public function delete( $table, $where, $where_format = null ) {
+			unset( $where_format );
+			$this->delete_calls[] = array( $table, $where );
+
+			if ( isset( $this->tables[ $table ] ) && isset( $where['id'] ) ) {
+				$id = (string) $where['id'];
+				if ( isset( $this->tables[ $table ][ $id ] ) ) {
+					unset( $this->tables[ $table ][ $id ] );
+					return 1;
+				}
+			}
+
+			return 0;
+		}
+
+		/**
+		 * Scriptable via $var_returns (shifted in call order); defaults to 0 once
+		 * the queue is empty, matching the original always-0 stub behaviour.
+		 *
 		 * @param string $query Query.
-		 * @return int
+		 * @return mixed
 		 */
 		public function get_var( $query ) {
 			unset( $query );
+			if ( ! empty( $this->var_returns ) ) {
+				return array_shift( $this->var_returns );
+			}
 			return 0;
 		}
 
