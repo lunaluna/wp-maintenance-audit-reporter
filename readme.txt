@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -289,6 +289,12 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.0 =
+* Changed: the self-update mechanism now runs on the shared `l2d-wp-github-update-lib` library (vendored into `lib/l2d-updater/`) instead of a plugin-local implementation, so future update-checker bug fixes only need to happen once instead of being ported across every plugin that shares this code. Behaviour is unchanged: the cache transient key (`wpmar_github_release_cache`) and the documented filter names (`wpmar_github_updater_cache_ttl`, `wpmar_github_updater_backoff_ttl`) still work exactly as before.
+* Added: a `wpmar_github_updater_enabled` filter (kill switch) to disable the update checker entirely — useful as an emergency rollback lever if a release ever needs to be pulled back after publishing.
+* Changed: the "Description" section shown in the update details modal now comes from this plugin's own header `Description:` line instead of a hardcoded string.
+* Changed: releases are now published as a GitHub Release draft first. A maintainer verifies the attached assets and runs `gh release edit <tag> --draft=false` to publish — no site can pick up a release via auto-update before that happens.
 
 = 1.4.1 =
 * Fixed: the update checker no longer falls back to GitHub's auto-generated zipball when a release has no matching plugin asset — that zipball's inner directory name differs from the plugin's, which would have deactivated the plugin on install. Missing asset now correctly reports "no update available".

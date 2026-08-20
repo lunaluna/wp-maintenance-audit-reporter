@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-20
+
+### Changed
+
+- Self-update mechanism now runs on the shared `l2d-wp-github-update-lib` library (`1.1.0`, vendored into `lib/l2d-updater/` via `git subtree`) instead of the plugin-local `WPMAR_GitHub_Updater` implementation. The documented cache transient key (`wpmar_github_release_cache`) and filter names (`wpmar_github_updater_cache_ttl`, `wpmar_github_updater_backoff_ttl`) are passed explicitly to the library and continue to work unchanged.
+- The "Description" section in the update details modal now comes from this plugin's own header `Description:` line (via the library's default behaviour) instead of a hardcoded string.
+- `release.yml` now publishes as a GitHub Release **draft**; a maintainer must run `gh release edit <tag> --draft=false` after verifying the assets before any site can pick up the release via auto-update. Added to close off a real risk: sites running `forced-auto-update-controller` alongside this plugin would otherwise pick up a freshly published release unattended.
+- `bin/build-zip.sh` now hard-fails if `lib/l2d-updater/loader.php` or `class-l2d-github-updater.php` is missing from the staged tree (the main plugin file `require`s the loader, so a missing copy would be a fatal error on every site).
+- `phpcs.xml.dist` now excludes `lib/*` (the vendored library copy is not linted against this plugin's coding standards).
+
+### Added
+
+- `wpmar_github_updater_enabled` filter (kill switch): returning `false` disables the update checker entirely, e.g. as an emergency rollback lever.
+
+### Fixed
+
+- The Action Scheduler bundling step in `bin/build-zip.sh` no longer ships a stray `.claude/` directory that had been accidentally left inside the local `vendor/woocommerce/action-scheduler/` copy (unrelated to this migration, found while verifying the distributed-zip file list).
+
 ## [1.4.1] - 2026-08-18
 
 ### Fixed

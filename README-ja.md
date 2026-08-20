@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.4.1**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.5.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -327,6 +327,7 @@ Basic 認証環境で定期的にレポートを生成したい場合は、サ�
 
 各バージョンの詳しい変更内容はすべて [CHANGELOG.md](CHANGELOG.md) に記載しています。
 
+- **v1.5.0**（2026-08-20） — 自己更新機構をプラグイン独自実装から共有ライブラリ `l2d-wp-github-update-lib`（`lib/l2d-updater/` に同梱）へ移行しました。挙動は変わりません（キャッシュキー・フィルタ名は従来どおり）。キルスイッチ用フィルタ `wpmar_github_updater_enabled` を追加し、更新詳細の「説明」は本プラグイン自身のヘッダーから取得するようになりました。リリースはまず GitHub Release の draft として公開し、`gh release edit <tag> --draft=false` を実行するまで公開されません — `forced-auto-update-controller` と同居するサイトへ無人で自動更新が展開されてしまう実際のリスクを遮断します。
 - **v1.4.1**（2026-08-18） — GitHub Releases 更新機構の不具合修正リリース。新機能はありません。アセットが見つからない場合にプラグインを無効化しうるzipballフォールバック（`extract_zip_url()`）を削除し、更新の有無判定を `WPMAR_VERSION` 定数ではなく WordPress が実際にヘッダーから読んだバージョンに変更（両者のずれによる通知の残留・欠落を解消)、更新チェッカーのキャッシュを `Network: true` に合わせてサイト単位のトランジェントへ変更、更新詳細モーダルの「Requires PHP」「Tested up to」をハードコードではなくヘッダーから読むように変更しました。加えて配布ZIPの除外リストを `.distignore` に一本化(既にずれていた `release.yml` と `bin/build-zip.sh` の2つのリストを統合)し、CIのタグ／バージョン突合を1箇所から5箇所に拡張しました。
 - **v1.4.0**（2026-08-09） — マルチサイトのメモリ対策リリース。ネットワーク集約監査が、全サイトを1プロセスでループする方式から、サイトごとに独立したバックグラウンドジョブ（＋集約ジョブ1件）として実行する方式に変わり、サイト数に比例してピークメモリが増える構造と、1サイトの失敗が全体を止める挙動を解消しました。一時的な失敗には上限付きの自動リトライ（`wpmar_job_max_attempts`、既定は1回）を追加し、wp.org のプラグイン/テーマ情報はネットワーク全体でキャッシュします（`wpmar_wporg_cache_ttl`）。wp.org キャッシュ・実行ロックの復旧・診断ログ・実行履歴（所要時間とピークメモリを永続記録）を扱う「システム機能」画面（サイト単位・ネットワーク単位）を追加。アンインストール時に `wp-content/wpmar-private/`（レポート・PDF・ログ）と全サブサイトのテーブル／sitemeta が残る問題、致命的エラー後にネットワーク実行ロックがタイムアウトまで保持される問題も修正しました。
 - **v1.3.1**（2026-07-27） — セキュリティリリース。レポート・PDF・診断ログの保存先を既定で保護済みの `wp-content/wpmar-private/` ディレクトリへ変更し（ランダムトークン付きファイル名、`.htaccess`/`index.php` 自動生成、`WPMAR_PRIVATE_STORAGE_DIR` による退避対応）、未認証での取得可能だった問題を修正。v1.3.0 以前の既存ファイルは自動移行されます（`wp wpmar storage migrate`、`--dry-run`/`--network`/`--revert` 対応）。PDF 生成の Parsedown safe mode を HTML メール経路と統一、`vendor-pdf.zip` のチェックサム検証を既定で有効化、`Update URI` ヘッダ・全ダウンロードへの `nosniff`・PDF インストーラーの capability→nonce 順序統一・`SECURITY.md`・CI ハードニングも追加。
