@@ -17,6 +17,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WPMAR_Runner {
 
 	/**
+	 * Builds the collector used by this run.
+	 *
+	 * Exists as a seam: tests substitute a scripted collector by subclassing
+	 * WPMAR_Runner and overriding this method instead of touching real
+	 * wp.org / filesystem calls.
+	 *
+	 * @return WPMAR_Data_Collector
+	 */
+	protected function make_data_collector() {
+		return new WPMAR_Data_Collector();
+	}
+
+	/**
 	 * Executes audits according to behavioural flags.
 	 *
 	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (manual only; cron/cli always save).
@@ -61,7 +74,7 @@ class WPMAR_Runner {
 			$settings = WPMAR_Settings::get_all();
 
 			WPMAR_Logger::step( 'gather:start' );
-			$data_collector = new WPMAR_Data_Collector();
+			$data_collector = $this->make_data_collector();
 			$dataset        = $data_collector->gather();
 			WPMAR_Logger::step( 'gather:done', array( 'mem' => size_format( memory_get_usage( true ) ) ) );
 
@@ -274,7 +287,7 @@ class WPMAR_Runner {
 		}
 
 		WPMAR_Logger::step( "site:{$blog_id}:gather:start" );
-		$data_collector = new WPMAR_Data_Collector();
+		$data_collector = $this->make_data_collector();
 		$dataset        = $data_collector->gather();
 		WPMAR_Logger::step( "site:{$blog_id}:gather:done" );
 
@@ -476,7 +489,7 @@ class WPMAR_Runner {
 		WPMAR_CLI_Environment::maybe_capture();
 
 		WPMAR_Logger::step( 'gather:start' );
-		$collector = new WPMAR_Data_Collector();
+		$collector = $this->make_data_collector();
 		$facts     = $collector->gather();
 		WPMAR_Logger::step( 'gather:done' );
 

@@ -403,6 +403,13 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	 * @return string|false
 	 */
 	function wp_json_encode( $data, $options = 0, $depth = 512 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		// Opt-in override for tests exercising an encode-failure fallback path — real
+		// json_encode() with JSON_PARTIAL_OUTPUT_ON_ERROR substitutes invalid values
+		// rather than returning false, so genuinely malformed input can't reach that
+		// path; this lets a test force the false/'' result the production code guards against.
+		if ( array_key_exists( '_wpmar_test_json_encode_return', $GLOBALS ) ) {
+			return $GLOBALS['_wpmar_test_json_encode_return'];
+		}
 		return json_encode( $data, $options, $depth ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
 	}
 }
@@ -1359,14 +1366,39 @@ if ( ! function_exists( 'size_format' ) ) {
 	 * @return string|false
 	 */
 	function size_format( $bytes, $decimals = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
-		$bytes = (float) $bytes;
-		$units = array( 'B', 'KB', 'MB', 'GB', 'TB' );
-		$i     = 0;
-		while ( $bytes >= 1024 && $i < count( $units ) - 1 ) {
+		$bytes      = (float) $bytes;
+		$units      = array( 'B', 'KB', 'MB', 'GB', 'TB' );
+		$unit_count = count( $units );
+		$i          = 0;
+		while ( $bytes >= 1024 && $i < $unit_count - 1 ) {
 			$bytes /= 1024;
 			++$i;
 		}
 		return number_format( $bytes, $decimals ) . ' ' . $units[ $i ];
+	}
+}
+
+if ( ! function_exists( 'wp_convert_hr_to_bytes' ) ) {
+	/**
+	 * Stub wp_convert_hr_to_bytes — converts a php.ini shorthand size
+	 * ("128M", "1G", "512K") to a byte count, mirroring core's implementation.
+	 *
+	 * @param string $value Shorthand size string.
+	 * @return int|float
+	 */
+	function wp_convert_hr_to_bytes( $value ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$value = strtolower( trim( (string) $value ) );
+		$bytes = (float) $value;
+
+		if ( false !== strpos( $value, 'g' ) ) {
+			$bytes *= 1024 * 1024 * 1024;
+		} elseif ( false !== strpos( $value, 'm' ) ) {
+			$bytes *= 1024 * 1024;
+		} elseif ( false !== strpos( $value, 'k' ) ) {
+			$bytes *= 1024;
+		}
+
+		return min( $bytes, PHP_INT_MAX );
 	}
 }
 
