@@ -294,5 +294,23 @@ return array(
 	'backup'           => array(
 		'providers' => array(),
 	),
-	'performance'      => array(),
+	'performance'      => array(
+		'timestamp_utc' => '2026-08-20T15:51:14+00:00',
+		'db_tables'     => array(
+			'ok'       => true,
+			'error'    => '',
+			'top'      => array(
+				array(
+					'name'  => 'wp_options',
+					'bytes' => 5242880,
+				),
+				array(
+					'name'  => 'wp_posts',
+					'bytes' => 3145728,
+				),
+			),
+			'total_mb' => 8.0,
+			'database' => 'local',
+		),
+	),
 );
