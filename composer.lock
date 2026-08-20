@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aad74a62ea9050610eaaef8292c21564",
+    "content-hash": "fd9863e3fb18f9debec52478d6d937b9",
     "packages": [
         {
             "name": "erusev/parsedown",
