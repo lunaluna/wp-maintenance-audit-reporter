@@ -141,7 +141,11 @@ echo json_encode(
 );
 PHP;
 
-		$script_path = tempnam( sys_get_temp_dir(), 'wpmar-pdf-unavailable-' ) . '.php';
+		// No `.php` suffix appended: `php <path>` runs a file regardless of its
+		// extension, and appending one would require a *second* path derived
+		// from tempnam()'s — leaving the original (already-created, now unused)
+		// temp file behind unlinked.
+		$script_path = tempnam( sys_get_temp_dir(), 'wpmar-pdf-unavailable-' );
 		file_put_contents( $script_path, $script );
 
 		try {
