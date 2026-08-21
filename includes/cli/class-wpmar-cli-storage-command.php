@@ -19,7 +19,7 @@ if ( ! ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 }
 
 /**
- * Thin adapter from argv to {@see WPMAR_Storage_Migrator}.
+ * Migrates report/PDF/log storage between the legacy uploads layout and private storage.
  */
 class WPMAR_CLI_Storage_Command extends WP_CLI_Command {
 
@@ -65,10 +65,10 @@ class WPMAR_CLI_Storage_Command extends WP_CLI_Command {
 	public function migrate( $positional, $assoc_flags ) {
 		unset( $positional );
 
-		$dry_run   = isset( $assoc_flags['dry-run'] );
-		$revert    = isset( $assoc_flags['revert'] );
-		$network   = isset( $assoc_flags['network'] );
-		$batch     = isset( $assoc_flags['batch'] ) ? max( 1, (int) $assoc_flags['batch'] ) : WPMAR_Storage_Migrator::DEFAULT_BATCH_SIZE;
+		$dry_run   = WPMAR_CLI_Flags::bool( $assoc_flags, 'dry-run' );
+		$revert    = WPMAR_CLI_Flags::bool( $assoc_flags, 'revert' );
+		$network   = WPMAR_CLI_Flags::bool( $assoc_flags, 'network' );
+		$batch     = max( 1, WPMAR_CLI_Flags::int( $assoc_flags, 'batch', WPMAR_Storage_Migrator::DEFAULT_BATCH_SIZE ) );
 		$direction = $revert ? 'revert' : 'migrate';
 
 		if ( ! $network ) {
