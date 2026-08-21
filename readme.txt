@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,14 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.1 =
+* Fixed: `--no-snapshot` never worked on either WP-CLI command — WP-CLI's argument parser rejected it because only the negative form was declared. Renamed to a positive flag, `--skip-snapshot`.
+* Fixed: `wp wpmar storage migrate --no-revert` (and `--no-dry-run`, `--no-network`) were silently read as `true`, so `--no-revert` without `--dry-run` actually reverted storage instead of migrating it.
+* Fixed: admin-facing WP-CLI hints still referenced the removed `wp maintenance-audit run` command and the no-longer-required `--sync` flag.
+* Changed: consolidated the two WP-CLI namespaces into one — `wp wpmar audit` (run/test), `wp wpmar report` (list/delete/export), `wp wpmar storage` (migrate). The legacy `wp maintenance-audit` namespace is removed.
+* Changed: `wp wpmar audit run` is synchronous by default; `--sync` is now a no-op and `--async` opt-in enqueues via Action Scheduler. `--same-setting` / `--id=<blog_id>` and the `test` subcommand are now available here too.
+* See CHANGELOG.md for full details.
 
 = 1.5.0 =
 * Changed: the self-update mechanism now runs on the shared `l2d-wp-github-update-lib` library (vendored into `lib/l2d-updater/`) instead of a plugin-local implementation, so future update-checker bug fixes only need to happen once instead of being ported across every plugin that shares this code. Behaviour is unchanged: the cache transient key (`wpmar_github_release_cache`) and the documented filter names (`wpmar_github_updater_cache_ttl`, `wpmar_github_updater_backoff_ttl`) still work exactly as before.

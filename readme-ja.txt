@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,14 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.1 =
+* 修正：`--no-snapshot` はどちらの WP-CLI コマンドでも一度も動作していませんでした。否定形のみを宣言していたため WP-CLI の引数パーサーに拒否されていたのが原因です。正のフラグ `--skip-snapshot` に改名しました。
+* 修正：`wp wpmar storage migrate --no-revert`（および `--no-dry-run` / `--no-network`）が `true` と誤読され、`--no-revert` を `--dry-run` なしで実行すると、意図せずストレージを巻き戻していました。
+* 修正：管理画面の WP-CLI 案内文言が、削除済みの `wp maintenance-audit run` コマンドと不要になった `--sync` フラグを参照したままでした。
+* 変更：2つあった WP-CLI 名前空間を1つに統合しました — `wp wpmar audit`（run/test）、`wp wpmar report`（list/delete/export）、`wp wpmar storage`（migrate）。レガシーの `wp maintenance-audit` 名前空間は削除されました。
+* 変更：`wp wpmar audit run` は既定で同期実行になりました。`--sync` は no-op、`--async` で Action Scheduler 経由の登録を opt-in できます。`--same-setting` / `--id=<blog_id>` と `test` サブコマンドもここで利用可能になりました。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.0 =
 * 変更：自己更新機構が、プラグイン独自実装から共有ライブラリ `l2d-wp-github-update-lib`（`lib/l2d-updater/` に同梱）を使う方式に変わりました。今後の更新チェッカーの不具合修正が、同じコードを共有する各プラグインに個別移植されず一度で済むようになります。挙動は変わりません：キャッシュのトランジェントキー（`wpmar_github_release_cache`）とドキュメント化済みのフィルタ名（`wpmar_github_updater_cache_ttl` / `wpmar_github_updater_backoff_ttl`）は従来どおり有効です。
