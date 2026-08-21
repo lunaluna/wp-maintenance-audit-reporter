@@ -276,16 +276,15 @@ final class NotifierMailTest extends TestCase {
 	}
 
 	/**
-	 * Characterization test, not a desired-behaviour test: send_pair()'s
-	 * remove_filter()/remove_action() calls at the end of the method are not
-	 * wrapped in try/finally, so when wp_mail() throws mid-send the
-	 * wp_mail_from / wp_mail_from_name / wp_mail_failed hook registrations
-	 * are left behind. Pinning this down now (rather than silently letting it
-	 * regress further) so the Step 9 fix — moving that cleanup into a
-	 * finally block — has a test to flip from "residue remains" to
-	 * "residue is gone" as visible proof the fix works.
+	 * Step 9 fix verification: send_pair()'s remove_filter()/remove_action()
+	 * cleanup now runs in a finally block (outer: wp_mail_from /
+	 * wp_mail_from_name / wp_mail_failed; inner, per client batch:
+	 * phpmailer_init + the static AltBody buffer), so none of it survives an
+	 * exception thrown by wp_mail() mid-send. This test used to pin down the
+	 * pre-fix "residue remains" behaviour (see git history); it now asserts
+	 * the opposite as visible proof the fix works.
 	 */
-	public function test_exception_mid_send_currently_leaves_filter_residue_pending_step_9_fix(): void {
+	public function test_exception_mid_send_leaves_no_filter_residue(): void {
 		$GLOBALS['_wpmar_test_mail_throw'] = true;
 
 		try {
@@ -295,6 +294,12 @@ final class NotifierMailTest extends TestCase {
 			// Expected.
 		}
 
-		self::assertNotFalse( has_filter( 'wp_mail_from' ), 'Known bug (fixed in Step 9): wp_mail_from is left registered after an exception.' );
+		foreach ( array( 'wp_mail_from', 'wp_mail_from_name', 'wp_mail_failed', 'phpmailer_init' ) as $hook ) {
+			self::assertFalse( has_filter( $hook ), "{$hook} must not remain registered after send_pair() throws." );
+		}
+
+		$plain_alt = new \ReflectionProperty( \WPMAR_Notifier_Mail::class, 'client_mail_plain_alt' );
+		$plain_alt->setAccessible( true );
+		self::assertNull( $plain_alt->getValue(), 'The static AltBody buffer must be reset to null even after an exception.' );
 	}
 }
