@@ -128,7 +128,7 @@ Timestamp (UTC) · level (`INFO`/`ERROR`) · job id · what happened. A normal r
 
 **If a run stalls, the last line in the log is the last thing it completed** — e.g. a log ending at `gather:checksums:start` means the run stopped during checksum verification. A fatal error additionally logs an `[ERROR] FATAL: ...` line. Even if the process was killed hard enough (`SIGKILL`, OOM killer) that nothing could be written at all, a job with no update for ~25 minutes is automatically flipped to "failed" with "ハートビート途絶" (heartbeat lost) as the error.
 
-**Getting the log (e.g. for a support request)** — The Reports screen's 診断ログ section lists recent jobs that have a log ("表示" shows the tail inline, "ダウンロード" fetches the file), and the running/failed job panel (Settings & Run screen) shows a "動作ログをダウンロード" link on failure. Both are protected by the `manage_options` capability and a per-job nonce, so the file is safe to hand to a support request as-is — secrets such as mail passwords are never written to it. A synchronous WP-CLI run (`wp wpmar audit run --sync`) also produces a log (job id starting with `cli-`) but it won't appear in the admin job list — check the private storage directory's `logs/` (below) directly on the server.
+**Getting the log (e.g. for a support request)** — The Reports screen's 診断ログ section lists recent jobs that have a log ("表示" shows the tail inline, "ダウンロード" fetches the file), and the running/failed job panel (Settings & Run screen) shows a "動作ログをダウンロード" link on failure. Both are protected by the `manage_options` capability and a per-job nonce, so the file is safe to hand to a support request as-is — secrets such as mail passwords are never written to it. A synchronous WP-CLI run (`wp wpmar audit run`) also produces a log (job id starting with `cli-`) but it won't appear in the admin job list — check the private storage directory's `logs/` (below) directly on the server.
 
 Log files live under the private storage directory's `logs/` (filenames carry an unguessable random token; the directory is `.htaccess`-protected against direct access). Only the 20 most recent runs are kept and the whole directory is removed on uninstall.
 
@@ -156,18 +156,44 @@ Network-activate the plugin, then configure rollup audits under **Network Admin 
 
 = WP-CLI =
 
-The plugin registers two command namespaces: `wp wpmar audit` (the current entry point; routes through the async job system, with a synchronous fallback via `--sync`) and `wp maintenance-audit` (the legacy namespace, which also carries the report-management subcommands). Both `run` commands print the run result as pretty-printed JSON on success.
+The plugin registers a single `wp wpmar` namespace with three subcommand groups: `audit` (run/test), `report` (list/delete/export), and `storage` (migrate). All `run`-like commands print the run result as pretty-printed JSON on success.
 
-**`wp wpmar audit run`** — execute an audit run.
+**`wp wpmar audit run`** — execute an audit run. Runs synchronously by default.
 
-    wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]
+    wp wpmar audit run [--dry-run] [--network] [--skip-snapshot] [--same-setting] [--id=<blog_id>] [--async] [--sync]
 
-* `--sync` — Required. Runs synchronously in the current process (the async queue is not yet wired, so omitting it errors out). Also a CloudFront-bypassing fallback for production debugging / manual runs.
 * `--dry-run` — Harvest data only; no snapshot persistence, no mail.
 * `--network` — Multisite rollup audit (requires network audit enabled under Network Admin → Maintenance Audit).
-* `--no-snapshot` — Generate the report without updating the snapshot baseline.
+* `--skip-snapshot` — Generate the report without updating the snapshot baseline.
+* `--same-setting` — Requires `--network`. Audit the main site only instead of all target sites.
+* `--id=<blog_id>` — Requires `--network`. Audit only the given blog ID; takes precedence over `--same-setting`; errors if the blog ID does not exist.
+* `--async` — Enqueue the run on the Action Scheduler queue instead of running it in this process. Returns a job id immediately; the audit only progresses once the queue is worked (`wp action-scheduler run` or the next cron tick). Cannot be combined with `--sync`.
+* `--sync` — Kept for backward compatibility with earlier scripts; synchronous is already the default, so this is a no-op.
 
-`--same-setting` / `--id` are not available here — use the legacy `wp maintenance-audit run` for per-site network scoping.
+**`wp wpmar audit test`** — run collector instrumentation in dry mode (no DB writes besides the CLI probe transient). No flags.
+
+    wp wpmar audit test
+
+**`wp wpmar report list`** — print recent persisted reports as a table.
+
+    wp wpmar report list [--limit=<n>]
+
+* `--limit=<n>` — Number of rows to retrieve (default 20).
+
+**`wp wpmar report delete <id>`** — permanently delete a stored report.
+
+    wp wpmar report delete <id> [--yes]
+
+* `<id>` — Numeric report identifier (required).
+* `--yes` — Skip the confirmation prompt.
+
+**`wp wpmar report export <id>`** — stream a report artefact to STDOUT for piping, or write it to a file.
+
+    wp wpmar report export <id> [--format=<markdown|json|pdf>] [--file=<path>]
+
+* `<id>` — Report primary key (required).
+* `--format=<fmt>` — `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is an alias for `markdown`.
+* `--file=<path>` — Write to this path instead of STDOUT (recommended for PDF when another plugin prints PHP notices during CLI bootstrap). The parent directory must exist and be writable.
 
 **`wp wpmar storage migrate`** — migrate report/PDF/log storage to (or, with `--revert`, back from) the protected private-storage directory. See "Storage directory (private storage)" above for background.
 
@@ -177,41 +203,6 @@ The plugin registers two command namespaces: `wp wpmar audit` (the current entry
 * `--network` — Repeat on every site in the network (`switch_to_blog()` per site). Without this flag, only the current site is processed.
 * `--batch=<size>` — Rows processed per internal batch (default 20). Progress is saved after every batch, so an interrupted run resumes from where it left off.
 * `--revert` — Reverse direction: move files back to the legacy `uploads/wpmar/` layout and strip the `private:` prefix from stored paths (filenames, tokens included, are kept as-is). Intended for downgrading to a pre-1.3.1 release; not exposed in the admin UI since a downgrade is a deliberate operator action.
-
-**`wp maintenance-audit run`** (legacy) — execute an audit synchronously.
-
-    wp maintenance-audit run [--dry] [--network] [--no-snapshot] [--same-setting] [--id=<blog_id>]
-
-* `--dry` — Harvest data only; no persistence, no mail. Note: this legacy command uses `--dry`, whereas `wp wpmar audit run` uses `--dry-run`.
-* `--network` — Multisite rollup audit (requires network audit enabled).
-* `--no-snapshot` — Generate the report without updating the snapshot baseline.
-* `--same-setting` — Requires `--network`. Audit the main site only instead of all target sites.
-* `--id=<blog_id>` — Requires `--network`. Audit only the given blog ID; takes precedence over `--same-setting`; errors if the blog ID does not exist.
-
-**`wp maintenance-audit test`** — run collector instrumentation in dry mode (no DB writes besides the CLI probe transient). No flags.
-
-    wp maintenance-audit test
-
-**`wp maintenance-audit reports`** — print recent persisted reports as a table.
-
-    wp maintenance-audit reports [--limit=<n>]
-
-* `--limit=<n>` — Number of rows to retrieve (default 20).
-
-**`wp maintenance-audit delete <id>`** — permanently delete a stored report.
-
-    wp maintenance-audit delete <id> [--yes]
-
-* `<id>` — Numeric report identifier (required).
-* `--yes` — Skip the confirmation prompt.
-
-**`wp maintenance-audit export <id>`** — stream a report artefact to STDOUT for piping, or write it to a file.
-
-    wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
-
-* `<id>` — Report primary key (required).
-* `--format=<fmt>` — `markdown` (default; administrator-facing `body_md`), `json` (the full report row), or `pdf` (client-facing). `md` is an alias for `markdown`.
-* `--file=<path>` — Write to this path instead of STDOUT (recommended for PDF when another plugin prints PHP notices during CLI bootstrap). The parent directory must exist and be writable.
 
 == Sites behind HTTP Basic authentication ==
 
@@ -232,11 +223,11 @@ The plugin detects blocked loopbacks automatically (the verdict is cached for 12
 To generate reports on a schedule in a Basic-auth environment, run the WP-CLI command directly from the server's cron. This path uses no HTTP loopback at all, so Basic authentication does not affect it.
 
     # Example: run at 03:00 on the 1st of every month
-    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run
 
 On multisite, target each site with `--url`:
 
-    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --url=https://example.com/site1/
 
 == Installation ==
 

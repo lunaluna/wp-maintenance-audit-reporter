@@ -24,15 +24,15 @@ Step 0〜7 の自動テスト(PHPUnit)は、`WPMAR_Data_Collector`/`wp_mail`/`wp
 
 | 機能 | コマンド | 期待結果 |
 |------|----------|----------|
-| ドライラン | `wp maintenance-audit run --dry` | `dry_preview` と `dry_brevity` を含む JSON を返す。`wp maintenance-audit reports` の行数が実行前後で変わらない。 |
-| 実行 | `wp maintenance-audit run --no-snapshot`(**既知の不具合**。下記参照。当面は `--no-snapshot` を外した `wp maintenance-audit run` で代替し、スナップショットが保存される前提で確認する) | `report_id` を含む結果を返す。`wp maintenance-audit reports` の行数が1件増える。 |
+| ドライラン | `wp wpmar audit run --dry-run` | `dry_preview` と `dry_brevity` を含む JSON を返す。`wp wpmar report list` の行数が実行前後で変わらない。 |
+| 実行 | `wp wpmar audit run --skip-snapshot` | `report_id` を含む結果を返す。`wp wpmar report list` の行数が1件増える。`wp_wpmar_snapshots` の行数は増えない。 |
 | スケジュール取得 | `wp cron event list --fields=hook,next_run_gmt \| grep wpmar_run_audit` | 次回実行時刻(UTC)が、設定の day/hour/minute/tz から計算される時刻と一致する。 |
 | レポートレビュー | 管理画面のレポート詳細URL(直前の実行結果の `report_url`)を開く | 本文プレビューと、Markdown / PDF(または PDF未導入時は client_md) の各ダウンロードリンクが表示される。 |
-| 管理者向けMarkdown | `wp maintenance-audit export <id> --format=markdown` | WordPress本体/テーマ/プラグイン/サーバー関連情報/ユーザー情報/前回差分/運用セキュリティ/実行時間の各セクションが出力される。 |
-| クライアント向けPDF | `wp maintenance-audit export <id> --format=pdf --file=/tmp/wpmar-report.pdf` | 日本語を含む本文が正しく描画されたPDFファイルが生成される(`file /tmp/wpmar-report.pdf` で `PDF document` と判定される)。 |
-| メール送信 | 管理画面の設定でテスト用の宛先アドレスを1つ指定して `wp maintenance-audit run --no-snapshot` を実行 | 指定した宛先に2通(クライアント向けHTML本文、管理者向けテキスト本文)が届き、両方が正しく読める。 |
+| 管理者向けMarkdown | `wp wpmar report export <id> --format=markdown` | WordPress本体/テーマ/プラグイン/サーバー関連情報/ユーザー情報/前回差分/運用セキュリティ/実行時間の各セクションが出力される。 |
+| クライアント向けPDF | `wp wpmar report export <id> --format=pdf --file=/tmp/wpmar-report.pdf` | 日本語を含む本文が正しく描画されたPDFファイルが生成される(`file /tmp/wpmar-report.pdf` で `PDF document` と判定される)。 |
+| メール送信 | 管理画面の設定でテスト用の宛先アドレスを1つ指定して `wp wpmar audit run --skip-snapshot` を実行 | 指定した宛先に2通(クライアント向けHTML本文、管理者向けテキスト本文)が届き、両方が正しく読める。 |
 
-`<id>` は「実行」ステップで得た `report_id`、または `wp maintenance-audit reports`
+`<id>` は「実行」ステップで得た `report_id`、または `wp wpmar report list`
 の出力の `id` 列を使う。
 
 ## 確認手順
@@ -48,18 +48,14 @@ Step 0〜7 の自動テスト(PHPUnit)は、`WPMAR_Data_Collector`/`wp_mail`/`wp
    検出できていない実環境固有の問題として扱う(自動テストの不足の可能性を
    検討し、必要ならこのチェックリストまたは対応するテストファイルを更新する)。
 
-## 既知の不具合
+## 既知の不具合(1.5.1 で修正済み)
 
-- **`wp maintenance-audit run --no-snapshot`(および `wp wpmar audit run --sync --no-snapshot`)は
-  一度も正常に動作しない**。docblock に `[--no-snapshot]` のみを宣言しており、対となる正の
-  フラグ `[--snapshot]` を宣言していないため、WP-CLI の引数パーサーが `--no-X` を「X という
-  正フラグの否定」として解釈しようとして `Error: unknown --snapshot parameter` で即エラー
-  終了する(`includes/cli/class-wpmar-cli-command.php:35,67`、
-  `includes/cli/class-wpmar-cli-audit-command.php:43,64`)。成功する CLI 実行は必ず
-  `persist_snapshots => true` になり、CLI からスナップショット保存をスキップする手段が
-  実質存在しない。修正方針は別セッションでプランをまとめる(旧 `wp maintenance-audit` を
-  新 `wp wpmar audit` へ統合してから対応する方針。詳細はメモリ
-  `wpmar-cli-no-snapshot-bug-and-command-consolidation` を参照)。
+- 旧 `--no-snapshot` は WP-CLI の `--no-X` 否定解釈と衝突し一度も正常に動作しなかった
+  (不具合A)。1.5.1 で正のフラグ `--skip-snapshot` に改名し解消した。
+- `wp wpmar storage migrate --no-revert` は `isset()` による読み取りのため `revert => true`
+  と誤読され、`--dry-run` を外すと全ファイルを巻き戻す破壊的誤爆になっていた(不具合B)。
+  1.5.1 で `WPMAR_CLI_Flags::bool()` 経由の読み取りに統一し解消した。
+  詳細はメモリ `wpmar-cli-no-snapshot-bug-and-command-consolidation` を参照。
 
 ## 作成時に実施した動作確認(2026-08-21)
 
