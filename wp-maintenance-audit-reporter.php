@@ -90,6 +90,7 @@ function wpmar_get_include_manifest() {
 		'includes/notify/class-wpmar-notifier-mail.php',
 		'includes/notify/class-wpmar-notification-dispatcher.php',
 		'includes/class-wpmar-cli-environment.php',
+		'includes/cli/class-wpmar-cli-flags.php',
 		'includes/class-wpmar-runner.php',
 		'includes/class-wpmar-network-runner.php',
 		'includes/class-wpmar-job-dispatcher.php',
