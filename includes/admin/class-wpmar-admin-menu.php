@@ -107,7 +107,7 @@ class WPMAR_Admin_Menu {
 			'stepLabel'        => __( '現在のステップ', 'wp-maintenance-audit-reporter' ),
 			'linkLog'          => __( '動作ログをダウンロード', 'wp-maintenance-audit-reporter' ),
 			'pollLoopbackNote' => __( 'Basic 認証環境のため、処理はこのページを開いている間に段階的に進行します。ページを閉じると処理が一時停止します。', 'wp-maintenance-audit-reporter' ),
-			'pollStalled'      => __( '処理が進んでいません。ループバックリクエストがブロックされている可能性があります。ページを開いたまましばらくお待ちいただくか、WP-CLI（wp wpmar audit run --sync）をご利用ください。', 'wp-maintenance-audit-reporter' ),
+			'pollStalled'      => __( '処理が進んでいません。ループバックリクエストがブロックされている可能性があります。ページを開いたまましばらくお待ちいただくか、WP-CLI（wp wpmar audit run）をご利用ください。', 'wp-maintenance-audit-reporter' ),
 		);
 	}
 
@@ -493,7 +493,7 @@ class WPMAR_Admin_Menu {
 						'wpmar_full',
 						sprintf(
 							/* translators: %s: reason the job could not be queued */
-							__( 'レポート生成をキューに追加できませんでした: %s WP-CLI（wp wpmar audit run --sync）での実行をご検討ください。', 'wp-maintenance-audit-reporter' ),
+							__( 'レポート生成をキューに追加できませんでした: %s WP-CLI（wp wpmar audit run）での実行をご検討ください。', 'wp-maintenance-audit-reporter' ),
 							$enqueued->get_error_message()
 						),
 						'error'
