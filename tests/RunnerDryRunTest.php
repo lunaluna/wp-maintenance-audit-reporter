@@ -4,7 +4,7 @@
  *
  * A dry run must return a JSON preview without touching the database, sending
  * mail, or taking the run lock — it is the QA-safe "what would this collect"
- * path exposed via `wp maintenance-audit run --dry`.
+ * path exposed via `wp wpmar audit run --dry-run`.
  *
  * @package WPMAR\Tests
  */

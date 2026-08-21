@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-21
+
+### Fixed
+
+- `--no-snapshot` never worked on either `wp maintenance-audit run` or `wp wpmar audit run` — WP-CLI's argument parser rejected it with `Error: unknown --snapshot parameter` because only the negative form was declared. Renamed to a positive flag, `--skip-snapshot`.
+- `wp wpmar storage migrate --no-revert` (and `--no-dry-run`, `--no-network`) were silently read as `true` by `isset( $assoc_flags[...] )`, so `--no-revert` without `--dry-run` actually reverted storage instead of migrating it. All CLI bool/int flag reads now go through the new `WPMAR_CLI_Flags` helper, which honours WP-CLI's `--no-<flag>` negation.
+- Admin-facing WP-CLI hints (loopback notice, settings pages, network admin) still referenced the removed `wp maintenance-audit run` command and the no-longer-required `--sync` flag.
+
+### Changed
+
+- Consolidated the two WP-CLI command namespaces into one: `wp wpmar audit` (run/test), `wp wpmar report` (list/delete/export), and `wp wpmar storage` (migrate). The legacy `wp maintenance-audit` namespace is removed.
+- `wp wpmar audit run` is synchronous by default; `--sync` is now a backward-compatible no-op and `--async` opt-in enqueues the run on the Action Scheduler queue instead.
+- `--same-setting` and `--id=<blog_id>` (previously legacy-only) and the `test` subcommand are now available under `wp wpmar audit`.
+
 ## [1.5.0] - 2026-08-20
 
 ### Changed

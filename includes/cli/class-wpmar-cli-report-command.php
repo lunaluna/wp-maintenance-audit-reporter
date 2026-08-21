@@ -1,6 +1,8 @@
 <?php
 /**
- * Registers `wp maintenance-audit *` routes; file is omitted on plain web bootstrap.
+ * Registers `wp wpmar report *` subcommands.
+ *
+ * @see WPMAR_Report_Repository
  *
  * @package WPMAR
  */
@@ -17,116 +19,9 @@ if ( ! ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 }
 
 /**
- * Thin adapter from argv to {@see WPMAR_Runner} and repositories.
+ * Lists, deletes, and exports persisted audit reports.
  */
-class WPMAR_CLI_Command extends WP_CLI_Command {
-
-	/**
-	 * Executes a concrete audit synchronously.
-	 *
-	 * ## OPTIONS
-	 *
-	 * [--dry]
-	 * : Harvest data without persisting or mailing.
-	 *
-	 * [--network]
-	 * : Run a multisite rollup audit (requires network audit enabled in network settings).
-	 *
-	 * [--no-snapshot]
-	 * : Skip snapshot persistence. Report is generated but the snapshot baseline is not updated.
-	 *
-	 * [--same-setting]
-	 * : (Requires --network) Collect data from the main site only instead of all target sites.
-	 *   Useful when all sites share identical plugins, themes, and configuration.
-	 *
-	 * [--id=<blog_id>]
-	 * : (Requires --network) Collect data from this specific blog ID only.
-	 *   Takes precedence over --same-setting when both are given.
-	 *
-	 * ## EXAMPLES
-	 *
-	 * wp maintenance-audit run
-	 * wp maintenance-audit run --dry
-	 * wp maintenance-audit run --network
-	 * wp maintenance-audit run --no-snapshot
-	 * wp maintenance-audit run --network --no-snapshot
-	 * wp maintenance-audit run --network --same-setting
-	 * wp maintenance-audit run --network --same-setting --no-snapshot
-	 * wp maintenance-audit run --network --id=2
-	 * wp maintenance-audit run --network --id=2 --no-snapshot
-	 *
-	 * @param array<int,string>             $positional  Positional arguments.
-	 * @param array<string,string|bool|int> $assoc_flags Associative CLI flags.
-	 * @return void
-	 */
-	public function run( $positional, $assoc_flags ) {
-		unset( $positional );
-
-		$dry          = isset( $assoc_flags['dry'] );
-		$network      = isset( $assoc_flags['network'] );
-		$no_snapshot  = isset( $assoc_flags['no-snapshot'] );
-		$same_setting = isset( $assoc_flags['same-setting'] );
-		$target_id    = isset( $assoc_flags['id'] ) ? absint( $assoc_flags['id'] ) : 0;
-
-		if ( $network ) {
-			if ( ! WPMAR_Network_Settings::is_multisite_available() ) {
-				WP_CLI::error( 'Multisite is not enabled on this installation.' );
-			}
-			if ( ! WPMAR_Network_Settings::is_network_audit_enabled() ) {
-				WP_CLI::error( 'Network rollup audit is disabled (enable it under Network Admin → Maintenance Audit).' );
-			}
-			if ( $target_id > 0 && ! get_blog_details( $target_id ) ) {
-				WP_CLI::error( sprintf( 'Blog ID %d does not exist on this network.', $target_id ) );
-			}
-
-			$runner = new WPMAR_Network_Runner();
-			$result = $runner->run(
-				array(
-					'dry'               => ! empty( $dry ),
-					'triggered_by'      => 'cli_network',
-					'persist_snapshots' => ! $no_snapshot,
-					'same_setting'      => $same_setting,
-					'target_blog_id'    => $target_id,
-				)
-			);
-		} else {
-			$runner = new WPMAR_Runner();
-			$result = $runner->run(
-				array(
-					'dry'               => ! empty( $dry ),
-					'triggered_by'      => 'cli',
-					'capture_cli'       => true,
-					'mail_override'     => '',
-					'persist_snapshots' => ! $no_snapshot,
-				)
-			);
-		}
-
-		// Echo structured JSON because operators often pipe CLI output downstream.
-		WP_CLI::success( wp_json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
-	}
-
-	/**
-	 * Runs collector dry mode (no DB writes besides CLI probe transient).
-	 *
-	 * @param array<int,string>             $positional  Positional arguments.
-	 * @param array<string,string|bool|int> $assoc_flags Flags.
-	 * @return void
-	 */
-	public function test( $positional, $assoc_flags ) {
-		unset( $positional, $assoc_flags );
-
-		$runner = new WPMAR_Runner();
-		$runner->run(
-			array(
-				'dry'          => true,
-				'triggered_by' => 'cli',
-				'capture_cli'  => true,
-			)
-		);
-
-		WP_CLI::success( 'Dry instrumentation completed.' );
-	}
+class WPMAR_CLI_Report_Command extends WP_CLI_Command {
 
 	/**
 	 * Prints recent persisted reports as a compact table.
@@ -136,14 +31,14 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	 * [--limit=<n>]
 	 * : Rows to retrieve (default 20).
 	 *
-	 * @param array<int,string>             $positional  Positional arguments.
+	 * @param array<int,string>             $positional  Positional arguments (unused).
 	 * @param array<string,string|bool|int> $assoc_flags Flags.
 	 * @return void
 	 */
-	public function reports( $positional, $assoc_flags ) {
+	public function list( $positional, $assoc_flags ) {
 		unset( $positional );
 
-		$limit = isset( $assoc_flags['limit'] ) ? absint( $assoc_flags['limit'] ) : 20;
+		$limit = WPMAR_CLI_Flags::int( $assoc_flags, 'limit', 20 );
 		if ( $limit <= 0 ) {
 			$limit = 20;
 		}
@@ -339,5 +234,4 @@ class WPMAR_CLI_Command extends WP_CLI_Command {
 	}
 }
 
-// Register umbrella command handled by WP-CLI's dispatcher.
-WP_CLI::add_command( 'maintenance-audit', 'WPMAR_CLI_Command' );
+WP_CLI::add_command( 'wpmar report', 'WPMAR_CLI_Report_Command' );

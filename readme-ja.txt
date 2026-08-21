@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -128,7 +128,7 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 
 **実行が途中で止まった場合、ログの最後の行が「最後に完了した処理」です** — 例えば最後の行が `gather:checksums:start` であれば、チェックサム検証の最中に停止したと分かります。致命的なエラーが起きた場合は `[ERROR] FATAL: ...` という行が追加で記録されます。プロセスが強制終了（`SIGKILL` や OOM キラーなど）されてこの記録すら書き込めなかった場合でも、約25分間更新のないジョブは自動的に「失敗」に切り替わり、エラー内容に「ハートビート途絶」と表示されます。
 
-**ログの取得方法（サポート依頼時など）** — レポート画面の「診断ログ」セクションから、ログを持つ直近のジョブ一覧を確認し、「表示」で末尾（最新約200行）をその場で確認、「ダウンロード」でファイルを取得できます。実行中・失敗したジョブの進捗パネル（設定・実行画面）にも、失敗時は「動作ログをダウンロード」リンクが表示されます。いずれも `manage_options` 権限とジョブごとの nonce で保護されているため、サポート依頼時にログファイルをそのまま共有しても問題ありません（設定のパスワードなどの秘匿情報はログに記録されません）。WP-CLI での同期実行（`wp wpmar audit run --sync`）でもログは生成されます（ジョブ ID は `cli-` で始まります）が、管理画面のジョブ一覧には出ないため、サーバー上で直接プライベート保存先の `logs/`（後述）を確認してください。
+**ログの取得方法（サポート依頼時など）** — レポート画面の「診断ログ」セクションから、ログを持つ直近のジョブ一覧を確認し、「表示」で末尾（最新約200行）をその場で確認、「ダウンロード」でファイルを取得できます。実行中・失敗したジョブの進捗パネル（設定・実行画面）にも、失敗時は「動作ログをダウンロード」リンクが表示されます。いずれも `manage_options` 権限とジョブごとの nonce で保護されているため、サポート依頼時にログファイルをそのまま共有しても問題ありません（設定のパスワードなどの秘匿情報はログに記録されません）。WP-CLI での同期実行（`wp wpmar audit run`）でもログは生成されます（ジョブ ID は `cli-` で始まります）が、管理画面のジョブ一覧には出ないため、サーバー上で直接プライベート保存先の `logs/`（後述）を確認してください。
 
 保存場所はプライベート保存先の `logs/`（ファイル名に推測不能なランダムトークンを付与し、`.htaccess` で直接アクセスから保護）です。直近20回分のみ保持され、古いログは実行のたびに自動削除されます。プラグインのアンインストール時にはディレクトリ全体が削除されます。
 
@@ -156,18 +156,44 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 
 = WP-CLI =
 
-本プラグインは 2 つのコマンド名前空間を登録します。`wp wpmar audit`（現行のエントリポイント。非同期ジョブ基盤を経由し、`--sync` で同期実行にフォールバック）と `wp maintenance-audit`（レガシー名前空間。レポート管理用サブコマンドも備える）です。どちらの `run` も、成功時に実行結果を整形済み JSON で出力します。
+本プラグインは `wp wpmar` 名前空間の下に `audit`(run/test)・`report`(list/delete/export)・`storage`(migrate)の3グループを登録します。`run` 系のコマンドは、成功時に実行結果を整形済み JSON で出力します。
 
-**`wp wpmar audit run`** — 監査を実行します。
+**`wp wpmar audit run`** — 監査を実行します。既定では同期実行されます。
 
-    wp wpmar audit run --sync [--dry-run] [--network] [--no-snapshot]
+    wp wpmar audit run [--dry-run] [--network] [--skip-snapshot] [--same-setting] [--id=<blog_id>] [--async] [--sync]
 
-* `--sync` — 必須。現在のプロセスで同期実行します（非同期キューは未実装のため、指定しないとエラー）。本番デバッグや手動運用での CloudFront タイムアウト回避にも使えます。
 * `--dry-run` — データ収集のみ。スナップショット保存・メール送信なし。
 * `--network` — マルチサイト集約監査（ネットワーク管理 → Maintenance Audit で有効化が必要）。
-* `--no-snapshot` — スナップショットの基準を更新せずにレポートのみ生成。
+* `--skip-snapshot` — スナップショットの基準を更新せずにレポートのみ生成。
+* `--same-setting` — `--network` が前提。全対象サイトではなく親サイトのみを監査。
+* `--id=<blog_id>` — `--network` が前提。指定した blog ID のみを監査。`--same-setting` より優先され、存在しない blog ID はエラー。
+* `--async` — 現在のプロセスで実行せず、Action Scheduler のキューに登録します。即座にジョブ ID を返し、実際の監査はキューが処理される（`wp action-scheduler run` または次の cron）まで進みません。`--sync` と同時指定はできません。
+* `--sync` — 旧スクリプトとの後方互換のために残しています。既に同期実行が既定のため no-op です。
 
-`--same-setting` / `--id` はこのコマンドにはありません。サイト単位のネットワーク指定はレガシーの `wp maintenance-audit run` を使ってください。
+**`wp wpmar audit test`** — コレクターをドライモードで実行（CLI プローブ用トランジェント以外の DB 書き込みなし）。フラグなし。
+
+    wp wpmar audit test
+
+**`wp wpmar report list`** — 保存済みレポートの一覧を表形式で表示します。
+
+    wp wpmar report list [--limit=<n>]
+
+* `--limit=<n>` — 取得する行数（既定 20）。
+
+**`wp wpmar report delete <id>`** — 保存済みレポートを完全に削除します。
+
+    wp wpmar report delete <id> [--yes]
+
+* `<id>` — レポートの数値 ID（必須）。
+* `--yes` — 確認プロンプトを省略。
+
+**`wp wpmar report export <id>`** — レポート成果物を STDOUT に出力（パイプ用）、またはファイルへ書き出します。
+
+    wp wpmar report export <id> [--format=<markdown|json|pdf>] [--file=<path>]
+
+* `<id>` — レポートの主キー（必須）。
+* `--format=<fmt>` — `markdown`（既定。管理者向け `body_md`）／ `json`（レポート行全体）／ `pdf`（クライアント向け）。`md` は `markdown` のエイリアス。
+* `--file=<path>` — STDOUT ではなくこのパスへ書き出し（他プラグインが CLI ブートストラップ時に PHP Notice を出す環境での PDF 取得に推奨）。親ディレクトリが存在し書き込み可能である必要があります。
 
 **`wp wpmar storage migrate`** — レポート・PDF・ログの保存先を保護済みプライベートストレージへ移行します（`--revert` で逆方向）。背景は上記「保存先ディレクトリ（プライベートストレージ）」を参照してください。
 
@@ -177,41 +203,6 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 * `--network` — ネットワーク内の全サイトを対象に実行します（サイトごとに `switch_to_blog()`）。指定しない場合は現在のサイトのみ処理します。
 * `--batch=<size>` — 内部バッチ処理の件数（既定 20）。バッチごとに進捗を保存するため、中断しても再実行で続きから処理されます。
 * `--revert` — 逆方向: ファイルを旧形式の `uploads/wpmar/` へ戻し、保存パスから `private:` プレフィックスを外します（ファイル名とトークンはそのまま維持）。v1.3.1 以前へのダウングレード用です。ダウングレードは意図的な運用操作であるため、管理画面には表示されません。
-
-**`wp maintenance-audit run`**（レガシー） — 監査を同期実行します。
-
-    wp maintenance-audit run [--dry] [--network] [--no-snapshot] [--same-setting] [--id=<blog_id>]
-
-* `--dry` — データ収集のみ。保存・メール送信なし。※このレガシーコマンドは `--dry`、`wp wpmar audit run` は `--dry-run` である点に注意。
-* `--network` — マルチサイト集約監査（ネットワーク監査の有効化が必要）。
-* `--no-snapshot` — スナップショットの基準を更新せずにレポートのみ生成。
-* `--same-setting` — `--network` が前提。全対象サイトではなく親サイトのみを監査。
-* `--id=<blog_id>` — `--network` が前提。指定した blog ID のみを監査。`--same-setting` より優先され、存在しない blog ID はエラー。
-
-**`wp maintenance-audit test`** — コレクターをドライモードで実行（CLI プローブ用トランジェント以外の DB 書き込みなし）。フラグなし。
-
-    wp maintenance-audit test
-
-**`wp maintenance-audit reports`** — 保存済みレポートの一覧を表形式で表示します。
-
-    wp maintenance-audit reports [--limit=<n>]
-
-* `--limit=<n>` — 取得する行数（既定 20）。
-
-**`wp maintenance-audit delete <id>`** — 保存済みレポートを完全に削除します。
-
-    wp maintenance-audit delete <id> [--yes]
-
-* `<id>` — レポートの数値 ID（必須）。
-* `--yes` — 確認プロンプトを省略。
-
-**`wp maintenance-audit export <id>`** — レポート成果物を STDOUT に出力（パイプ用）、またはファイルへ書き出します。
-
-    wp maintenance-audit export <id> [--format=<markdown|json|pdf>] [--file=<path>]
-
-* `<id>` — レポートの主キー（必須）。
-* `--format=<fmt>` — `markdown`（既定。管理者向け `body_md`）／ `json`（レポート行全体）／ `pdf`（クライアント向け）。`md` は `markdown` のエイリアス。
-* `--file=<path>` — STDOUT ではなくこのパスへ書き出し（他プラグインが CLI ブートストラップ時に PHP Notice を出す環境での PDF 取得に推奨）。親ディレクトリが存在し書き込み可能である必要があります。
 
 == Basic 認証環境での利用について ==
 
@@ -232,11 +223,11 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 Basic 認証環境で定期的にレポートを生成したい場合は、サーバーの cron から WP-CLI コマンドを直接実行してください。この方式は HTTP ループバックを一切使用しないため、Basic 認証の影響を受けません。
 
     # 毎月 1 日 午前 3 時に実行する例
-    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run
 
 マルチサイトの場合はサイトごとに `--url` を指定してください。
 
-    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --sync --url=https://example.com/site1/
+    0 3 1 * * cd /path/to/wordpress && wp wpmar audit run --url=https://example.com/site1/
 
 == インストール方法 ==
 
@@ -289,6 +280,14 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.1 =
+* 修正：`--no-snapshot` はどちらの WP-CLI コマンドでも一度も動作していませんでした。否定形のみを宣言していたため WP-CLI の引数パーサーに拒否されていたのが原因です。正のフラグ `--skip-snapshot` に改名しました。
+* 修正：`wp wpmar storage migrate --no-revert`（および `--no-dry-run` / `--no-network`）が `true` と誤読され、`--no-revert` を `--dry-run` なしで実行すると、意図せずストレージを巻き戻していました。
+* 修正：管理画面の WP-CLI 案内文言が、削除済みの `wp maintenance-audit run` コマンドと不要になった `--sync` フラグを参照したままでした。
+* 変更：2つあった WP-CLI 名前空間を1つに統合しました — `wp wpmar audit`（run/test）、`wp wpmar report`（list/delete/export）、`wp wpmar storage`（migrate）。レガシーの `wp maintenance-audit` 名前空間は削除されました。
+* 変更：`wp wpmar audit run` は既定で同期実行になりました。`--sync` は no-op、`--async` で Action Scheduler 経由の登録を opt-in できます。`--same-setting` / `--id=<blog_id>` と `test` サブコマンドもここで利用可能になりました。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.0 =
 * 変更：自己更新機構が、プラグイン独自実装から共有ライブラリ `l2d-wp-github-update-lib`（`lib/l2d-updater/` に同梱）を使う方式に変わりました。今後の更新チェッカーの不具合修正が、同じコードを共有する各プラグインに個別移植されず一度で済むようになります。挙動は変わりません：キャッシュのトランジェントキー（`wpmar_github_release_cache`）とドキュメント化済みのフィルタ名（`wpmar_github_updater_cache_ttl` / `wpmar_github_updater_backoff_ttl`）は従来どおり有効です。

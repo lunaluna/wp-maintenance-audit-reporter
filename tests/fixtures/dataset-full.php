@@ -2,7 +2,7 @@
 /**
  * A shrunk, anonymised stand-in for WPMAR_Data_Collector::gather()'s real return shape.
  *
- * Captured from an actual `wp maintenance-audit run --dry` dry_preview payload, then
+ * Captured from an actual `wp wpmar audit run --dry-run` dry_preview payload, then
  * reduced to a handful of representative rows per collection and stripped of any
  * real site name / URL / user identity. Keep the key structure exactly aligned with
  * WPMAR_Data_Collector::gather() — this fixture exists so Step 1+ tests never have

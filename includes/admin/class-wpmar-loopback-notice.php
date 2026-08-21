@@ -111,7 +111,7 @@ class WPMAR_Loopback_Notice {
 				<li><?php esc_html_e( 'レポートの手動生成は利用できます（処理はステータス確認中に段階的に進行します）。', 'wp-maintenance-audit-reporter' ); ?></li>
 				<li>
 					<?php esc_html_e( 'サーバーの cron から WP-CLI で確実に実行することもできます:', 'wp-maintenance-audit-reporter' ); ?>
-					<code>wp wpmar audit run --sync</code>
+					<code>wp wpmar audit run</code>
 				</li>
 			</ul>
 			<form method="post" action="<?php echo esc_url( self_admin_url( 'admin-post.php' ) ); ?>">
@@ -150,7 +150,7 @@ class WPMAR_Loopback_Notice {
 					sprintf(
 						/* translators: %s: WP-CLI command */
 						__( 'この環境ではループバックリクエストがブロックされているため、月次自動レポートは動作しません。サーバーの cron から %s を実行する運用をご検討ください。', 'wp-maintenance-audit-reporter' ),
-						'<code>wp wpmar audit run --sync</code>'
+						'<code>wp wpmar audit run</code>'
 					)
 				);
 				?>

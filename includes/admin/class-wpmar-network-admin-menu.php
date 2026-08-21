@@ -204,7 +204,7 @@ class WPMAR_Network_Admin_Menu {
 					add_settings_error(
 						'wpmar_network_messages',
 						'wpmar_network_full',
-						__( 'WP-Cron が無効（DISABLE_WP_CRON）のため、管理画面からの実行はできません。WP-CLI（wp maintenance-audit run --network）を使用するか、各サイトの設定画面から個別に実行してください。', 'wp-maintenance-audit-reporter' ),
+						__( 'WP-Cron が無効（DISABLE_WP_CRON）のため、管理画面からの実行はできません。WP-CLI（wp wpmar audit run --network）を使用するか、各サイトの設定画面から個別に実行してください。', 'wp-maintenance-audit-reporter' ),
 						'error'
 					);
 				} else {
