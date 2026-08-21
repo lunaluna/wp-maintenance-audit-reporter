@@ -141,65 +141,74 @@ class WPMAR_Notifier_Mail {
 		};
 		add_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
 
-		// Two separate sends keeps client copy lightweight while operators get the full blob.
-		$headers_admin = array( 'Content-Type: text/plain; charset=UTF-8' );
+		// finally guarantees these three hook registrations are undone even when
+		// wp_mail() (called below) throws — previously a mid-send exception left
+		// wp_mail_from / wp_mail_from_name / wp_mail_failed permanently registered.
+		try {
+			// Two separate sends keeps client copy lightweight while operators get the full blob.
+			$headers_admin = array( 'Content-Type: text/plain; charset=UTF-8' );
 
-		$site_label = sanitize_text_field( wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) );
-		$date_local = wp_date( 'Y-m-d' );
+			$site_label = sanitize_text_field( wp_specialchars_decode( get_option( 'blogname' ), ENT_QUOTES ) );
+			$date_local = wp_date( 'Y-m-d' );
 
-		/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
-		$client_subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
-		$client_subject      = sprintf( $client_subject_text, $site_label, $date_local );
+			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+			$client_subject_text = __( '[%1$s]様 WordPress 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+			$client_subject      = sprintf( $client_subject_text, $site_label, $date_local );
 
-		$html_enabled = (bool) apply_filters( 'wpmar_client_mail_html_enabled', true, $settings, $body_client );
-		$html_body    = '';
-		if ( $html_enabled ) {
-			$html_body = self::build_client_html_email_body( $body_client );
-		}
-
-		$client_batches = array();
-		if ( ! empty( $filtered_client ) ) {
-			$client_batches[] = $filtered_client;
-		}
-		if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_client, true ) ) {
-			$client_batches[] = $qa_extra;
-		}
-
-		$results = array();
-		foreach ( $client_batches as $client_to_batch ) {
-			if ( '' !== $html_body ) {
-				add_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10, 1 );
-				self::$client_mail_plain_alt = wp_strip_all_tags( (string) $body_client );
-
-				$headers_html = array( 'Content-Type: text/html; charset=UTF-8' );
-				$results[]    = wp_mail( $client_to_batch, $client_subject, $html_body, $headers_html );
-
-				remove_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10 );
-				self::$client_mail_plain_alt = null;
-			} else {
-				$headers_txt = array( 'Content-Type: text/plain; charset=UTF-8' );
-				$results[]   = wp_mail( $client_to_batch, $client_subject, wp_strip_all_tags( (string) $body_client ), $headers_txt );
+			$html_enabled = (bool) apply_filters( 'wpmar_client_mail_html_enabled', true, $settings, $body_client );
+			$html_body    = '';
+			if ( $html_enabled ) {
+				$html_body = self::build_client_html_email_body( $body_client );
 			}
+
+			$client_batches = array();
+			if ( ! empty( $filtered_client ) ) {
+				$client_batches[] = $filtered_client;
+			}
+			if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_client, true ) ) {
+				$client_batches[] = $qa_extra;
+			}
+
+			$results = array();
+			foreach ( $client_batches as $client_to_batch ) {
+				if ( '' !== $html_body ) {
+					// Inner finally guarantees the per-batch phpmailer_init hook and the
+					// static AltBody buffer are cleared even when this wp_mail() throws.
+					add_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10, 1 );
+					self::$client_mail_plain_alt = wp_strip_all_tags( (string) $body_client );
+
+					try {
+						$headers_html = array( 'Content-Type: text/html; charset=UTF-8' );
+						$results[]    = wp_mail( $client_to_batch, $client_subject, $html_body, $headers_html );
+					} finally {
+						remove_action( 'phpmailer_init', array( __CLASS__, 'phpmailer_set_client_alt_body' ), 10 );
+						self::$client_mail_plain_alt = null;
+					}
+				} else {
+					$headers_txt = array( 'Content-Type: text/plain; charset=UTF-8' );
+					$results[]   = wp_mail( $client_to_batch, $client_subject, wp_strip_all_tags( (string) $body_client ), $headers_txt );
+				}
+			}
+
+			/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
+			$admin_subject_text = __( '[%1$s] 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
+			$admin_subject      = sprintf( $admin_subject_text, $site_label, $date_local );
+
+			if ( ! empty( $filtered_admin ) ) {
+				$results[] = wp_mail( $filtered_admin, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
+			}
+
+			if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_admin, true ) ) {
+				$results[] = wp_mail( $qa_extra, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
+			}
+
+			// True only when every attempted batch returned truthy from wp_mail().
+			return count( array_filter( $results ) ) === count( $results ) && ! empty( $results );
+		} finally {
+			remove_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
+			remove_filter( 'wp_mail_from', $mail_from_email_callback );
+			remove_filter( 'wp_mail_from_name', $mail_from_name_callback );
 		}
-
-		/* translators: 1: site title, 2: report date (Y-m-d, site timezone) */
-		$admin_subject_text = __( '[%1$s] 保守メンテナンス レポート - %2$s', 'wp-maintenance-audit-reporter' );
-		$admin_subject      = sprintf( $admin_subject_text, $site_label, $date_local );
-
-		if ( ! empty( $filtered_admin ) ) {
-			$results[] = wp_mail( $filtered_admin, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
-		}
-
-		if ( '' !== $qa_extra && ! in_array( $qa_extra, $filtered_admin, true ) ) {
-			$results[] = wp_mail( $qa_extra, $admin_subject, wp_strip_all_tags( $body_admin ), $headers_admin );
-		}
-
-		remove_action( 'wp_mail_failed', $wpmar_mail_failed_handler );
-		remove_filter( 'wp_mail_from', $mail_from_email_callback );
-		remove_filter( 'wp_mail_from_name', $mail_from_name_callback );
-
-		// True only when every attempted batch returned truthy from wp_mail().
-		return count( array_filter( $results ) ) === count( $results ) && ! empty( $results );
 	}
 
 	/**

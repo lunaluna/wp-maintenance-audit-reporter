@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.4.1**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -325,6 +325,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.5.0** (2026-08-20) — Migrates the self-update mechanism to the shared `l2d-wp-github-update-lib` library (vendored into `lib/l2d-updater/`), replacing the plugin-local implementation; behaviour is unchanged (same cache key and filter names). Adds a `wpmar_github_updater_enabled` kill switch and makes the update-details "Description" come from this plugin's own header. Releases now publish as a GitHub Release draft first, requiring `gh release edit <tag> --draft=false` to go live — closes a real risk of unattended auto-update rollout to sites running `forced-auto-update-controller` alongside this plugin.
 - **v1.4.1** (2026-08-18) — GitHub-Releases update-mechanism bug-fix release, no new features. Removes the auto-generated-zipball fallback (`extract_zip_url()`) that could deactivate the plugin on install when a release had no matching asset; switches the update-availability comparison from the `WPMAR_VERSION` constant to the version WordPress actually reads from the plugin header, so drift between the two can no longer leave a stale or missing update notice; moves the release cache from a per-blog transient to a site-wide one, matching `Network: true`; reads "Requires PHP" / "Tested up to" from the plugin header instead of hardcoding them. Also unifies the distributed-zip exclusion list (`.distignore`, shared by `release.yml` and `bin/build-zip.sh`, replacing two lists that had already drifted) and extends the CI tag/version check from 1 location to 5.
 - **v1.4.0** (2026-08-09) — Multisite memory-hardening release. A network rollup now runs each site as its own independent background job (plus one aggregate job) instead of looping every site in one process, so peak memory no longer grows with site count and one site's failure no longer takes the whole run down; transient job/segment failures get a capped automatic retry (`wpmar_job_max_attempts`, default one retry), and wp.org plugin/theme metadata is cached network-wide (`wpmar_wporg_cache_ttl`). Adds "システム機能" screens (site + network) for the wp.org cache, run-lock recovery, the diagnostics log, and a persistent run/segment history recording duration and peak memory. Also fixes uninstall leaving `wp-content/wpmar-private/` (reports, PDFs, logs) and every sub-site's tables/sitemeta behind, and a network run lock held until timeout after a fatal error.
 - **v1.3.1** (2026-07-27) — Security release. Report/PDF/log storage moves to a protected `wp-content/wpmar-private/` directory by default (random-token filenames, auto `.htaccess`/`index.php`, `WPMAR_PRIVATE_STORAGE_DIR` override), fixing an unauthenticated disclosure issue; existing v1.3.0 files migrate automatically (`wp wpmar storage migrate`, with `--dry-run`/`--network`/`--revert`). Also unifies Parsedown safe mode across the PDF and HTML-email paths, enables `vendor-pdf.zip` checksum verification by default, and adds an `Update URI` header, `nosniff` on all downloads, capability-before-nonce ordering in the PDF installer, `SECURITY.md`, and CI hardening.
@@ -387,7 +388,7 @@ Implemented as **`.github/workflows/release.yml`**. Trigger: push of a `v*` tag 
 3. **`bash bin/build-zip.sh`** stages the plugin tree into `wp-maintenance-audit-reporter/` and zips it as `wp-maintenance-audit-reporter.<version>.zip`. CI and local builds share this one script so they can't drift apart. Excluded paths (`tests/`, `bin/`, `vendor/`, `fonts/`, and similar dev/build paths) come from **`.distignore`**, the single source of truth for what does *not* ship — Action Scheduler is bundled into `lib/action-scheduler/` by a separate step in the same script, since `vendor/` itself is excluded.
 4. A separate **`vendor-pdf.zip`** is created from the installed `vendor/` directory and attached to the release as an additional asset for on-demand installation via the admin UI.
 5. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
-6. `gh release create` publishes the GitHub Release with both zips attached.
+6. `gh release create` publishes the GitHub Release with both zips attached, as a **draft** — draft releases don't show up at `/releases/latest`, so no site picks them up via auto-update until a maintainer verifies the assets and publishes with `gh release edit <tag> --draft=false`.
 
 Pull-request CI continues to use **`composer install`** (dev deps) for PHPCS / PHPUnit via **`.github/workflows/ci.yml`**.
 
@@ -404,6 +405,10 @@ git push origin main
 git tag 1.0.0
 git push origin 1.0.0
 # (v-prefixed tags like v1.0.0 are also accepted.)
+
+# 3. release.yml publishes a draft. Download and verify the assets, then publish it:
+gh release download 1.0.0 -D /tmp/wpmar-release-check
+gh release edit 1.0.0 --draft=false
 ```
 
 ## License

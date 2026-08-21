@@ -72,8 +72,6 @@ class WPMAR_Plugin {
 			WPMAR_Storage_Migration_Notice::init();
 		}
 
-		WPMAR_GitHub_Updater::init();
-
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-command.php';
 			require_once WPMAR_PLUGIN_DIR . 'includes/cli/class-wpmar-cli-audit-command.php';

@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.4.1
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -289,6 +289,12 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.0 =
+* 変更：自己更新機構が、プラグイン独自実装から共有ライブラリ `l2d-wp-github-update-lib`（`lib/l2d-updater/` に同梱）を使う方式に変わりました。今後の更新チェッカーの不具合修正が、同じコードを共有する各プラグインに個別移植されず一度で済むようになります。挙動は変わりません：キャッシュのトランジェントキー（`wpmar_github_release_cache`）とドキュメント化済みのフィルタ名（`wpmar_github_updater_cache_ttl` / `wpmar_github_updater_backoff_ttl`）は従来どおり有効です。
+* 追加：更新チェッカー自体を無効化するキルスイッチ用フィルタ `wpmar_github_updater_enabled` を追加しました。公開後にリリースを引き戻す必要が生じた場合の応急停止手段として使えます。
+* 変更：更新詳細モーダルに表示される「説明」節が、ハードコードされた文言ではなく本プラグイン自身のヘッダーの `Description:` 行から取得されるようになりました。
+* 変更：リリースをまず GitHub Release の draft として公開するようになりました。担当者が添付アセットを検証してから `gh release edit <tag> --draft=false` を実行して本公開するまで、どのサイトも自動更新で取り込めません。
 
 = 1.4.1 =
 * 修正：更新チェッカーが、リリースに対応するプラグインアセットが見つからない場合にGitHub自動生成のzipballへフォールバックしないようになりました。このzipballは内部ディレクトリ名がプラグインのものと異なり、インストール時にプラグインが無効化されてしまう問題がありました。アセットが見つからない場合は正しく「更新なし」として扱われます。

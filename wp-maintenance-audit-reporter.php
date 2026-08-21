@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           1.4.1
+ * Version:           1.5.0
  * Requires at least: 6.0
  * Tested up to:      7.1
  * Requires PHP:      7.4
@@ -12,7 +12,7 @@
  * Author URI:        https://profiles.wordpress.org/lunaluna_dev/
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Update URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
+ * Update URI:        false
  * Text Domain:       wp-maintenance-audit-reporter
  * Domain Path:       /languages
  *
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.4.1' );
+define( 'WPMAR_VERSION', '1.5.0' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -36,6 +36,16 @@ define( 'WPMAR_REPORTS_PAGE_SLUG', 'wpmar-reports' );
 define( 'WPMAR_SYSTEM_STATUS_PAGE_SLUG', 'wpmar-system-status' );
 define( 'WPMAR_NETWORK_ADMIN_PAGE_SLUG', 'wpmar-network-maintenance-report' );
 define( 'WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG', 'wpmar-network-system-status' );
+
+$wpmar_updater_register = require WPMAR_PLUGIN_DIR . 'lib/l2d-updater/loader.php';
+$wpmar_updater_register(
+	array(
+		'plugin_file'   => __FILE__,
+		'github_repo'   => 'lunaluna/wp-maintenance-audit-reporter',
+		'cache_key'     => 'wpmar_github_release_cache',
+		'filter_prefix' => 'wpmar',
+	)
+);
 
 /*
  * Action Scheduler must load at plugin-file inclusion time — before the
@@ -97,7 +107,6 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-storage-fallback-notice.php',
 		'includes/admin/class-wpmar-storage-migration-notice.php',
 		'includes/admin/class-wpmar-pdf-installer.php',
-		'includes/class-wpmar-github-updater.php',
 	);
 }
 
