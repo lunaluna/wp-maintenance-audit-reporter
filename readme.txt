@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.2 =
+* Added: Core update copy now distinguishes "security patch applied, just an old major" from "known-vulnerable" using wp.org's stable-check API, instead of a single generic "an update is available" message for both. Applies to the admin body, the client body, and PDF/mail (since both derive from the client body), plus a new `wp_insecure` machine-readable code and its own warning-count slot.
+* Changed: `warning_count` now increases by 2 (not 1) for a site running a core version with unpatched known vulnerabilities, since "behind" and "known-vulnerable" are now tracked as separate signals.
 
 = 1.5.1 =
 * Fixed: `--no-snapshot` never worked on either WP-CLI command — WP-CLI's argument parser rejected it because only the negative form was declared. Renamed to a positive flag, `--skip-snapshot`.

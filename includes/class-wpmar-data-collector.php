@@ -52,6 +52,8 @@ class WPMAR_Data_Collector {
 		wp_update_themes();
 		WPMAR_Logger::step( 'gather:core-updates' );
 
+		$core_pending_upgrades = $this->gather_core_updates();
+
 		$dataset = array(
 			'meta'    => array(
 				'blogname' => get_option( 'blogname' ),
@@ -62,7 +64,8 @@ class WPMAR_Data_Collector {
 			'core'    => array(
 				'version'           => get_bloginfo( 'version' ),
 				'locale'            => get_locale(),
-				'available_updates' => $this->gather_core_updates(),
+				'available_updates' => $core_pending_upgrades,
+				'release_status'    => $this->gather_core_release_status( $core_pending_upgrades ),
 			),
 			'themes'  => $this->gather_themes_bundle(),
 			'plugins' => $this->gather_plugins_bundle(),
@@ -90,7 +93,7 @@ class WPMAR_Data_Collector {
 
 		$security = new WPMAR_Check_Security_Ops();
 		WPMAR_Logger::step( 'gather:security-ops:start' );
-		$dataset['security'] = $security->collect( $settings );
+		$dataset['security'] = $security->collect( $settings, $dataset );
 		WPMAR_Logger::step( 'gather:security-ops:done' );
 
 		$dataset['backup'] = $this->gather_backup_providers( $settings );
@@ -175,6 +178,104 @@ class WPMAR_Data_Collector {
 		$updates = get_core_updates( array( 'dismissed' => false ) );
 
 		return self::pending_core_upgrade_versions( $updates );
+	}
+
+	/**
+	 * Resolves this site's core release status (security-patch state) via wp.org's
+	 * stable-check API, delegating the classification to {@see self::core_release_status()}.
+	 *
+	 * Short-circuits when there is no pending upgrade: an already-latest site has nothing
+	 * to classify, so it is skipped to avoid fetching the ~20KB stable-check payload (and,
+	 * in a network rollup, doing so on every already-current site in the loop).
+	 *
+	 * @param string[] $pending_upgrades Output of {@see self::gather_core_updates()}.
+	 * @return array{status:string,branch:string,branch_tip:string,latest:string}
+	 */
+	protected function gather_core_release_status( array $pending_upgrades ) {
+		if ( empty( $pending_upgrades ) ) {
+			return array(
+				'status'     => 'latest',
+				'branch'     => '',
+				'branch_tip' => '',
+				'latest'     => '',
+			);
+		}
+
+		$stable_map = $this->org->fetch_core_stable_check();
+
+		return self::core_release_status( get_bloginfo( 'version' ), $stable_map );
+	}
+
+	/**
+	 * Classifies the installed core version against wp.org's stable-check map,
+	 * distinguishing "security patch applied, just an old major" from
+	 * "known-vulnerable" so report copy can carry the right urgency.
+	 *
+	 * A live snapshot of the map is ~859 `insecure` / 24 `outdated` / 1 `latest`
+	 * out of 884 keys: exactly one `outdated` (or `latest`) key per release
+	 * branch. Branch-tip lookup therefore uses a strict `major.minor` match
+	 * (`preg_match`) rather than `strpos( $key, $branch ) === 0`, since a
+	 * prefix match on `"7.0"` would also catch a distinct version like `"7.01"`.
+	 *
+	 * @param string $current_version Installed core version, e.g. `7.0.1`.
+	 * @param mixed  $stable_map      Version => status (`insecure`/`outdated`/`latest`) map from stable-check.
+	 * @return array{status:string,branch:string,branch_tip:string,latest:string}
+	 */
+	public static function core_release_status( $current_version, $stable_map ) {
+		$unknown = array(
+			'status'     => 'unknown',
+			'branch'     => '',
+			'branch_tip' => '',
+			'latest'     => '',
+		);
+
+		if ( ! is_array( $stable_map ) || ! isset( $stable_map[ $current_version ] ) ) {
+			return $unknown;
+		}
+
+		// Development builds (e.g. `7.2-alpha`) don't fit the release major.minor(.patch)
+		// shape, so there is no branch to compare against.
+		if ( ! preg_match( '/^(\d+\.\d+)(?:\.\d+)?$/', (string) $current_version, $m ) ) {
+			return $unknown;
+		}
+		$branch = $m[1];
+
+		$branch_tip = '';
+		$latest     = '';
+		foreach ( $stable_map as $version => $status ) {
+			if ( ! preg_match( '/^(\d+\.\d+)(?:\.\d+)?$/', (string) $version, $vm ) ) {
+				continue;
+			}
+			if ( 'latest' === $status ) {
+				$latest = (string) $version;
+			}
+			if ( $vm[1] !== $branch ) {
+				continue;
+			}
+			if ( ( 'outdated' === $status || 'latest' === $status )
+				&& ( '' === $branch_tip || version_compare( (string) $version, $branch_tip, '>' ) )
+			) {
+				$branch_tip = (string) $version;
+			}
+		}
+
+		$status_map = array(
+			'insecure' => 'insecure',
+			'outdated' => 'branch_tip',
+			'latest'   => 'latest',
+		);
+		$status     = (string) $stable_map[ $current_version ];
+
+		if ( ! isset( $status_map[ $status ] ) ) {
+			return $unknown;
+		}
+
+		return array(
+			'status'     => $status_map[ $status ],
+			'branch'     => $branch,
+			'branch_tip' => $branch_tip,
+			'latest'     => $latest,
+		);
 	}
 
 	/**

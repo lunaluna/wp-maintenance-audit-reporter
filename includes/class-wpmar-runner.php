@@ -858,6 +858,9 @@ class WPMAR_Runner {
 	protected static function render_client_pending_updates_shell_style( array $facts ) {
 		$sep = "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n";
 
+		$release_status = isset( $facts['core']['release_status'] ) && is_array( $facts['core']['release_status'] ) ? $facts['core']['release_status'] : array();
+		$rs_status      = isset( $release_status['status'] ) ? sanitize_key( (string) $release_status['status'] ) : 'unknown';
+
 		$core_lines = array();
 		if ( ! empty( $facts['core']['available_updates'] ) && is_array( $facts['core']['available_updates'] ) ) {
 			foreach ( $facts['core']['available_updates'] as $ver ) {
@@ -870,6 +873,14 @@ class WPMAR_Runner {
 					__( '* WordPress コアには新しいバージョン %s があります。', 'wp-maintenance-audit-reporter' ),
 					$ver
 				);
+
+				// `unknown`/`latest` add nothing here — same as the pre-1.5.2 copy (safe fallback
+				// when the stable-check lookup failed or was inconclusive).
+				if ( 'insecure' === $rs_status ) {
+					$core_lines[] = __( '* 現在のバージョンにはセキュリティ上の修正が適用されていません。至急のアップデートをおすすめします。', 'wp-maintenance-audit-reporter' );
+				} elseif ( 'branch_tip' === $rs_status ) {
+					$core_lines[] = __( '* セキュリティ上の修正は適用済みですが、新しいメジャーバージョンがリリースされています。', 'wp-maintenance-audit-reporter' );
+				}
 			}
 		}
 
@@ -1473,15 +1484,44 @@ class WPMAR_Runner {
 		$checksums = isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array();
 		$core_cs   = isset( $checksums['core'] ) && is_array( $checksums['core'] ) ? $checksums['core'] : array();
 
+		$release_status = isset( $core['release_status'] ) && is_array( $core['release_status'] ) ? $core['release_status'] : array();
+		$rs_status      = isset( $release_status['status'] ) ? sanitize_key( (string) $release_status['status'] ) : 'unknown';
+		$rs_branch      = isset( $release_status['branch'] ) ? sanitize_text_field( (string) $release_status['branch'] ) : '';
+		$rs_branch_tip  = isset( $release_status['branch_tip'] ) ? sanitize_text_field( (string) $release_status['branch_tip'] ) : '';
+
 		$update_line = '';
 		if ( ! empty( $pending ) ) {
-			$target      = sanitize_text_field( (string) $pending[0] );
-			$update_line = sprintf(
+			$target       = sanitize_text_field( (string) $pending[0] );
+			$version_line = sprintf(
 				/* translators: 1: current version, 2: newest offered version */
 				__( 'WordPress のコアファイルは最新ではありません。現在のバージョン: %1$s -> 最新バージョン: %2$s', 'wp-maintenance-audit-reporter' ),
 				$version,
 				$target
-			) . "\n　　" . __( 'コアファイルに最新バージョンがリリースされています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' );
+			);
+
+			// `insecure`/`branch_tip` need both a branch and a branch-tip version to name in
+			// the copy; if the stable-check lookup failed or is inconclusive (`unknown`/`latest`,
+			// or `branch`/`branch_tip` came back empty), fall back to the pre-1.5.2 generic line
+			// rather than surface a "%1$s 系の最新バージョン ()" with a blank placeholder.
+			if ( 'insecure' === $rs_status && '' !== $rs_branch && '' !== $rs_branch_tip ) {
+				$status_line = sprintf(
+					/* translators: 1: release branch (major.minor), 2: branch-tip version */
+					__( '%1$s 系の最新バージョン (%2$s) がリリース済みで、現在のバージョンはセキュリティパッチがあたっていない危険な状態です。至急セキュリティパッチのあたった最新バージョンへアップデートしてください。メジャーアップデートもリリース済みですので、可能な限りアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$rs_branch,
+					$rs_branch_tip
+				);
+			} elseif ( 'branch_tip' === $rs_status && '' !== $rs_branch && '' !== $rs_branch_tip ) {
+				$status_line = sprintf(
+					/* translators: 1: release branch (major.minor), 2: branch-tip version */
+					__( '%1$s 系の最新バージョン (%2$s) をご利用中ですが、メジャーアップデートがリリース済みです。可能な限りアップデートしてください。', 'wp-maintenance-audit-reporter' ),
+					$rs_branch,
+					$rs_branch_tip
+				);
+			} else {
+				$status_line = __( 'コアファイルに最新バージョンがリリースされています。可能な限り早くアップデートしてください。', 'wp-maintenance-audit-reporter' );
+			}
+
+			$update_line = $version_line . "\n　　" . $status_line;
 		} elseif ( '' !== $version ) {
 			$update_line = sprintf(
 				/* translators: %s: installed WordPress version */
