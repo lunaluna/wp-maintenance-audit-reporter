@@ -274,6 +274,49 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
+	 * Absolute path to the `vendor/` directory currently in effect.
+	 *
+	 * Resolution order: inside the plugin directory first — a development
+	 * checkout, or a site not yet migrated to the external location by
+	 * {@see wpmar_maybe_migrate_pdf_lib()} — then the external
+	 * `wpmar-pdf-lib` directory (see {@see wpmar_pdf_lib_dir()}). Doesn't
+	 * assert either path exists; callers use is_dir()/is_readable() as needed.
+	 *
+	 * @return string
+	 */
+	public static function vendor_dir() {
+		$inside = WPMAR_PLUGIN_DIR . 'vendor';
+		if ( is_dir( $inside ) ) {
+			return $inside;
+		}
+		return rtrim( wpmar_pdf_lib_dir(), '/\\' ) . '/vendor';
+	}
+
+	/**
+	 * Absolute path to the `fonts/` directory currently in effect.
+	 *
+	 * Same resolution order as {@see self::vendor_dir()}.
+	 *
+	 * @return string
+	 */
+	public static function fonts_dir() {
+		$inside = WPMAR_PLUGIN_DIR . 'fonts';
+		if ( is_dir( $inside ) ) {
+			return $inside;
+		}
+		return rtrim( wpmar_pdf_lib_dir(), '/\\' ) . '/fonts';
+	}
+
+	/**
+	 * Absolute path to the Composer autoloader currently in effect.
+	 *
+	 * @return string
+	 */
+	public static function autoload_path() {
+		return self::vendor_dir() . '/autoload.php';
+	}
+
+	/**
 	 * Whether the PDF vendor bundle is already present.
 	 *
 	 * @return bool

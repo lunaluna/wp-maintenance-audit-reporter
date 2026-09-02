@@ -58,6 +58,23 @@ $wpmar_updater_register(
 wpmar_maybe_load_action_scheduler();
 
 /**
+ * Absolute path (trailing slash) to the directory the PDF library (mPDF +
+ * fonts) lives in outside the plugin directory.
+ *
+ * Placed at `WP_CONTENT_DIR` rather than under `wp_upload_dir()` because the
+ * uploads directory is per-site on multisite, which would multiply the ~94 MB
+ * bundle by the number of sites; `wp-content` is shared network-wide, matching
+ * the single-copy behaviour the plugin already had when the library lived
+ * inside the (also shared) plugin directory. Override with the
+ * `wpmar_pdf_lib_dir` filter (e.g. to move it off a read-only `wp-content`).
+ *
+ * @return string
+ */
+function wpmar_pdf_lib_dir() {
+	return trailingslashit( (string) apply_filters( 'wpmar_pdf_lib_dir', WP_CONTENT_DIR . '/wpmar-pdf-lib/' ) );
+}
+
+/**
  * Includes loaded for activation hooks and runtime.
  *
  * @return array<int, string>
@@ -123,9 +140,20 @@ function wpmar_require_includes_once() {
 		return;
 	}
 
-	$autoload = WPMAR_PLUGIN_DIR . 'vendor/autoload.php';
-	if ( is_readable( $autoload ) ) {
-		require_once $autoload;
+	// Resolution order: inside the plugin directory first (development
+	// checkouts and sites not yet migrated to the external location), then
+	// the external `wpmar-pdf-lib` directory (see wpmar_pdf_lib_dir()).
+	// Not routed through WPMAR_PDF_Installer::autoload_path() — that class
+	// is itself still unrequired at this point in the manifest loop below.
+	$autoload_candidates = array(
+		WPMAR_PLUGIN_DIR . 'vendor/autoload.php',
+		wpmar_pdf_lib_dir() . 'vendor/autoload.php',
+	);
+	foreach ( $autoload_candidates as $autoload_candidate ) {
+		if ( is_readable( $autoload_candidate ) ) {
+			require_once $autoload_candidate;
+			break;
+		}
 	}
 
 	foreach ( wpmar_get_include_manifest() as $relative_path ) {

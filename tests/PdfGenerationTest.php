@@ -42,6 +42,7 @@ if ( ! defined( 'WPMAR_PLUGIN_DIR' ) ) {
 
 require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-private-storage.php';
+require_once dirname( __DIR__ ) . '/includes/admin/class-wpmar-pdf-installer.php';
 require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-pdf-writer.php';
 
 /**
@@ -126,6 +127,7 @@ define( 'WP_CONTENT_DIR', {$this->php_export( $storage_dir . '-content' )} );
 define( 'WPMAR_PRIVATE_STORAGE_DIR', {$this->php_export( $storage_dir )} );
 require {$this->php_export( __DIR__ . '/wp-stubs.php' )};
 require {$this->php_export( $plugin_root . '/includes/storage/class-wpmar-private-storage.php' )};
+require {$this->php_export( $plugin_root . '/includes/admin/class-wpmar-pdf-installer.php' )};
 require {$this->php_export( $plugin_root . '/includes/storage/class-wpmar-pdf-writer.php' )};
 
 \$result = WPMAR_PDF_Writer::write_pdf_from_markdown( '# タイトル', 'report' );
@@ -206,6 +208,7 @@ define( 'WPMAR_PLUGIN_DIR', {$this->php_export( $fontless_dir . '/' )} );
 require {$this->php_export( $plugin_root . '/vendor/autoload.php' )};
 require {$this->php_export( __DIR__ . '/wp-stubs.php' )};
 require {$this->php_export( $plugin_root . '/includes/storage/class-wpmar-private-storage.php' )};
+require {$this->php_export( $plugin_root . '/includes/admin/class-wpmar-pdf-installer.php' )};
 require {$this->php_export( $plugin_root . '/includes/storage/class-wpmar-pdf-writer.php' )};
 
 if ( ! WPMAR_PDF_Writer::is_available() ) {

@@ -578,6 +578,20 @@ if ( ! function_exists( 'is_wp_error' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wpmar_pdf_lib_dir' ) ) {
+	/**
+	 * Test double mirroring the real definition in wp-maintenance-audit-reporter.php
+	 * (that file is never require'd by this suite — its bootstrap side effects,
+	 * the l2d-updater load and Action Scheduler among them, are out of scope
+	 * here). Callers require WP_CONTENT_DIR to already be defined, same as production.
+	 *
+	 * @return string
+	 */
+	function wpmar_pdf_lib_dir() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return trailingslashit( (string) apply_filters( 'wpmar_pdf_lib_dir', WP_CONTENT_DIR . '/wpmar-pdf-lib/' ) );
+	}
+}
+
 if ( ! function_exists( 'wpmar_action_scheduler_available' ) ) {
 	/**
 	 * Test double for the Action Scheduler availability gate.
