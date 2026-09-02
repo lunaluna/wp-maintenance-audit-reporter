@@ -1485,9 +1485,9 @@ class WPMAR_Runner {
 		$core_cs   = isset( $checksums['core'] ) && is_array( $checksums['core'] ) ? $checksums['core'] : array();
 
 		$release_status = isset( $core['release_status'] ) && is_array( $core['release_status'] ) ? $core['release_status'] : array();
-		$rs_status       = isset( $release_status['status'] ) ? sanitize_key( (string) $release_status['status'] ) : 'unknown';
-		$rs_branch       = isset( $release_status['branch'] ) ? sanitize_text_field( (string) $release_status['branch'] ) : '';
-		$rs_branch_tip   = isset( $release_status['branch_tip'] ) ? sanitize_text_field( (string) $release_status['branch_tip'] ) : '';
+		$rs_status      = isset( $release_status['status'] ) ? sanitize_key( (string) $release_status['status'] ) : 'unknown';
+		$rs_branch      = isset( $release_status['branch'] ) ? sanitize_text_field( (string) $release_status['branch'] ) : '';
+		$rs_branch_tip  = isset( $release_status['branch_tip'] ) ? sanitize_text_field( (string) $release_status['branch_tip'] ) : '';
 
 		$update_line = '';
 		if ( ! empty( $pending ) ) {
