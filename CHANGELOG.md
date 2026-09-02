@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-09-02
+
+### Added
+
+- Core update copy now distinguishes "security patch applied, just an old major" from "known-vulnerable" using wp.org's stable-check API (`https://api.wordpress.org/core/stable-check/1.0/`), instead of a single generic "an update is available" message for both. Applies to the admin body, the client body, and PDF/mail (both derive from the client body). Adds a `wp_insecure` machine-readable summary code and a dedicated warning-count slot.
+
+### Changed
+
+- `warning_count` now increases by 2 (not 1) for a site running a core version with unpatched known vulnerabilities — "behind" and "known-vulnerable" are tracked as separate signals.
+
 ## [1.5.1] - 2026-08-21
 
 ### Fixed

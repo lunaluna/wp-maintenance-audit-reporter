@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.5.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,10 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.2 =
+* 追加：コアの更新文言が、「セキュリティパッチ適用済み・メジャーが古いだけ」と「既知の脆弱性あり」を wp.org の stable-check API で判定して出し分けるようになりました。従来はどちらも同じ汎用文言でした。管理者向け本文・クライアント向け本文、および PDF・メール(クライアント向け本文から生成されるため)に反映されます。マシン可読コード `wp_insecure` と、専用の警告カウント枠も追加しました。
+* 変更：既知の脆弱性が残っているコアバージョンのサイトは、`warning_count` が(1ではなく)2 増えるようになりました。「更新が遅れている」ことと「既知の脆弱性が残っている」ことを別のシグナルとして扱うためです。
 
 = 1.5.1 =
 * 修正：`--no-snapshot` はどちらの WP-CLI コマンドでも一度も動作していませんでした。否定形のみを宣言していたため WP-CLI の引数パーサーに拒否されていたのが原因です。正のフラグ `--skip-snapshot` に改名しました。
