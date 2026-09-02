@@ -140,11 +140,20 @@ function wpmar_require_includes_once() {
 		return;
 	}
 
+	// Required standalone (ahead of the manifest loop below, which would also
+	// require it) so maybe_migrate() can run before the autoload require: doing
+	// the migration first, and the autoload lookup after, matters because
+	// loading the autoloader would otherwise cache the in-plugin absolute path
+	// in its classmap, breaking mPDF/Parsedown class resolution for the rest of
+	// any request that migrated vendor/ mid-flight.
+	require_once WPMAR_PLUGIN_DIR . 'includes/admin/class-wpmar-pdf-installer.php';
+	WPMAR_PDF_Installer::maybe_migrate();
+
 	// Resolution order: inside the plugin directory first (development
 	// checkouts and sites not yet migrated to the external location), then
 	// the external `wpmar-pdf-lib` directory (see wpmar_pdf_lib_dir()).
-	// Not routed through WPMAR_PDF_Installer::autoload_path() — that class
-	// is itself still unrequired at this point in the manifest loop below.
+	// Not routed through WPMAR_PDF_Installer::autoload_path() to avoid a
+	// naming/behavior mismatch with the require_once semantics needed here.
 	$autoload_candidates = array(
 		WPMAR_PLUGIN_DIR . 'vendor/autoload.php',
 		wpmar_pdf_lib_dir() . 'vendor/autoload.php',

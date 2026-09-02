@@ -317,6 +317,74 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
+	 * Migrates an existing in-plugin PDF library (`vendor/` + `fonts/`) out to
+	 * the external {@see wpmar_pdf_lib_dir()} location, so it survives future
+	 * plugin updates regardless of upgrade path (WP-CLI, bulk_upgrade, zip
+	 * overwrite, or — the one the existing backup/restore hooks above can't
+	 * cover — an update applied while the plugin is deactivated).
+	 *
+	 * MUST run before the Composer autoload is required — see the call site in
+	 * wp-maintenance-audit-reporter.php's wpmar_require_includes_once(). Loading
+	 * the autoloader first would let it cache the in-plugin absolute path in its
+	 * classmap, so a request that migrated mid-flight would still resolve
+	 * mPDF/Parsedown classes against a `vendor/` directory that no longer exists.
+	 *
+	 * Guarded by is_dir()/is_file() checks only, deliberately not a DB option
+	 * flag: that keeps this self-healing on every load — an interrupted attempt
+	 * (e.g. vendor/ moved but fonts/ then failed) simply gets no worse and never
+	 * gets "stuck" behind a stale completed flag.
+	 *
+	 * @return void
+	 */
+	public static function maybe_migrate() {
+		$lib_dir = wpmar_pdf_lib_dir();
+
+		// Already migrated (self-healing: nothing left to do on this and every later load).
+		if ( is_dir( $lib_dir . 'vendor' ) ) {
+			return;
+		}
+
+		// Development checkout: distributed release zips exclude composer.json
+		// via .distignore, so its presence reliably marks a `git clone` / local
+		// dev tree. Never touch a Composer-managed vendor/ a developer relies on.
+		if ( is_file( WPMAR_PLUGIN_DIR . 'composer.json' ) ) {
+			return;
+		}
+
+		$plugin_vendor = WPMAR_PLUGIN_DIR . 'vendor';
+		if ( ! is_dir( $plugin_vendor ) ) {
+			return; // Nothing installed yet; nothing to migrate.
+		}
+
+		if ( ! wp_mkdir_p( $lib_dir ) ) {
+			return; // wp-content not writable here; keep serving from the plugin directory.
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- one-time move within wp-content; WP_Filesystem has no equivalent.
+		if ( ! @rename( $plugin_vendor, $lib_dir . 'vendor' ) ) {
+			// Leave everything as-is: self::vendor_dir()'s "inside the plugin
+			// first" resolution order keeps this site running on the in-plugin
+			// copy exactly as before.
+			error_log( 'WPMAR: failed to migrate PDF library vendor/ to ' . $lib_dir . 'vendor (rename() failed); continuing with the in-plugin copy.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- no job context is active this early in bootstrap for WPMAR_Logger to record into.
+			return;
+		}
+
+		$plugin_fonts = WPMAR_PLUGIN_DIR . 'fonts';
+		if ( is_dir( $plugin_fonts ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- see above.
+			if ( ! @rename( $plugin_fonts, $lib_dir . 'fonts' ) ) {
+				error_log( 'WPMAR: failed to migrate PDF library fonts/ to ' . $lib_dir . 'fonts (rename() failed); vendor/ was already moved, fonts/ remains in the plugin directory.' ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- see above.
+			}
+		}
+
+		$index = $lib_dir . 'index.php';
+		if ( ! file_exists( $index ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- one-time guard file inside our own directory.
+			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
+		}
+	}
+
+	/**
 	 * Whether the PDF vendor bundle is already present.
 	 *
 	 * @return bool
