@@ -178,6 +178,78 @@ class WPMAR_Data_Collector {
 	}
 
 	/**
+	 * Classifies the installed core version against wp.org's stable-check map,
+	 * distinguishing "security patch applied, just an old major" from
+	 * "known-vulnerable" so report copy can carry the right urgency.
+	 *
+	 * A live snapshot of the map is ~859 `insecure` / 24 `outdated` / 1 `latest`
+	 * out of 884 keys: exactly one `outdated` (or `latest`) key per release
+	 * branch. Branch-tip lookup therefore uses a strict `major.minor` match
+	 * (`preg_match`) rather than `strpos( $key, $branch ) === 0`, since a
+	 * prefix match on `"7.0"` would also catch a distinct version like `"7.01"`.
+	 *
+	 * @param string $current_version Installed core version, e.g. `7.0.1`.
+	 * @param mixed  $stable_map      Version => status (`insecure`/`outdated`/`latest`) map from stable-check.
+	 * @return array{status:string,branch:string,branch_tip:string,latest:string}
+	 */
+	public static function core_release_status( $current_version, $stable_map ) {
+		$unknown = array(
+			'status'     => 'unknown',
+			'branch'     => '',
+			'branch_tip' => '',
+			'latest'     => '',
+		);
+
+		if ( ! is_array( $stable_map ) || ! isset( $stable_map[ $current_version ] ) ) {
+			return $unknown;
+		}
+
+		// Development builds (e.g. `7.2-alpha`) don't fit the release major.minor(.patch)
+		// shape, so there is no branch to compare against.
+		if ( ! preg_match( '/^(\d+\.\d+)(?:\.\d+)?$/', (string) $current_version, $m ) ) {
+			return $unknown;
+		}
+		$branch = $m[1];
+
+		$branch_tip = '';
+		$latest     = '';
+		foreach ( $stable_map as $version => $status ) {
+			if ( ! preg_match( '/^(\d+\.\d+)(?:\.\d+)?$/', (string) $version, $vm ) ) {
+				continue;
+			}
+			if ( 'latest' === $status ) {
+				$latest = (string) $version;
+			}
+			if ( $vm[1] !== $branch ) {
+				continue;
+			}
+			if ( ( 'outdated' === $status || 'latest' === $status )
+				&& ( '' === $branch_tip || version_compare( (string) $version, $branch_tip, '>' ) )
+			) {
+				$branch_tip = (string) $version;
+			}
+		}
+
+		$status_map = array(
+			'insecure' => 'insecure',
+			'outdated' => 'branch_tip',
+			'latest'   => 'latest',
+		);
+		$status     = (string) $stable_map[ $current_version ];
+
+		if ( ! isset( $status_map[ $status ] ) ) {
+			return $unknown;
+		}
+
+		return array(
+			'status'     => $status_map[ $status ],
+			'branch'     => $branch,
+			'branch_tip' => $branch_tip,
+			'latest'     => $latest,
+		);
+	}
+
+	/**
 	 * Maps installed themes to metadata plus WordPress.org intel.
 	 *
 	 * @return array<string,mixed>
