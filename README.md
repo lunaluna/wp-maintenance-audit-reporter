@@ -110,6 +110,19 @@ Installing (both download and manual upload) requires the `install_plugins` capa
 - **ドライラン** — collects data only and shows a summary; no snapshot, mail, or file output.
 - **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed); while running, the panel also shows the current step (e.g. `gather:checksums:start`) and seconds since the last update. On completion it renders preview/download links; on failure it shows a "動作ログをダウンロード" (download log) link — see "診断ログ（動作ログ）" below.
 
+### システム機能 (System Tools) screen
+
+View/clear the wp.org cache, manually recover a stuck run lock, and read the run/segment history (duration, peak memory) — available per-site and network-wide.
+
+#### Snapshot preview
+
+The "スナップショットをプレビュー" (Preview snapshot) button under 実行履歴 (run history) expands the stored diff-baseline snapshots — the latest 2 generations for each of core/themes/plugins/users — as formatted Markdown.
+
+- **This is not a copy of the audit report body.** What's stored is a slug → version map used purely for diffing (e.g. `akismet` → `5.7.2`); it carries no active/inactive flag, display name, or update-available status.
+- Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users); anything older is pruned automatically on the next audit run.
+- **On multisite, the site-level screen is restricted to super admins.** A subsite administrator holding `manage_options` will not see this section at all: plugin/theme files are shared network-wide, so showing them here would leak information a subsite admin cannot normally access, and the users snapshot also carries plain-text email addresses.
+- The network admin "システム機能" screen offers a site picker to view any one site's snapshots across the network (super admin only, `manage_network_options`).
+
 ### レポート (Reports) screen
 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
