@@ -181,6 +181,37 @@ class WPMAR_Network_Settings_Page {
 							</td>
 						</tr>
 					</table>
+					<p class="description">
+						<?php esc_html_e( 'ここで除外したサイトは監査自体が行われません（スナップショットも更新されません）。レポートの掲載範囲だけを変えたい場合は『レポート出力範囲』を使ってください。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+				</div>
+
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'レポート出力範囲', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<?php $report_scope = isset( $settings['report']['scope'] ) ? (string) $settings['report']['scope'] : 'all'; ?>
+					<fieldset class="wpmar-report-scope">
+						<legend class="screen-reader-text"><?php esc_html_e( 'レポート出力範囲', 'wp-maintenance-audit-reporter' ); ?></legend>
+						<label for="wpmar-report-scope-all">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-all" value="all" <?php checked( 'all', $report_scope ); ?> />
+							<?php esc_html_e( 'すべてのサイト（デフォルト）', 'wp-maintenance-audit-reporter' ); ?>
+						</label><br />
+						<label for="wpmar-report-scope-main">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-main" value="main_only" <?php checked( 'main_only', $report_scope ); ?> />
+							<?php esc_html_e( '親サイト（メインサイト）のみ', 'wp-maintenance-audit-reporter' ); ?>
+						</label><br />
+						<label for="wpmar-report-scope-selected">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-selected" value="main_and_selected" <?php checked( 'main_and_selected', $report_scope ); ?> />
+							<?php esc_html_e( '親サイト + 指定した子サイト', 'wp-maintenance-audit-reporter' ); ?>
+						</label>
+						<p>
+							<label for="wpmar-report-blog-ids"><?php esc_html_e( '子サイトの blog ID', 'wp-maintenance-audit-reporter' ); ?></label><br />
+							<textarea class="large-text code" rows="3" name="wpmar_report_blog_ids" id="wpmar-report-blog-ids"><?php echo esc_textarea( implode( "\n", array_map( 'strval', (array) ( $settings['report']['blog_ids'] ?? array() ) ) ) ); ?></textarea>
+							<span class="description"><?php esc_html_e( '1行1件、またはカンマ区切り。「親サイト + 指定した子サイト」のときだけ使われます。', 'wp-maintenance-audit-reporter' ); ?></span>
+						</p>
+					</fieldset>
+					<p class="description">
+						<?php esc_html_e( '保存され、定期実行を含むすべての実行に適用されます。監査はすべてのサイトで実行され、レポートに載せる範囲だけが変わります。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
 				</div>
 
 				<div class="wpmar-section-panel">
