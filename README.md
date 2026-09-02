@@ -110,6 +110,19 @@ Installing (both download and manual upload) requires the `install_plugins` capa
 - **ドライラン** — collects data only and shows a summary; no snapshot, mail, or file output.
 - **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed); while running, the panel also shows the current step (e.g. `gather:checksums:start`) and seconds since the last update. On completion it renders preview/download links; on failure it shows a "動作ログをダウンロード" (download log) link — see "診断ログ（動作ログ）" below.
 
+### システム機能 (System Tools) screen
+
+View/clear the wp.org cache, manually recover a stuck run lock, and read the run/segment history (duration, peak memory) — available per-site and network-wide.
+
+#### Snapshot preview
+
+The "スナップショットをプレビュー" (Preview snapshot) button under 実行履歴 (run history) expands the stored diff-baseline snapshots — the latest 2 generations for each of core/themes/plugins/users — as formatted Markdown.
+
+- **This is not a copy of the audit report body.** What's stored is a slug → version map used purely for diffing (e.g. `akismet` → `5.7.2`); it carries no active/inactive flag, display name, or update-available status.
+- Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users); anything older is pruned automatically on the next audit run.
+- **On multisite, the site-level screen is restricted to super admins.** A subsite administrator holding `manage_options` will not see this section at all: plugin/theme files are shared network-wide, so showing them here would leak information a subsite admin cannot normally access, and the users snapshot also carries plain-text email addresses.
+- The network admin "システム機能" screen offers a site picker to view any one site's snapshots across the network (super admin only, `manage_network_options`).
+
 ### レポート (Reports) screen
 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
@@ -307,6 +320,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.5.3** (2026-09-02) — Adds a snapshot preview to both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.
 - **v1.5.2.1** (2026-09-02) — `wp wpmar audit run --network` now prompts for confirmation before a synchronous run (no `--async`, dry-run or not), since it loops every target site in a single PHP process and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual; `--same-setting`/`--id=<blog_id>` runs are unaffected.
 - **v1.5.2** (2026-09-02) — Core update copy now distinguishes "security patch applied, just an old major" from "known-vulnerable" using wp.org's stable-check API, instead of one generic "an update is available" message for both. Applies to the admin body, the client body, and PDF/mail. Adds a `wp_insecure` machine-readable summary code and a dedicated warning-count slot; a site with unpatched known vulnerabilities now increases `warning_count` by 2 instead of 1.
 - **v1.5.1** (2026-08-21) — Consolidates the two WP-CLI namespaces into one: `wp wpmar audit` (run/test), `wp wpmar report` (list/delete/export), and `wp wpmar storage` (migrate); the legacy `wp maintenance-audit` namespace is removed. `wp wpmar audit run` is now synchronous by default (`--sync` becomes a no-op, `--async` opt-in enqueues via Action Scheduler) and gains `--same-setting`/`--id=<blog_id>`. Fixes `--no-snapshot` never having worked (renamed to `--skip-snapshot`) and a bug where `wp wpmar storage migrate --no-revert` was silently read as `revert => true`, risking a destructive rollback without `--dry-run`.

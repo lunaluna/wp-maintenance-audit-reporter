@@ -155,4 +155,100 @@ class WPMAR_Snapshot_Repository {
 
 		return is_numeric( $affected ) ? (int) $affected : 0;
 	}
+
+	/**
+	 * Recent rows for one type, newest first, with id + captured_at retained.
+	 *
+	 * The latest() method drops id/captured_at because the diff engine only needs the payload;
+	 * the preview screen needs to show *when* each generation was captured, so this
+	 * returns the envelope too. Ordering matches latest() and prune_keep() exactly -
+	 * change one and you must change all three, or the preview will disagree with
+	 * the row prune_keep() decided to keep.
+	 *
+	 * @param string $type  core|themes|plugins|users.
+	 * @param int    $limit Maximum rows (0 returns an empty array).
+	 * @return array<int,array{id:int,captured_at:string,payload:array<string,mixed>}>
+	 */
+	public function recent( $type, $limit = 2 ) {
+		$limit = absint( $limit );
+		if ( 0 === $limit ) {
+			return array();
+		}
+
+		$sql = $this->db->prepare(
+			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name built from prefix + known suffix.
+			"SELECT id, captured_at, snapshot_json FROM {$this->table} WHERE snapshot_type=%s ORDER BY captured_at DESC, id DESC LIMIT %d",
+			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			sanitize_key( $type ),
+			$limit
+		);
+
+		$rows = $this->db->get_results( $sql, ARRAY_A );
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$result = array();
+		foreach ( $rows as $row ) {
+			// A row with unparseable JSON still surfaces (with an empty payload) rather than
+			// vanishing from the list; a single corrupt row must not hide the others.
+			$decoded = isset( $row['snapshot_json'] ) ? json_decode( $row['snapshot_json'], true ) : null;
+
+			$result[] = array(
+				'id'          => isset( $row['id'] ) ? (int) $row['id'] : 0,
+				'captured_at' => isset( $row['captured_at'] ) ? (string) $row['captured_at'] : '',
+				'payload'     => is_array( $decoded ) ? $decoded : array(),
+			);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Distinct snapshot types present in the table, alphabetically.
+	 *
+	 * Read from the table rather than hard-coding core/themes/plugins/users so rows
+	 * written by a future dimension still show up in the preview.
+	 *
+	 * @return array<int,string>
+	 */
+	public function types() {
+		$sql =
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- static table literal, no user input.
+			"SELECT DISTINCT snapshot_type FROM `{$this->table}`";
+
+		$rows = $this->db->get_results( $sql, ARRAY_A );
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$types = array();
+		foreach ( $rows as $row ) {
+			if ( isset( $row['snapshot_type'] ) ) {
+				$types[] = (string) $row['snapshot_type'];
+			}
+		}
+
+		$types = array_values( array_unique( $types ) );
+		sort( $types );
+
+		return $types;
+	}
+
+	/**
+	 * Whether this blog's snapshot table exists.
+	 *
+	 * Not hypothetical: upgrade_database_if_needed() only runs once a request hits
+	 * that blog, so on alpine-dealer.local `wpmar_network_segments` exists on 4 of
+	 * 20 sites. A cross-site view must never assume the table is there.
+	 *
+	 * @return bool
+	 */
+	public function table_exists() {
+		$sql = $this->db->prepare( 'SHOW TABLES LIKE %s', $this->db->esc_like( $this->table ) );
+
+		return ! empty( $this->db->get_var( $sql ) );
+	}
 }

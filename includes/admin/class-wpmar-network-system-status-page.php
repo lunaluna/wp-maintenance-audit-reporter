@@ -159,8 +159,155 @@ class WPMAR_Network_System_Status_Page {
 			<?php else : ?>
 				<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( $segment_history ); ?></pre>
 			<?php endif; ?>
+
+			<?php self::render_snapshot_preview_section(); ?>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Prints the cross-site snapshot preview: a site picker, then (once a site is
+	 * selected) that one site's Markdown preview via
+	 * {@see WPMAR_Snapshot_Preview::markdown_for_repository()}.
+	 *
+	 * Only WPMAR_Network::target_blog_ids() - the network settings' own allow-list
+	 * (archived/spam/deleted exclusions, exclude_blog_ids, max_sites) - is ever
+	 * offered in the <select> or accepted from the URL; an arbitrary blog id is
+	 * rejected by sanitize_selected_blog_id(). Exactly one blog is read per
+	 * request, never all of them (20 sites x 4 types would mean 80 tables read
+	 * for a single page load).
+	 *
+	 * @return void
+	 */
+	public static function render_snapshot_preview_section() {
+		$allowed = WPMAR_Network::target_blog_ids();
+		?>
+		<h2><?php esc_html_e( 'スナップショット（差分比較の基準データ）', 'wp-maintenance-audit-reporter' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'サイトを選ぶと、そのサイトに保存されている差分比較の基準データ（コア・テーマ・プラグイン・ユーザーの直近2世代）を表示します。監査レポート本文の控えではありません。', 'wp-maintenance-audit-reporter' ); ?>
+		</p>
+
+		<?php if ( empty( $allowed ) ) : ?>
+			<p><?php esc_html_e( '対象サイトがありません。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+
+		<?php
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view selector, no state change; validated below against the allow-list regardless.
+		$requested   = isset( $_GET['wpmar_snapshot_blog'] ) ? sanitize_text_field( wp_unslash( $_GET['wpmar_snapshot_blog'] ) ) : '';
+		$selected_id = self::sanitize_selected_blog_id( $requested, $allowed );
+		?>
+
+		<form method="get" action="<?php echo esc_url( network_admin_url( 'admin.php' ) ); ?>">
+			<input type="hidden" name="page" value="<?php echo esc_attr( WPMAR_NETWORK_SYSTEM_STATUS_PAGE_SLUG ); ?>" />
+			<select name="wpmar_snapshot_blog">
+				<option value=""><?php esc_html_e( '選択してください', 'wp-maintenance-audit-reporter' ); ?></option>
+				<?php foreach ( self::snapshot_site_choices( $allowed ) as $blog_id => $label ) : ?>
+					<option value="<?php echo esc_attr( (string) $blog_id ); ?>" <?php selected( $selected_id, $blog_id ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<button type="submit" class="button"><?php esc_html_e( '表示', 'wp-maintenance-audit-reporter' ); ?></button>
+		</form>
+
+		<?php if ( 0 === $selected_id ) : ?>
+			<p><?php esc_html_e( '選択してください。', 'wp-maintenance-audit-reporter' ); ?></p>
+			<?php
+			return;
+		endif;
+		?>
+
+		<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( self::snapshot_markdown_for_blog( $selected_id ) ); ?></pre>
+		<?php
+	}
+
+	/**
+	 * Reads one already-permitted blog's snapshot rows and renders them to
+	 * Markdown. Switches into the blog only for the duration of the closure
+	 * (WPMAR_Network::on_blog() restores the previous blog in a finally block),
+	 * and constructs WPMAR_Snapshot_Repository strictly inside that closure -
+	 * its constructor fixes $wpdb->prefix once, so building it outside would keep
+	 * reading whichever blog's tables were active before the switch.
+	 *
+	 * Unlike {@see self::active_network_runs()} above (which reads
+	 * `wpmar_network_segments` via a raw, unwrapped `$wpdb->prefix` because it only
+	 * ever targets the current request's own blog), this always operates on a
+	 * *different*, admin-selected blog, so it must follow
+	 * {@see self::segment_history_tail()}'s on_main_site()-wrapped pattern instead.
+	 *
+	 * @param int $blog_id Already validated against WPMAR_Network::target_blog_ids().
+	 * @return string
+	 */
+	protected static function snapshot_markdown_for_blog( $blog_id ) {
+		return WPMAR_Network::on_blog(
+			$blog_id,
+			static function () {
+				global $wpdb;
+
+				$repo    = new WPMAR_Snapshot_Repository();
+				$context = array(
+					'table'      => $wpdb->prefix . 'wpmar_snapshots',
+					'site_label' => sprintf(
+						'%1$s（blog_id %2$d / %3$s）',
+						get_bloginfo( 'name' ),
+						get_current_blog_id(),
+						home_url( '/' )
+					),
+				);
+
+				return WPMAR_Snapshot_Preview::markdown_for_repository( $repo, $context );
+			}
+		);
+	}
+
+	/**
+	 * `blog_id => "blogname（blog_id N）"` labels for the <select>, without
+	 * switching blogs (get_blog_details() reads the cached blog row directly).
+	 * Falls back to a "Blog #N" placeholder for a blog whose name can't be
+	 * resolved, matching {@see WPMAR_Runner::render_network_markup()}'s fallback.
+	 *
+	 * @param array<int,int> $allowed Permitted blog ids (WPMAR_Network::target_blog_ids()).
+	 * @return array<int,string>
+	 */
+	protected static function snapshot_site_choices( array $allowed ) {
+		$choices = array();
+
+		foreach ( $allowed as $blog_id ) {
+			$details = get_blog_details( $blog_id );
+			$name    = ( $details && ! empty( $details->blogname ) ) ? (string) $details->blogname : sprintf( 'Blog #%d', $blog_id );
+
+			$choices[ $blog_id ] = sprintf( '%1$s（blog_id %2$d）', $name, $blog_id );
+		}
+
+		return $choices;
+	}
+
+	/**
+	 * Resolves the requested blog_id against the allow-list, or 0 when it is not
+	 * permitted.
+	 *
+	 * Pure so the allow-list check can be unit-tested without get_sites()/
+	 * switch_to_blog(): the caller passes WPMAR_Network::target_blog_ids() in,
+	 * this decides. Deliberately does not use absint() - absint( -5 ) is 5, which
+	 * would let a negative value slip through as if it were a different, and
+	 * possibly permitted, blog id.
+	 *
+	 * @param mixed          $requested Raw `$_GET` value.
+	 * @param array<int,int> $allowed   Permitted blog ids.
+	 * @return int Permitted blog id, or 0.
+	 */
+	protected static function sanitize_selected_blog_id( $requested, array $allowed ) {
+		if ( ! is_numeric( $requested ) ) {
+			return 0;
+		}
+
+		$blog_id = (int) $requested;
+		if ( $blog_id <= 0 ) {
+			return 0;
+		}
+
+		return in_array( $blog_id, $allowed, true ) ? $blog_id : 0;
 	}
 
 	/**

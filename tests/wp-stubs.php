@@ -313,6 +313,110 @@ if ( ! function_exists( 'get_current_blog_id' ) ) {
 	}
 }
 
+if ( ! function_exists( 'current_user_can' ) ) {
+	/**
+	 * Stub current_user_can — set $GLOBALS['_wpmar_test_caps'] to configure per-test, as
+	 * either a capability => bool map or a flat list of granted capability strings.
+	 * Defaults to false (no capability) when unconfigured, mirroring user_can()'s
+	 * implicit-deny-when-unset convention below rather than an implicit-allow one,
+	 * since capability checks gate access-control tests (T-3) where a silently
+	 * permissive default would hide a missing current_user_can_view() guard.
+	 *
+	 * @param string $capability Capability to check.
+	 * @return bool
+	 */
+	function current_user_can( $capability ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_caps'] ) ) {
+			return false;
+		}
+		$caps = $GLOBALS['_wpmar_test_caps'];
+		if ( is_array( $caps ) && array_key_exists( $capability, $caps ) ) {
+			return (bool) $caps[ $capability ];
+		}
+		return in_array( $capability, (array) $caps, true );
+	}
+}
+
+if ( ! function_exists( 'is_super_admin' ) ) {
+	/**
+	 * Stub is_super_admin — set $GLOBALS['_wpmar_test_is_super_admin'] to configure per-test.
+	 *
+	 * @return bool
+	 */
+	function is_super_admin() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return ! empty( $GLOBALS['_wpmar_test_is_super_admin'] );
+	}
+}
+
+if ( ! function_exists( 'get_sites' ) ) {
+	/**
+	 * Stub get_sites — returns $GLOBALS['_wpmar_test_sites'] verbatim. Query args are
+	 * ignored; tests seed exactly the site set they want returned rather than relying
+	 * on args-based filtering that this stub would have to reimplement.
+	 *
+	 * @param array<string,mixed> $args Query args (ignored).
+	 * @return array<int,object>
+	 */
+	function get_sites( $args = array() ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $args );
+		return isset( $GLOBALS['_wpmar_test_sites'] ) && is_array( $GLOBALS['_wpmar_test_sites'] ) ? $GLOBALS['_wpmar_test_sites'] : array();
+	}
+}
+
+if ( ! function_exists( 'get_blog_details' ) ) {
+	/**
+	 * Stub get_blog_details — looks up $GLOBALS['_wpmar_test_sites'] by blog_id.
+	 *
+	 * @param int $blog_id Blog id.
+	 * @return object|false
+	 */
+	function get_blog_details( $blog_id ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$sites = isset( $GLOBALS['_wpmar_test_sites'] ) && is_array( $GLOBALS['_wpmar_test_sites'] ) ? $GLOBALS['_wpmar_test_sites'] : array();
+		foreach ( $sites as $site ) {
+			if ( is_object( $site ) && isset( $site->blog_id ) && (int) $site->blog_id === (int) $blog_id ) {
+				return $site;
+			}
+		}
+		return false;
+	}
+}
+
+if ( ! function_exists( 'switch_to_blog' ) ) {
+	/**
+	 * Stub switch_to_blog — records the switch in $GLOBALS['_wpmar_test_blog_switches']
+	 * and moves get_current_blog_id()'s backing global. Does not touch $wpdb->prefix;
+	 * repository table-prefix switching is verified against a real WordPress install
+	 * only, via the plan's 6-3 live multisite check.
+	 *
+	 * @param int $blog_id Target blog id.
+	 * @return bool
+	 */
+	function switch_to_blog( $blog_id ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_blog_switches'] ) || ! is_array( $GLOBALS['_wpmar_test_blog_switches'] ) ) {
+			$GLOBALS['_wpmar_test_blog_switches'] = array();
+		}
+		$GLOBALS['_wpmar_test_blog_switches'][] = array( 'switch', (int) $blog_id );
+		$GLOBALS['_wpmar_test_current_blog_id'] = (int) $blog_id;
+		return true;
+	}
+}
+
+if ( ! function_exists( 'restore_current_blog' ) ) {
+	/**
+	 * Stub restore_current_blog — pairs with switch_to_blog() above; only records the
+	 * call so tests can assert switch/restore pairing without a real blog stack.
+	 *
+	 * @return bool
+	 */
+	function restore_current_blog() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		if ( ! isset( $GLOBALS['_wpmar_test_blog_switches'] ) || ! is_array( $GLOBALS['_wpmar_test_blog_switches'] ) ) {
+			$GLOBALS['_wpmar_test_blog_switches'] = array();
+		}
+		$GLOBALS['_wpmar_test_blog_switches'][] = array( 'restore' );
+		return true;
+	}
+}
+
 if ( ! function_exists( 'get_option' ) ) {
 	/**
 	 * In-memory option store backed by $GLOBALS['_wpmar_test_options'].
@@ -1305,6 +1409,37 @@ if ( ! function_exists( 'add_query_arg' ) ) {
 	}
 }
 
+if ( ! function_exists( 'remove_query_arg' ) ) {
+	/**
+	 * Stub remove_query_arg — supports a single key or an array of keys, mirroring
+	 * core's call shape. Used by the snapshot preview's "close" link (Step 3).
+	 *
+	 * @param string|array<int,string> $key Key(s) to remove.
+	 * @param string                   $url URL to strip the key(s) from.
+	 * @return string
+	 */
+	function remove_query_arg( $key, $url = '' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$parts = wp_parse_url( (string) $url );
+		$parts = is_array( $parts ) ? $parts : array();
+		$query = array();
+		if ( ! empty( $parts['query'] ) ) {
+			parse_str( $parts['query'], $query );
+		}
+		foreach ( (array) $key as $k ) {
+			unset( $query[ $k ] );
+		}
+
+		$base = '';
+		if ( ! empty( $parts['scheme'] ) && ! empty( $parts['host'] ) ) {
+			$base = $parts['scheme'] . '://' . $parts['host'];
+		}
+		$base .= isset( $parts['path'] ) ? $parts['path'] : '';
+
+		$query_string = http_build_query( $query );
+		return '' !== $query_string ? $base . '?' . $query_string : $base;
+	}
+}
+
 if ( ! function_exists( 'wp_create_nonce' ) ) {
 	/**
 	 * Stub wp_create_nonce — deterministic per action string, not a real nonce.
@@ -1380,6 +1515,55 @@ if ( ! function_exists( 'esc_html_e' ) ) {
 	function esc_html_e( $text, $domain = 'default' ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
 		unset( $domain );
 		echo esc_html( $text ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- esc_html() above already escaped it.
+	}
+}
+
+if ( ! function_exists( 'esc_textarea' ) ) {
+	/**
+	 * Stub esc_textarea.
+	 *
+	 * @param string $text Text.
+	 * @return string
+	 */
+	function esc_textarea( $text ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+	}
+}
+
+if ( ! function_exists( 'checked' ) ) {
+	/**
+	 * Stub checked — returns/echoes ' checked="checked"' when the two values match
+	 * (loose string comparison, matching core's checked()/__checked_selected_helper()).
+	 *
+	 * @param mixed $checked One of the values to compare.
+	 * @param mixed $current The other value to compare (defaults to true).
+	 * @param bool  $echo    Whether to echo the result.
+	 * @return string
+	 */
+	function checked( $checked, $current = true, $echo = true ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$result = ( (string) $checked === (string) $current ) ? ' checked="checked"' : '';
+		if ( $echo ) {
+			echo $result; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fixed attribute string, not user input.
+		}
+		return $result;
+	}
+}
+
+if ( ! function_exists( 'selected' ) ) {
+	/**
+	 * Stub selected — same comparison as checked() above, different attribute.
+	 *
+	 * @param mixed $selected One of the values to compare.
+	 * @param mixed $current  The other value to compare (defaults to true).
+	 * @param bool  $echo     Whether to echo the result.
+	 * @return string
+	 */
+	function selected( $selected, $current = true, $echo = true ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$result = ( (string) $selected === (string) $current ) ? ' selected="selected"' : '';
+		if ( $echo ) {
+			echo $result; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fixed attribute string, not user input.
+		}
+		return $result;
 	}
 }
 
@@ -1865,6 +2049,17 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		public function query( $query ) {
 			unset( $query );
 			return 0;
+		}
+
+		/**
+		 * Mirrors core wpdb::esc_like() so table_exists()'s SHOW TABLES LIKE call can
+		 * be prepare()'d the same way it is against a real database.
+		 *
+		 * @param string $text Text to escape for a LIKE clause.
+		 * @return string
+		 */
+		public function esc_like( $text ) {
+			return addcslashes( (string) $text, '_%\\' );
 		}
 	}
 }

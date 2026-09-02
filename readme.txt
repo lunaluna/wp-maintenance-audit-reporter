@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2.1
+Stable tag: 1.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,6 +109,19 @@ Optional checksum pinning: each release ships a `vendor-pdf.zip.sha256`. Set tha
 * **変更を保存** — saves settings.
 * **ドライラン** — collects data only and shows a summary; no snapshot, mail, or file output.
 * **今すぐ実行** — enqueues the audit as a background job. A flash notice and the "レポート生成ジョブ" panel poll progress (queued → running → completed); while running, the panel also shows the current step (e.g. `gather:checksums:start`) and seconds since the last update. On completion it renders preview/download links; on failure it shows a "動作ログをダウンロード" (download log) link — see "診断ログ（動作ログ）" below.
+
+= システム機能 (System Tools) screen =
+
+View/clear the wp.org cache, manually recover a stuck run lock, and read the run/segment history (duration, peak memory) — available per-site and network-wide.
+
+**Snapshot preview:**
+
+The "スナップショットをプレビュー" (Preview snapshot) button under 実行履歴 (run history) expands the stored diff-baseline snapshots — the latest 2 generations for each of core/themes/plugins/users — as formatted Markdown.
+
+* **This is not a copy of the audit report body.** What's stored is a slug → version map used purely for diffing (e.g. `akismet` → `5.7.2`); it carries no active/inactive flag, display name, or update-available status.
+* Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users); anything older is pruned automatically on the next audit run.
+* **On multisite, the site-level screen is restricted to super admins.** A subsite administrator holding `manage_options` will not see this section at all: plugin/theme files are shared network-wide, so showing them here would leak information a subsite admin cannot normally access, and the users snapshot also carries plain-text email addresses.
+* The network admin "システム機能" screen offers a site picker to view any one site's snapshots across the network (super admin only, `manage_network_options`).
 
 = レポート (Reports) screen =
 
@@ -280,6 +293,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.3 =
+* Added: snapshot preview on both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown — a slug→version map used purely for diffing, not a copy of the audit report body. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.
+* See CHANGELOG.md for full details.
 
 = 1.5.2.1 =
 * Added: `wp wpmar audit run --network` now prompts for confirmation before a synchronous run (no `--async`, dry-run or not) — this loops every target site in a single PHP process and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual.
