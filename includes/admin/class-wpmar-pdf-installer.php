@@ -377,11 +377,7 @@ class WPMAR_PDF_Installer {
 			}
 		}
 
-		$index = $lib_dir . 'index.php';
-		if ( ! file_exists( $index ) ) {
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- one-time guard file inside our own directory.
-			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
-		}
+		self::write_index_guard( $lib_dir );
 	}
 
 	/**
@@ -415,7 +411,7 @@ class WPMAR_PDF_Installer {
 	 * @return bool
 	 */
 	public static function fonts_present() {
-		$font_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
+		$font_dir = self::fonts_dir();
 		foreach ( self::expected_font_files() as $file ) {
 			if ( ! is_readable( $font_dir . DIRECTORY_SEPARATOR . $file ) ) {
 				return false;
@@ -583,24 +579,49 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
+	 * Directory whose writability/disk-space governs {@see self::preflight_check()}:
+	 * the external library directory when it already exists, otherwise its
+	 * parent `wp-content` (a not-yet-created directory can't itself be judged
+	 * writable). Deliberately read-only — creating `wpmar-pdf-lib/` is
+	 * {@see self::resolve_install_dir()}'s job, not a side effect of a mere
+	 * environment check.
+	 *
+	 * @return string
+	 */
+	private static function preflight_dir() {
+		$lib_dir = wpmar_pdf_lib_dir();
+		return is_dir( $lib_dir ) ? $lib_dir : rtrim( WP_CONTENT_DIR, '/\\' );
+	}
+
+	/**
 	 * Checks whether the server environment allows writing and has enough free space.
 	 * Required free space: 150 MB (zip ~30 MB + extracted ~94 MB + margin).
+	 *
+	 * Prefers the external library location ({@see self::preflight_dir()}); when
+	 * that isn't writable, falls back to checking the plugin directory instead
+	 * of failing outright — {@see self::resolve_install_dir()} makes the same
+	 * fallback when it actually places the bundle, so this never clears a
+	 * location the real install wouldn't also use.
 	 *
 	 * @return true|WP_Error
 	 */
 	private static function preflight_check() {
-		$target = WPMAR_PLUGIN_DIR;
+		$target = self::preflight_dir();
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- WP_Filesystem has no equivalent for permission checks; PHP native is used widely in WP core for this purpose.
 		if ( ! is_writable( $target ) ) {
-			return new WP_Error(
-				'wpmar_not_writable',
-				sprintf(
-					/* translators: %s: absolute path to the plugin directory */
-					__( 'ディレクトリへの書き込み権限がありません: %s。FTP またはサーバー管理画面でディレクトリのパーミッションを 755 に変更してください。', 'wp-maintenance-audit-reporter' ),
-					esc_html( $target )
-				)
-			);
+			$target = WPMAR_PLUGIN_DIR;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- see above.
+			if ( ! is_writable( $target ) ) {
+				return new WP_Error(
+					'wpmar_not_writable',
+					sprintf(
+						/* translators: %s: absolute path to the directory that needs to be writable */
+						__( 'ディレクトリへの書き込み権限がありません: %s。FTP またはサーバー管理画面でディレクトリのパーミッションを 755 に変更してください。', 'wp-maintenance-audit-reporter' ),
+						esc_html( $target )
+					)
+				);
+			}
 		}
 
 		$required = 150 * 1024 * 1024; // 150 MB
@@ -957,7 +978,44 @@ class WPMAR_PDF_Installer {
 	}
 
 	/**
-	 * Moves the validated vendor/ (and optional fonts/) from staging into the plugin.
+	 * Directory a fresh install should be written into: the external library
+	 * directory ({@see wpmar_pdf_lib_dir()}) when it exists (or can be created)
+	 * and is writable, otherwise the plugin directory. Mirrors the fallback
+	 * {@see self::preflight_check()} already cleared, so an install never lands
+	 * somewhere preflight didn't check.
+	 *
+	 * @return string Trailing-slashed absolute path.
+	 */
+	private static function resolve_install_dir() {
+		$lib_dir = wpmar_pdf_lib_dir();
+		if ( is_dir( $lib_dir ) || wp_mkdir_p( $lib_dir ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable -- WP_Filesystem has no equivalent for permission checks.
+			if ( is_writable( $lib_dir ) ) {
+				return $lib_dir;
+			}
+		}
+		return rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . '/';
+	}
+
+	/**
+	 * Writes an empty `index.php` directory-listing guard into $dir, unless one
+	 * is already there. Shared by {@see self::maybe_migrate()} and
+	 * {@see self::move_bundle_into_place()} — both can be the first to create
+	 * the external library directory.
+	 *
+	 * @param string $dir Trailing-slashed absolute directory path.
+	 * @return void
+	 */
+	private static function write_index_guard( $dir ) {
+		$index = $dir . 'index.php';
+		if ( ! file_exists( $index ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- one-time guard file inside our own directory.
+			file_put_contents( $index, "<?php\n// Silence is golden.\n" );
+		}
+	}
+
+	/**
+	 * Moves the validated vendor/ (and optional fonts/) from staging into place.
 	 *
 	 * @param string $staging Absolute staging path.
 	 * @return true|WP_Error
@@ -971,8 +1029,8 @@ class WPMAR_PDF_Installer {
 			);
 		}
 
-		$plugin_dir = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . '/';
-		$dst_vendor = $plugin_dir . 'vendor';
+		$target     = self::resolve_install_dir();
+		$dst_vendor = $target . 'vendor';
 		if ( is_dir( $dst_vendor ) ) {
 			self::remove_dir( $dst_vendor );
 		}
@@ -986,12 +1044,16 @@ class WPMAR_PDF_Installer {
 
 		$src_fonts = $staging . '/fonts';
 		if ( is_dir( $src_fonts ) ) {
-			$dst_fonts = $plugin_dir . 'fonts';
+			$dst_fonts = $target . 'fonts';
 			if ( is_dir( $dst_fonts ) ) {
 				self::remove_dir( $dst_fonts );
 			}
 			// phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename,WordPress.PHP.NoSilencedErrors.Discouraged -- move within the same filesystem.
 			@rename( $src_fonts, $dst_fonts );
+		}
+
+		if ( rtrim( $target, '/\\' ) === rtrim( wpmar_pdf_lib_dir(), '/\\' ) ) {
+			self::write_index_guard( $target );
 		}
 
 		return true;
@@ -1019,6 +1081,18 @@ class WPMAR_PDF_Installer {
 					<span style="color:#0a7c00;font-weight:bold;">&#10003;</span>
 					<?php esc_html_e( 'mPDF ライブラリはインストール済みです。PDF 出力が有効です。', 'wp-maintenance-audit-reporter' ); ?>
 				</p>
+				<p class="description">
+					<?php
+					echo wp_kses(
+						sprintf(
+							/* translators: %s: absolute path the library is currently installed under, shown as <code> */
+							__( 'ライブラリは %s に展開されています。プラグインを更新してもライブラリは残ります。', 'wp-maintenance-audit-reporter' ),
+							'<code>' . esc_html( rtrim( dirname( self::vendor_dir() ), '/\\' ) . '/' ) . '</code>'
+						),
+						array( 'code' => array() )
+					);
+					?>
+				</p>
 			<?php else : ?>
 				<?php if ( $fonts_stale ) : ?>
 					<p style="padding:0.75em 1em;background:#fff8e1;border-left:4px solid #f0b849;">
@@ -1027,7 +1101,7 @@ class WPMAR_PDF_Installer {
 					</p>
 				<?php else : ?>
 					<p>
-						<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、このプラグインの vendor/ ディレクトリ配下に自動展開します。', 'wp-maintenance-audit-reporter' ); ?>
+						<?php esc_html_e( 'PDF 出力には mPDF ライブラリ（展開後 約 94 MB）が必要です。ボタンを押すとライブラリを GitHub Releases からダウンロードし、wp-content/wpmar-pdf-lib/ 配下に自動展開します。プラグインを更新してもライブラリは残ります。', 'wp-maintenance-audit-reporter' ); ?>
 					</p>
 				<?php endif; ?>
 				<?php if ( $can_install ) : ?>
