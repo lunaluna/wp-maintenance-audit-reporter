@@ -102,6 +102,7 @@ function wpmar_get_include_manifest() {
 		'includes/admin/class-wpmar-reports-list-table.php',
 		'includes/admin/class-wpmar-reports-page.php',
 		'includes/admin/class-wpmar-log-viewer.php',
+		'includes/admin/class-wpmar-snapshot-preview.php',
 		'includes/admin/class-wpmar-system-status-page.php',
 		'includes/admin/class-wpmar-network-system-status-page.php',
 		'includes/admin/class-wpmar-loopback-notice.php',
