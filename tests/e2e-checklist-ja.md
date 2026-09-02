@@ -197,6 +197,29 @@ public メソッドを直接呼び、実 DB・実 `switch_to_blog()` に対し�
 | 6 | プラグインを削除(uninstall) | `wp-content/wpmar-pdf-lib/` も削除される。`wpmar_pdf_lib_delete_on_uninstall` フィルターで `false` を返すと残る |
 | 7 | マルチサイトで、複数の子サイトのうち一部がプラグイン内にライブラリをインストール済みの状態から 1.5.5 へ更新 | どのサイトへの最初のリクエストが移設をトリガーしても `wp-content/wpmar-pdf-lib/` は1つだけ作られ、以後は全サイトがそれを共有して使う(サイトごとに別々のコピーが増えない) |
 
+**実施結果(2026-09-03)**:
+
+シングルサイト(test-armfu.local、プローブプラグイン方式)で項目1〜6すべて実施・合格。
+マルチサイト(alpine-dealer.local、20サイト・WPMAR 1.3.1 network-active、1.3.1→1.5.5
+相当への更新)で項目1・7と、サブサイトでの実PDF生成を実施・合格(blog 1/3/10/21で外部
+ディレクトリのパスが一致することを確認、`external_dir_count: 1` で重複作成が無いことも確認)。
+手順は「1.3.1に既存インストール済みの `vendor/`/`fonts/` を、1.5.5の配布zip相当ビルド
+(`.distignore` 適用・`composer.json` 無し)に合体させて配置する」方式(既存の
+[[wpmar-1.5.2-multisite-verification-alpine-dealer]] の退避手順を踏襲)。検証後、
+プラグインを1.3.1へ完全復元・バージョン確認・`wp eval` でfatalエラー無し確認・DB行数
+(reports/jobs)に変化が無いこと・親gitリポジトリ(`app/`)の状態(既知の未コミット変更
+`vhosts.conf`/`package.json`/`.htaccess`、ブランチ `temp/6.9.5`)に変化が無いことを確認済み。
+
+**重要な教訓(前提セクションにも反映済み): シナリオ6(アンインストール)の検証で、
+本物のプラグインスラッグに対して直接 `uninstall.php` を `require` してしまい、
+test-armfu.local環境の `wp_wpmar_*` テーブル4つ・`wpmar_settings` オプション・
+`wp-content/wpmar-private/` 配下の全ファイルを実際に喪失する事故が発生した。**
+DBは偶然存在した2週間前のSQLダンプから部分復元できたが、実ファイルは復旧不能だった。
+シナリオ4・5のようなインストーラのprivateメソッドをReflectionで直接叩く手法自体は
+安全だが、**`uninstall.php` だけは別枠**(テーブルDROP・ファイル削除まで実際に実行する
+ため)。次回以降は前提セクションの記載どおり、事前に `wp db export` と
+`wp-content/wpmar-private/` のディレクトリコピーの両方を必ず取ってから行う。
+
 ## ローカル環境での CI 相当確認
 
 各 Step 完了時・全 Step 完了後に以下を実行する(リリース前の最終確認としても
