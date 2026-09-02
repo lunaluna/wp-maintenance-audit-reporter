@@ -185,4 +185,54 @@ class WPMAR_WPOrg_Client {
 
 		return $body;
 	}
+
+	/**
+	 * Core stable-check payload: every known core version mapped to
+	 * `insecure` / `outdated` / `latest`.
+	 *
+	 * Deliberately not using `get_core_updates()` here: it discards
+	 * `response === 'autoupdate'` offers outright (see
+	 * wp-admin/includes/update.php), which is exactly the branch-tip
+	 * version this plugin needs to compare against. `find_core_auto_update()`
+	 * is unusable too, since it returns false whenever automatic updates are
+	 * disabled by site config rather than reflecting version availability.
+	 * The stable-check endpoint sidesteps both by returning the full
+	 * version/status map directly.
+	 *
+	 * @return array<string,string>|null Version => status map, or null on failure.
+	 */
+	public function fetch_core_stable_check() {
+		$cache_key = $this->cache_key_for( 'core', 'stable_check' );
+		$cached    = get_site_transient( $cache_key );
+		if ( is_array( $cached ) ) {
+			++$this->cache_hits;
+			return $cached;
+		}
+		++$this->cache_misses;
+
+		$this->pace();
+		$resp = wp_remote_get(
+			'https://api.wordpress.org/core/stable-check/1.0/',
+			array(
+				'timeout' => 20,
+				'headers' => array(
+					'Accept' => 'application/json',
+				),
+			)
+		);
+
+		if ( is_wp_error( $resp ) || 200 !== (int) wp_remote_retrieve_response_code( $resp ) ) {
+			return null;
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $resp ), true );
+
+		if ( ! is_array( $body ) ) {
+			return null;
+		}
+
+		set_site_transient( $cache_key, $body, self::cache_ttl() );
+
+		return $body;
+	}
 }
