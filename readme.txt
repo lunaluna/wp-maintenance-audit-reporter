@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.3
+Stable tag: 1.5.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -301,6 +301,11 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.4 =
+* Added: network rollup reports can now narrow which sites' data appears in the merged report — all sites (default), main site only, or main site + selected child sites — via a new "Report output scope" setting on the network admin screen. Every target site is still audited and its snapshot baseline still updates regardless of scope; only what's shown in the report changes.
+* Changed: "Run now" on the network admin screen always audits every target site now. The existing run-scope selector (all sites / main site only / a specific site) is now dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline. Use a dry run, or WP-CLI's `--same-setting` / `--id=<blog_id>`, for a scoped manual run.
+* See CHANGELOG.md for full details.
 
 = 1.5.3 =
 * Added: snapshot preview on both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown — a slug→version map used purely for diffing, not a copy of the audit report body. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.

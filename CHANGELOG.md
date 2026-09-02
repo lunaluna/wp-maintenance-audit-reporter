@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-09-03
+
 ### Added
 
 - Network rollup reports can now narrow which sites' data appears in the merged report — "all sites" (unchanged default), "main site only", or "main site + selected child sites" — via a new "レポート出力範囲" (Report output scope) setting on the network admin screen. This is a *report* filter only: every target site is still audited and its `wpmar_snapshots` diff baseline still updates regardless of scope, so a site excluded from the report keeps a fresh baseline and rejoins the report later without a months-wide changelog. Implemented as a single filter (`WPMAR_Network_Runner::filter_segments_for_report()`) applied inside `finalize_rollup()`, the one convergence point every execution path (admin dry run, admin "run now", WP-Cron, WP-CLI `--network`, the async job dispatcher) already shares, so no path can miss it. A scope that resolves to zero segments (e.g. a selected blog ID that no longer exists) falls back to the full, unfiltered set rather than shipping an empty report, and logs a warning. The rollup's `summary_json` keeps `blog_ids` (every audited site) and adds `report_blog_ids` (only the sites shown in the report) as a separate key, so `sites_audited` keeps its existing meaning.
