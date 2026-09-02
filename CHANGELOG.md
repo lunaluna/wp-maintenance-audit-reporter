@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2.1] - 2026-09-02
+
+### Added
+
+- `wp wpmar audit run --network` now prompts for confirmation (`WP_CLI::confirm()`) before a synchronous run (no `--async`, dry-run or not) — this loops every target site in a single PHP process (`WPMAR_Network_Runner`'s `switch_to_blog()` loop, no per-site job splitting) and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual; `--same-setting` and `--id=<blog_id>` (single-site scope) are unaffected.
+
 ## [1.5.2] - 2026-09-02
 
 ### Added

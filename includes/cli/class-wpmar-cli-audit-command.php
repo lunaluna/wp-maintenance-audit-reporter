@@ -40,6 +40,8 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 	 *
 	 * [--network]
 	 * : Run a multisite rollup audit (requires network audit enabled in network settings).
+	 *   Runs all target sites synchronously in one process unless --async is given; you'll
+	 *   be prompted to confirm.
 	 *
 	 * [--skip-snapshot]
 	 * : Skip snapshot persistence. The report is generated but the snapshot baseline is not updated.
@@ -52,6 +54,9 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 	 * : (Requires --network) Collect data from this specific blog ID only.
 	 *   Takes precedence over --same-setting when both are given.
 	 *
+	 * [--yes]
+	 * : Bypass the synchronous --network confirmation prompt (see --network above).
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp wpmar audit run
@@ -62,6 +67,7 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 	 *     wp wpmar audit run --network --same-setting
 	 *     wp wpmar audit run --network --id=2
 	 *     wp wpmar audit run --async
+	 *     wp wpmar audit run --network --yes
 	 *
 	 * @param array<int,string>             $positional  Positional arguments (unused).
 	 * @param array<string,string|bool|int> $assoc_flags Associative CLI flags.
@@ -92,6 +98,26 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 			if ( $target_id > 0 && ! get_blog_details( $target_id ) ) {
 				WP_CLI::error( sprintf( 'Blog ID %d does not exist on this network.', $target_id ) );
 			}
+		}
+
+		if ( self::needs_sync_network_confirm( $network, $async, $target_id, $same_setting ) ) {
+			$site_count = count(
+				WPMAR_Network_Runner::resolve_blog_ids(
+					array(
+						'target_blog_id' => 0,
+						'same_setting'   => false,
+					),
+					WPMAR_Network_Settings::get_all()
+				)
+			);
+
+			WP_CLI::confirm(
+				sprintf(
+					'This will run synchronously in a single PHP process across %d site(s), one at a time (no per-site job splitting) — see --async. On a network with many sites this can take a long time and may hit your host\'s execution/cron timeout before finishing. Continue anyway?',
+					$site_count
+				),
+				$assoc_flags
+			);
 		}
 
 		if ( $network ) {
@@ -135,6 +161,24 @@ class WPMAR_CLI_Audit_Command extends WP_CLI_Command {
 
 		// Echo structured JSON because operators often pipe CLI output downstream.
 		WP_CLI::success( wp_json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+	}
+
+	/**
+	 * Whether the confirmation prompt is needed before a synchronous --network run.
+	 *
+	 * True whenever the run would fall into WPMAR_Network_Runner::run_on_main_site()'s
+	 * single-process per-site loop (no job splitting - see
+	 * WPMAR_Job_Dispatcher::run_audit_job()'s docblock) rather than being scoped to one
+	 * site or dispatched async.
+	 *
+	 * @param bool $network      --network flag.
+	 * @param bool $async        --async flag.
+	 * @param int  $target_id    --id=<blog_id> value (0 when absent).
+	 * @param bool $same_setting --same-setting flag.
+	 * @return bool
+	 */
+	protected static function needs_sync_network_confirm( $network, $async, $target_id, $same_setting ) {
+		return $network && ! $async && 0 === $target_id && ! $same_setting;
 	}
 
 	/**

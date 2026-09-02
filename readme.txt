@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.5.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.2.1 =
+* Added: `wp wpmar audit run --network` now prompts for confirmation before a synchronous run (no `--async`, dry-run or not) — this loops every target site in a single PHP process and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual.
+* See CHANGELOG.md for full details.
 
 = 1.5.2 =
 * Added: Core update copy now distinguishes "security patch applied, just an old major" from "known-vulnerable" using wp.org's stable-check API, instead of a single generic "an update is available" message for both. Applies to the admin body, the client body, and PDF/mail (since both derive from the client body), plus a new `wp_insecure` machine-readable code and its own warning-count slot.

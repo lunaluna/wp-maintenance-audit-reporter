@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2
+Stable tag: 1.5.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -280,6 +280,10 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.2.1 =
+* 追加：`wp wpmar audit run --network` は、同期実行(`--async` 無し、dry-run の有無を問わない)の前に確認プロンプトを出すようになりました。同期実行は対象サイトを1つのPHPプロセス内で順番に処理するため、大規模なネットワークではホストの実行時間・cronタイムアウトを超える可能性があります。`--yes` を付ければ従来どおり確認をスキップできます。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.2 =
 * 追加：コアの更新文言が、「セキュリティパッチ適用済み・メジャーが古いだけ」と「既知の脆弱性あり」を wp.org の stable-check API で判定して出し分けるようになりました。従来はどちらも同じ汎用文言でした。管理者向け本文・クライアント向け本文、および PDF・メール(クライアント向け本文から生成されるため)に反映されます。マシン可読コード `wp_insecure` と、専用の警告カウント枠も追加しました。
