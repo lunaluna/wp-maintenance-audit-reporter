@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-09-03
+
+### Added
+
+- The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`. An existing in-plugin install is migrated there automatically on first load after updating, guarded by `is_dir()`/`is_file()` checks only (no DB flag), so an interrupted migration self-heals on the next load rather than getting stuck. The location is filterable via `wpmar_pdf_lib_dir` (default `WP_CONTENT_DIR . '/wpmar-pdf-lib/'`); uninstalling the plugin deletes it too, unless the new `wpmar_pdf_lib_delete_on_uninstall` filter returns `false`.
+- When `wp-content` isn't writable, both a fresh install and the automatic migration fall back to the plugin directory instead of failing, matching pre-1.5.5 behaviour.
+
+### Fixed
+
+- **The PDF library could disappear entirely when the plugin was updated while deactivated.** The existing `vendor/`-backup safeguard (`upgrader_source_selection` / `upgrader_process_complete`) only ever ran while the plugin was active — WP-CLI, the dashboard "Update Now", and a zip overwrite were all covered, but an update applied while the plugin was deactivated (PHP never loads, so the hooks never register) silently wiped `vendor/`/`fonts/` with no way to recover them. Moving the library outside the plugin directory removes the underlying cause instead of adding another special case to the backup/restore hooks, which remain in place for one more cycle as a fallback for sites that couldn't migrate (e.g. a read-only `wp-content`) and for development checkouts.
+
+### Changed
+
+- The PDF library settings panel now states where the library is actually installed and notes that a plugin update no longer requires reinstalling it.
+
 ## [1.5.4] - 2026-09-03
 
 ### Added

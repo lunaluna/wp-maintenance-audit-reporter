@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.4
+Stable tag: 1.5.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -304,6 +304,11 @@ If you manage this plugin in a project under Git version control, it is recommen
 `wp-content/wpmar-pdf-lib/` is where the PDF library installs since v1.5.5 (see "PDF library" above); its `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation, and its `vendor/` is the on-demand install target for the PDF library (mPDF). The two paths under the plugin directory are kept as a fallback: they're still used by a site mid-migration from before v1.5.5, or one where `wp-content` isn't writable and installation falls back into the plugin directory.
 
 == Changelog ==
+
+= 1.5.5 =
+* Added: the PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`. An existing in-plugin install is migrated there automatically on first load after updating. The location is filterable via `wpmar_pdf_lib_dir`; uninstalling the plugin deletes it too, unless the new `wpmar_pdf_lib_delete_on_uninstall` filter returns `false`. When `wp-content` isn't writable, both a fresh install and the automatic migration fall back to the plugin directory instead of failing.
+* Fixed: the PDF library could disappear entirely when the plugin was updated while deactivated — the existing `vendor/`-backup safeguard only ran while the plugin was active, so an update applied while deactivated silently wiped it with no way to recover. Moving the library outside the plugin directory removes the underlying cause.
+* See CHANGELOG.md for full details.
 
 = 1.5.4 =
 * Added: network rollup reports can now narrow which sites' data appears in the merged report — all sites (default), main site only, or main site + selected child sites — via a new "Report output scope" setting on the network admin screen. Every target site is still audited and its snapshot baseline still updates regardless of scope; only what's shown in the report changes.

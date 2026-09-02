@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.4**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.5**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -332,6 +332,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.5.5** (2026-09-03) — The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`; an existing in-plugin install is migrated there automatically on first load after updating. Fixes the library disappearing entirely when the plugin was updated while deactivated (the previous `vendor/`-backup safeguard only ran while the plugin was active). Filterable via `wpmar_pdf_lib_dir`; falls back to the plugin directory when `wp-content` isn't writable. Uninstalling deletes the external directory too, unless `wpmar_pdf_lib_delete_on_uninstall` returns `false`.
 - **v1.5.4** (2026-09-03) — Network rollup reports can now narrow which sites' data appears in the merged report via a new "Report output scope" setting (all sites / main site only / main site + selected sites) on the network admin screen; every target site is still audited and its snapshot baseline still updates regardless of scope, so only what's shown in the report changes. "Run now" on the network admin screen now always audits every target site — the existing run-scope selector is dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline; use a dry run or WP-CLI's `--same-setting`/`--id=<blog_id>` for a scoped manual run.
 - **v1.5.3** (2026-09-02) — Adds a snapshot preview to both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.
 - **v1.5.2.1** (2026-09-02) — `wp wpmar audit run --network` now prompts for confirmation before a synchronous run (no `--async`, dry-run or not), since it loops every target site in a single PHP process and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual; `--same-setting`/`--id=<blog_id>` runs are unaffected.
