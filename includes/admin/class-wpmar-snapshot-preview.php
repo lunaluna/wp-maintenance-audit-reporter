@@ -25,6 +25,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WPMAR_Snapshot_Preview {
 
 	/**
+	 * Canonical display order for the four dimensions every audit run writes
+	 * together (see WPMAR_Runner::canonical_snapshots_from_report()). Shown first
+	 * and always, even with zero rows, so the section list never looks incomplete;
+	 * see display_types().
+	 */
+	const KNOWN_TYPES = array( 'core', 'themes', 'plugins', 'users' );
+
+	/**
 	 * Builds the preview Markdown from already-loaded rows.
 	 *
 	 * Each $by_type entry is rendered as its own `##` section, in the order given
@@ -209,5 +217,123 @@ class WPMAR_Snapshot_Preview {
 		$value = str_replace( array( "\r\n", "\r", "\n" ), ' ', (string) $value );
 
 		return str_replace( '|', '\\|', $value );
+	}
+
+	/**
+	 * Resolves the full, ordered list of snapshot types to render: the four known
+	 * dimensions first (so a dimension with zero rows still gets its own "記録が
+	 * ありません" section instead of silently disappearing), then any other type
+	 * WPMAR_Snapshot_Repository::types() finds — a future dimension — alphabetically.
+	 *
+	 * @param array<int,string> $present_types WPMAR_Snapshot_Repository::types() result.
+	 * @return array<int,string>
+	 */
+	public static function display_types( array $present_types ) {
+		$extra = array_values( array_diff( $present_types, self::KNOWN_TYPES ) );
+		sort( $extra );
+
+		return array_merge( self::KNOWN_TYPES, $extra );
+	}
+
+	/**
+	 * Whether the current user may see snapshot contents.
+	 *
+	 * Single site: manage_options, matching every other section on this screen.
+	 *
+	 * Multisite: super admins only. manage_options is held by every subsite admin,
+	 * but plugin/theme files are network-shared - showing the plugins snapshot to a
+	 * subsite admin would disclose the whole network's plugin inventory to someone
+	 * who cannot even open the plugins screen. The users snapshot additionally
+	 * carries plain-text email addresses (see canonical_snapshots_from_report()).
+	 *
+	 * @return bool
+	 */
+	protected static function current_user_can_view() {
+		if ( ! current_user_can( WPMAR_Admin_Menu::CAPABILITY ) ) {
+			return false;
+		}
+
+		return ! is_multisite() || is_super_admin();
+	}
+
+	/**
+	 * Prints the "スナップショット（差分比較の基準データ）" section on the site-level
+	 * システム機能 screen, under 実行履歴.
+	 *
+	 * The expand/collapse toggle is a GET link, not a POST button: this is a pure
+	 * read (nothing here changes state), so it is exempt from CSRF/nonce concerns
+	 * and a GET avoids the browser's "confirm form resubmission" prompt on reload
+	 * (plan 3-2 — deliberately different from this plugin's usual
+	 * wpmar_admin_action + nonce POST pattern, which exists for state changes).
+	 *
+	 * @return void
+	 */
+	public static function render_section() {
+		if ( ! self::current_user_can_view() ) {
+			return;
+		}
+
+		$page_url = WPMAR_Admin_Menu::admin_screen_url( WPMAR_SYSTEM_STATUS_PAGE_SLUG );
+		?>
+		<h2><?php esc_html_e( 'スナップショット（差分比較の基準データ）', 'wp-maintenance-audit-reporter' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( '差分比較の基準として保存されている、コア・テーマ・プラグイン・ユーザーの直近2世代のスナップショットです。監査レポート本文の控えではありません。', 'wp-maintenance-audit-reporter' ); ?>
+		</p>
+		<?php if ( WPMAR_Network::per_site_runs_disabled() ) : ?>
+			<p class="description"><?php esc_html_e( 'このサイトからは監査を実行できませんが、ネットワーク実行の結果がここに蓄積されます。', 'wp-maintenance-audit-reporter' ); ?></p>
+		<?php endif; ?>
+
+		<?php
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view toggle, no state change (see method docblock).
+		if ( ! isset( $_GET['wpmar_snapshot_preview'] ) ) :
+			?>
+			<p>
+				<a class="button" href="<?php echo esc_url( add_query_arg( 'wpmar_snapshot_preview', '1', $page_url ) ); ?>">
+					<?php esc_html_e( 'スナップショットをプレビュー', 'wp-maintenance-audit-reporter' ); ?>
+				</a>
+			</p>
+			<?php
+			return;
+		endif;
+		?>
+
+		<p>
+			<a class="button" href="<?php echo esc_url( remove_query_arg( 'wpmar_snapshot_preview', $page_url ) ); ?>">
+				<?php esc_html_e( '閉じる', 'wp-maintenance-audit-reporter' ); ?>
+			</a>
+		</p>
+		<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( self::current_site_markdown() ); ?></pre>
+		<?php
+	}
+
+	/**
+	 * Loads the current blog's snapshot rows and renders them to Markdown. Only
+	 * called once expanded (render_section() above), so a collapsed screen never
+	 * touches the database.
+	 *
+	 * @return string
+	 */
+	protected static function current_site_markdown() {
+		global $wpdb;
+
+		$repo    = new WPMAR_Snapshot_Repository();
+		$by_type = array();
+
+		foreach ( self::display_types( $repo->types() ) as $type ) {
+			$by_type[ $type ] = $repo->recent( $type, 2 );
+		}
+
+		$context = array( 'table' => $wpdb->prefix . 'wpmar_snapshots' );
+
+		if ( is_multisite() ) {
+			$context['site_label'] = sprintf(
+				'%1$s（blog_id %2$d / %3$s）',
+				get_bloginfo( 'name' ),
+				get_current_blog_id(),
+				home_url( '/' )
+			);
+		}
+
+		return self::to_markdown( $by_type, $context );
 	}
 }

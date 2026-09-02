@@ -104,6 +104,8 @@ class WPMAR_System_Status_Page {
 			<?php else : ?>
 				<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( $run_history ); ?></pre>
 			<?php endif; ?>
+
+			<?php WPMAR_Snapshot_Preview::render_section(); ?>
 		</div>
 		<?php
 	}
