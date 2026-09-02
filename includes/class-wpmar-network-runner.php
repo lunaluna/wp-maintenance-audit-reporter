@@ -184,6 +184,72 @@ class WPMAR_Network_Runner {
 	}
 
 	/**
+	 * Narrows the rollup's segments to the sites the report should cover.
+	 *
+	 * Deliberately applied here and nowhere else: every execution path (admin dry run,
+	 * admin "run now", WP-Cron, WP-CLI --network, async job) converges on
+	 * finalize_rollup(), so one filter covers all five with no way to miss one.
+	 *
+	 * This does NOT change which sites are audited. Every site still runs
+	 * run_site_segment() and still updates its own wpmar_snapshots table, so a site
+	 * excluded from the report keeps a fresh diff baseline and rejoins the report
+	 * without a months-wide changelog. Scoping the *audit* is what
+	 * `sites.exclude_blog_ids` does - a different setting, on purpose.
+	 *
+	 * @param array<int,array<string,mixed>> $segments         Per-site rows, see finalize_rollup().
+	 * @param array<string,mixed>            $network_settings {@see WPMAR_Network_Settings::get_all()}.
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected static function filter_segments_for_report( array $segments, array $network_settings ) {
+		if ( empty( $segments ) ) {
+			return $segments;
+		}
+
+		$report = isset( $network_settings['report'] ) && is_array( $network_settings['report'] )
+			? $network_settings['report']
+			: WPMAR_Network_Settings::defaults()['report'];
+
+		$scope = isset( $report['scope'] ) ? (string) $report['scope'] : 'all';
+
+		if ( 'all' === $scope ) {
+			return $segments;
+		}
+
+		$main_id  = WPMAR_Network::main_site_id();
+		$selected = array();
+		if ( 'main_and_selected' === $scope && ! empty( $report['blog_ids'] ) && is_array( $report['blog_ids'] ) ) {
+			$selected = array_map( 'absint', $report['blog_ids'] );
+		}
+
+		$filtered = array();
+		foreach ( $segments as $segment ) {
+			if ( ! is_array( $segment ) || ! isset( $segment['blog_id'] ) ) {
+				continue;
+			}
+			$bid = absint( $segment['blog_id'] );
+			if ( $bid === $main_id || in_array( $bid, $selected, true ) ) {
+				$filtered[] = $segment;
+			}
+		}
+
+		if ( empty( $filtered ) ) {
+			// A misconfigured scope (e.g. a main_only run where the main site's own
+			// segment failed the domain gate) must not silently ship an empty report -
+			// fall back to the unfiltered set and leave a trail for diagnosis.
+			WPMAR_Logger::log(
+				WPMAR_Logger::LEVEL_WARN,
+				'report scope filter matched no segments, falling back to the full segment set',
+				array(
+					'scope' => $scope,
+				)
+			);
+			return $segments;
+		}
+
+		return $filtered;
+	}
+
+	/**
 	 * Merges per-site segment rows into one report: markup, mail, PDF, `wpmar_reports`
 	 * insert, retention purge, and cron rescheduling.
 	 *
@@ -202,6 +268,11 @@ class WPMAR_Network_Runner {
 	 * {@see WPMAR_Runner::merge_network_markup_segments()} renders the "this site errored"
 	 * note instead of that site's (nonexistent) body.
 	 *
+	 * Applies {@see self::filter_segments_for_report()} to narrow which segments feed the
+	 * markup/mail/per_blog summary. `sites_audited` and `blog_ids` deliberately keep
+	 * counting/listing every audited site regardless of that filter - `report_blog_ids`
+	 * in the summary JSON carries the narrowed list instead.
+	 *
 	 * @param array<int,array<string,mixed>> $segments     Per-site rows (see above).
 	 * @param array<string,mixed>            $exec         Normalised run options; only `triggered_by`/`mail_qa_extra` are read here.
 	 * @param array<string,mixed>            $delivery     {@see WPMAR_Network_Settings::rollup_delivery_settings()}.
@@ -218,13 +289,17 @@ class WPMAR_Network_Runner {
 			)
 		);
 
-		$client_body = WPMAR_Runner::merge_network_client_markup( $segments );
-		$admin_body  = WPMAR_Runner::merge_network_operator_markup( $segments );
+		$network_settings = WPMAR_Network_Settings::get_all();
+		$report_segments  = self::filter_segments_for_report( $segments, $network_settings );
+
+		$client_body = WPMAR_Runner::merge_network_client_markup( $report_segments );
+		$admin_body  = WPMAR_Runner::merge_network_operator_markup( $report_segments );
 
 		$domain_ok_count = 0;
 		$total_changes   = 0;
 		$per_blog        = array();
-		foreach ( $segments as $segment ) {
+		$report_blog_ids = array();
+		foreach ( $report_segments as $segment ) {
 			if ( ! is_array( $segment ) ) {
 				continue;
 			}
@@ -232,7 +307,8 @@ class WPMAR_Network_Runner {
 			if ( $bid <= 0 ) {
 				continue;
 			}
-			$ok = ! empty( $segment['domain_gate_ok'] );
+			$report_blog_ids[] = $bid;
+			$ok                = ! empty( $segment['domain_gate_ok'] );
 			if ( $ok ) {
 				++$domain_ok_count;
 			}
@@ -247,6 +323,7 @@ class WPMAR_Network_Runner {
 				'status'    => isset( $segment['status'] ) ? sanitize_key( (string) $segment['status'] ) : 'done',
 			);
 		}
+		$report_blog_ids = array_values( array_unique( $report_blog_ids ) );
 
 		$any_domain_ok = ( $domain_ok_count > 0 );
 		$status_flag   = $any_domain_ok ? 'success' : 'skipped_domain';
@@ -270,6 +347,7 @@ class WPMAR_Network_Runner {
 			array(
 				'network_rollup'  => true,
 				'blog_ids'        => array_values( array_map( 'absint', $blog_ids ) ),
+				'report_blog_ids' => $report_blog_ids,
 				'sites_audited'   => count( $segments ),
 				'sites_domain_ok' => $domain_ok_count,
 				'changes'         => $total_changes,

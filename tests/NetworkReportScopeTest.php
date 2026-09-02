@@ -9,6 +9,32 @@ namespace WPMAR\Tests;
 
 use PHPUnit\Framework\TestCase;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/fixtures/fake-root/' );
+}
+
+require_once __DIR__ . '/wp-stubs.php';
+require_once dirname( __DIR__ ) . '/includes/class-wpmar-settings.php';
+require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
+require_once dirname( __DIR__ ) . '/includes/class-wpmar-network.php';
+require_once dirname( __DIR__ ) . '/includes/class-wpmar-logger.php';
+require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-runner.php';
+
+/**
+ * Exposes the protected static filter_segments_for_report() for direct assertions.
+ */
+final class ExposedNetworkRunnerReportFilter extends \WPMAR_Network_Runner {
+
+	/**
+	 * @param array<int,array<string,mixed>> $segments         Per-site rows.
+	 * @param array<string,mixed>            $network_settings {@see \WPMAR_Network_Settings::get_all()}.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public static function callFilterSegmentsForReport( array $segments, array $network_settings ) {
+		return self::filter_segments_for_report( $segments, $network_settings );
+	}
+}
+
 /**
  * Asserts WPMAR_Network_Settings sanitization and WPMAR_Network_Runner segment filtering
  * for the report-output-scope feature (1.5.4).
@@ -16,23 +42,6 @@ use PHPUnit\Framework\TestCase;
  * @coversNothing
  */
 final class NetworkReportScopeTest extends TestCase {
-
-	/**
-	 * Bootstraps plugin classes for offline tests.
-	 *
-	 * @return void
-	 */
-	public static function setUpBeforeClass(): void {
-		parent::setUpBeforeClass();
-
-		if ( ! defined( 'ABSPATH' ) ) {
-			define( 'ABSPATH', __DIR__ . '/fixtures/fake-root/' );
-		}
-
-		require_once __DIR__ . '/wp-stubs.php';
-		require_once dirname( __DIR__ ) . '/includes/class-wpmar-settings.php';
-		require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
-	}
 
 	/**
 	 * Resets the in-memory site-option store between tests.
@@ -194,5 +203,214 @@ final class NetworkReportScopeTest extends TestCase {
 
 		self::assertSame( 'main_and_selected', $merged['report']['scope'] );
 		self::assertSame( array( 5, 6 ), $merged['report']['blog_ids'] );
+	}
+
+	/**
+	 * #9 - scope 'all' returns every segment, in its original order.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_all_scope_returns_everything_in_order(): void {
+		$segments = array(
+			array( 'blog_id' => 3 ),
+			array( 'blog_id' => 1 ),
+			array( 'blog_id' => 4 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'all',
+					'blog_ids' => array(),
+				),
+			)
+		);
+
+		self::assertSame( $segments, $result );
+	}
+
+	/**
+	 * #10 - scope 'main_only' keeps only the main site's segment.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_main_only_keeps_main_site_segment(): void {
+		$segments = array(
+			array( 'blog_id' => 3 ),
+			array( 'blog_id' => 1 ),
+			array( 'blog_id' => 4 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_only',
+					'blog_ids' => array(),
+				),
+			)
+		);
+
+		self::assertSame( array( array( 'blog_id' => 1 ) ), $result );
+	}
+
+	/**
+	 * #11 - scope 'main_and_selected' keeps the main site plus the selected ones,
+	 * preserving the original segment order rather than the order blog_ids were listed in.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_main_and_selected_preserves_original_order(): void {
+		$segments = array(
+			array( 'blog_id' => 4 ),
+			array( 'blog_id' => 3 ),
+			array( 'blog_id' => 1 ),
+			array( 'blog_id' => 5 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_and_selected',
+					'blog_ids' => array( 5, 4 ),
+				),
+			)
+		);
+
+		self::assertSame(
+			array(
+				array( 'blog_id' => 4 ),
+				array( 'blog_id' => 1 ),
+				array( 'blog_id' => 5 ),
+			),
+			$result
+		);
+	}
+
+	/**
+	 * #12 - a selected blog_id that has no matching segment is silently ignored.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_ignores_selected_blog_id_with_no_segment(): void {
+		$segments = array(
+			array( 'blog_id' => 1 ),
+			array( 'blog_id' => 3 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_and_selected',
+					'blog_ids' => array( 3, 99 ),
+				),
+			)
+		);
+
+		self::assertSame(
+			array(
+				array( 'blog_id' => 1 ),
+				array( 'blog_id' => 3 ),
+			),
+			$result
+		);
+	}
+
+	/**
+	 * #13 - a narrowed result that ends up empty falls back to the full segment set
+	 * (a misconfigured scope must not silently ship an empty report).
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_falls_back_to_all_when_selection_matches_nothing(): void {
+		$segments = array(
+			array( 'blog_id' => 2 ),
+			array( 'blog_id' => 3 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_and_selected',
+					'blog_ids' => array( 99 ),
+				),
+			)
+		);
+
+		self::assertSame( $segments, $result );
+	}
+
+	/**
+	 * #14 - an empty $segments array stays empty; the empty-result fallback does not
+	 * manufacture segments that were never there.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_empty_input_stays_empty(): void {
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			array(),
+			array(
+				'report' => array(
+					'scope'    => 'main_only',
+					'blog_ids' => array(),
+				),
+			)
+		);
+
+		self::assertSame( array(), $result );
+	}
+
+	/**
+	 * #15 - a segment missing the blog_id key does not raise an exception; it is
+	 * excluded from the narrowed set like any other non-matching segment.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_skips_segment_without_blog_id_key(): void {
+		$segments = array(
+			array( 'blog_id' => 1 ),
+			array( 'site_name' => 'No blog_id here' ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_only',
+					'blog_ids' => array(),
+				),
+			)
+		);
+
+		self::assertSame( array( array( 'blog_id' => 1 ) ), $result );
+	}
+
+	/**
+	 * #16 - scope 'main_only' with no main-site segment present (e.g. it failed the
+	 * domain gate) falls back to the full set via the same rule as #13.
+	 *
+	 * @return void
+	 */
+	public function test_filter_segments_main_only_without_main_segment_falls_back(): void {
+		$segments = array(
+			array( 'blog_id' => 2 ),
+			array( 'blog_id' => 3 ),
+		);
+
+		$result = \WPMAR\Tests\ExposedNetworkRunnerReportFilter::callFilterSegmentsForReport(
+			$segments,
+			array(
+				'report' => array(
+					'scope'    => 'main_only',
+					'blog_ids' => array(),
+				),
+			)
+		);
+
+		self::assertSame( $segments, $result );
 	}
 }
