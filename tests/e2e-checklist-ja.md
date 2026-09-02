@@ -19,6 +19,26 @@ Step 0〜7 の自動テスト(PHPUnit)は、`WPMAR_Data_Collector`/`wp_mail`/`wp
 - **`wp_maybe_auto_update()` を実 cron コンテキスト外で実行しない**
   (このプラグイン自身が自動更新を無効化する設定を持つため、1.5.0 移行時の
   検証で実際に予期しない副作用が発生した)。
+- **`uninstall.php` を実際に実行する(`wp eval` からの直接 `require`、`wp plugin uninstall` 等)
+  前には、必ず `wp db export` で DB 全体のダンプを取得しておく。**
+  `uninstall.php` はテーブル DROP・`wpmar_*` オプション削除・`wp-content/wpmar-private/`
+  配下のレポート/PDF/ログファイル削除まで実際に行う。1.5.5 の受け入れテスト(シナリオ6:
+  アンインストール)でこれを怠り、`wp_wpmar_jobs`/`wp_wpmar_reports`/`wp_wpmar_snapshots`/
+  `wp_wpmar_network_segments` の4テーブルと `wpmar_settings` オプション、
+  `wp-content/wpmar-private/` 配下の全ファイルを実際に喪失した(2026-09-03)。
+  4テーブルと `wpmar_settings` は偶然存在した古いダンプ(`app/sql/local.sql`、
+  2026-08-18時点)から部分復元できたが、それ以降に蓄積されたデータと
+  `wp-content/wpmar-private/` のファイル本体は復旧不能だった。
+  アンインストール検証はプローブプラグイン(名前空間を変えた複製)に対してのみ行い、
+  本物のプラグインスラッグに対して直接 `uninstall.php` を requireしない
+  ([[wpmar-safe-plugin-update-testing]] も参照)。
+- **`uninstall.php` を実際に実行する前には、`wp-content/wpmar-private/`(レポート/PDF/ログの
+  実ファイル)ディレクトリ自体も `cp -R` 等でコピーを取得しておく。**
+  DBダンプにはファイルパスへの参照(`md_file_path`/`pdf_file_path`/`log_path`)しか残らず、
+  実ファイルの中身は含まれない。DBだけ復元してもファイル本体が無ければレポート/PDF/ログは
+  読めないまま(2026-09-03の事故で実際にこれが起き、ファイル本体は復旧不能だった)。
+  コピー先は `wp-content/` の外(またはリポジトリ外のスクラッチパッド)にする —
+  `uninstall.php` の削除対象と同じ場所に残すと、復旧作業中に誤って一緒に消える恐れがある。
 
 ## 実行コマンド一覧
 
