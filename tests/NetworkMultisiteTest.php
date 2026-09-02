@@ -48,6 +48,9 @@ final class NetworkMultisiteTest extends TestCase {
 		self::assertSame( 100, $defaults['sites']['max_sites'] );
 		self::assertArrayHasKey( 'domain', $defaults );
 		self::assertArrayHasKey( 'allowed_path_prefix', $defaults['domain'] );
+		self::assertArrayHasKey( 'report', $defaults );
+		self::assertSame( 'all', $defaults['report']['scope'] );
+		self::assertSame( array(), $defaults['report']['blog_ids'] );
 	}
 
 	/**

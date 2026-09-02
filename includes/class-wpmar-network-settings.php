@@ -55,6 +55,14 @@ class WPMAR_Network_Settings {
 				'allowed_host'        => '',
 				'allowed_path_prefix' => '',
 			),
+			// Report output scope narrows which sites' data appears in the rollup output.
+			// It is a different layer from `sites.exclude_blog_ids` (which stops the audit
+			// itself), so it lives as its own top-level group rather than inside `sites` -
+			// see the normalize() comment for why a nested key there would break existing sites.
+			'report'                => array(
+				'scope'    => 'all', // One of: all, main_only, main_and_selected.
+				'blog_ids' => array(), // Only meaningful when scope is main_and_selected.
+			),
 		);
 	}
 
@@ -169,7 +177,7 @@ class WPMAR_Network_Settings {
 
 		$merged['network_audit_enabled'] = ! empty( $merged['network_audit_enabled'] );
 
-		foreach ( array( 'schedule', 'mail', 'output', 'retention', 'sites', 'domain' ) as $key ) {
+		foreach ( array( 'schedule', 'mail', 'output', 'retention', 'sites', 'domain', 'report' ) as $key ) {
 			if ( ! isset( $merged[ $key ] ) || ! is_array( $merged[ $key ] ) ) {
 				$merged[ $key ] = $defaults[ $key ];
 			}
@@ -193,6 +201,18 @@ class WPMAR_Network_Settings {
 			}
 		}
 		$merged['sites']['exclude_blog_ids'] = array_values( array_unique( array_filter( $exclude ) ) );
+
+		$allowed_scopes            = array( 'all', 'main_only', 'main_and_selected' );
+		$report_scope              = (string) ( $merged['report']['scope'] ?? '' );
+		$merged['report']['scope'] = in_array( $report_scope, $allowed_scopes, true ) ? $report_scope : 'all';
+
+		$report_blog_ids = array();
+		if ( ! empty( $merged['report']['blog_ids'] ) && is_array( $merged['report']['blog_ids'] ) ) {
+			foreach ( $merged['report']['blog_ids'] as $id ) {
+				$report_blog_ids[] = absint( $id );
+			}
+		}
+		$merged['report']['blog_ids'] = array_values( array_unique( array_filter( $report_blog_ids ) ) );
 
 		$merged['mail']['enabled'] = ! empty( $merged['mail']['enabled'] );
 		foreach ( array( 'client_to', 'admin_to' ) as $list_key ) {
@@ -294,6 +314,21 @@ class WPMAR_Network_Settings {
 				}
 			}
 			$curr['sites']['exclude_blog_ids'] = array_values( array_unique( array_filter( $ids ) ) );
+		}
+
+		if ( isset( $post['wpmar_report_scope'] ) ) {
+			$curr['report']['scope'] = sanitize_text_field( wp_unslash( $post['wpmar_report_scope'] ) );
+		}
+
+		if ( isset( $post['wpmar_report_blog_ids'] ) ) {
+			$raw_report_ids = preg_split( '/[\r\n,;]+/', wp_unslash( (string) $post['wpmar_report_blog_ids'] ), -1, PREG_SPLIT_NO_EMPTY );
+			$report_ids     = array();
+			if ( is_array( $raw_report_ids ) ) {
+				foreach ( $raw_report_ids as $raw_id ) {
+					$report_ids[] = absint( $raw_id );
+				}
+			}
+			$curr['report']['blog_ids'] = array_values( array_unique( array_filter( $report_ids ) ) );
 		}
 
 		return self::normalize( $curr );
