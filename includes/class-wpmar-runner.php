@@ -858,6 +858,9 @@ class WPMAR_Runner {
 	protected static function render_client_pending_updates_shell_style( array $facts ) {
 		$sep = "\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\n";
 
+		$release_status = isset( $facts['core']['release_status'] ) && is_array( $facts['core']['release_status'] ) ? $facts['core']['release_status'] : array();
+		$rs_status      = isset( $release_status['status'] ) ? sanitize_key( (string) $release_status['status'] ) : 'unknown';
+
 		$core_lines = array();
 		if ( ! empty( $facts['core']['available_updates'] ) && is_array( $facts['core']['available_updates'] ) ) {
 			foreach ( $facts['core']['available_updates'] as $ver ) {
@@ -870,6 +873,14 @@ class WPMAR_Runner {
 					__( '* WordPress コアには新しいバージョン %s があります。', 'wp-maintenance-audit-reporter' ),
 					$ver
 				);
+
+				// `unknown`/`latest` add nothing here — same as the pre-1.5.2 copy (safe fallback
+				// when the stable-check lookup failed or was inconclusive).
+				if ( 'insecure' === $rs_status ) {
+					$core_lines[] = __( '* 現在のバージョンにはセキュリティ上の修正が適用されていません。至急のアップデートをおすすめします。', 'wp-maintenance-audit-reporter' );
+				} elseif ( 'branch_tip' === $rs_status ) {
+					$core_lines[] = __( '* セキュリティ上の修正は適用済みですが、新しいメジャーバージョンがリリースされています。', 'wp-maintenance-audit-reporter' );
+				}
 			}
 		}
 
