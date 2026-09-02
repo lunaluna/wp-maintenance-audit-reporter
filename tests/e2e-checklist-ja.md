@@ -32,6 +32,13 @@ Step 0〜7 の自動テスト(PHPUnit)は、`WPMAR_Data_Collector`/`wp_mail`/`wp
   アンインストール検証はプローブプラグイン(名前空間を変えた複製)に対してのみ行い、
   本物のプラグインスラッグに対して直接 `uninstall.php` を requireしない
   ([[wpmar-safe-plugin-update-testing]] も参照)。
+- **`uninstall.php` を実際に実行する前には、`wp-content/wpmar-private/`(レポート/PDF/ログの
+  実ファイル)ディレクトリ自体も `cp -R` 等でコピーを取得しておく。**
+  DBダンプにはファイルパスへの参照(`md_file_path`/`pdf_file_path`/`log_path`)しか残らず、
+  実ファイルの中身は含まれない。DBだけ復元してもファイル本体が無ければレポート/PDF/ログは
+  読めないまま(2026-09-03の事故で実際にこれが起き、ファイル本体は復旧不能だった)。
+  コピー先は `wp-content/` の外(またはリポジトリ外のスクラッチパッド)にする —
+  `uninstall.php` の削除対象と同じ場所に残すと、復旧作業中に誤って一緒に消える恐れがある。
 
 ## 実行コマンド一覧
 
