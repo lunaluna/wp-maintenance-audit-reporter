@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.2.1
+Stable tag: 1.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -293,6 +293,10 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
 
 == 変更履歴 ==
+
+= 1.5.3 =
+* 追加：「システム機能」画面(サイト単位・ネットワーク単位)にスナップショットのプレビューを追加しました。「スナップショットをプレビュー」ボタンで、コア・テーマ・プラグイン・ユーザーそれぞれの直近2世代を Markdown 整形で確認できます。監査レポート本文の控えではなく、差分比較専用の slug→バージョンのマップです。マルチサイトのサイト単位画面はスーパー管理者限定(プラグイン/テーマがネットワーク共有・ユーザーのメールアドレスが平文で入るため)。ネットワーク管理画面ではサイトを選んで横断的に確認できます。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.2.1 =
 * 追加：`wp wpmar audit run --network` は、同期実行(`--async` 無し、dry-run の有無を問わない)の前に確認プロンプトを出すようになりました。同期実行は対象サイトを1つのPHPプロセス内で順番に処理するため、大規模なネットワークではホストの実行時間・cronタイムアウトを超える可能性があります。`--yes` を付ければ従来どおり確認をスキップできます。

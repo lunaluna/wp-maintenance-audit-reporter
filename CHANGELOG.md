@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-09-02
+
+### Added
+
+- New snapshot preview on both the site-level and network "システム機能" (System Tools) screens. The diff-baseline snapshots (`{$wpdb->prefix}wpmar_snapshots`) have always been stored but never visible anywhere short of a direct `wp db query`; a "スナップショットをプレビュー" button now expands the latest 2 generations of core/themes/plugins/users as read-only Markdown inside a `<pre>` (no Parsedown dependency — the PDF library, the only thing that ships Parsedown, is an optional on-demand install). On multisite, the site-level section is restricted to super admins: plugin/theme snapshots are network-shared and the users snapshot carries plain-text email addresses, neither of which a subsite admin's `manage_options` should expose. The network admin screen adds a site picker (`WPMAR_Network::target_blog_ids()`'s own allow-list; an arbitrary blog id is rejected) to view any one site's snapshots, reading exactly one site's tables per request.
+- `WPMAR_Snapshot_Repository::recent()` / `types()` / `table_exists()`: `latest()` discarded `id`/`captured_at`, which the new preview needs to show *when* each generation was captured; `types()` lets a future dimension appear in the preview without a code change; `table_exists()` lets the network cross-site view tell "never audited" apart from "table not yet created on this blog" (not hypothetical — `upgrade_database_if_needed()` only runs once a request hits a given blog).
+
 ## [1.5.2.1] - 2026-09-02
 
 ### Added
