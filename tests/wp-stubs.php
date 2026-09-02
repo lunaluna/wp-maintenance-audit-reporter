@@ -1868,3 +1868,45 @@ if ( ! class_exists( 'WPMAR_Test_Fake_Wpdb' ) ) {
 		}
 	}
 }
+
+if ( ! defined( 'WP_CLI' ) ) {
+	define( 'WP_CLI', true );
+}
+
+if ( ! class_exists( 'WP_CLI_Command' ) ) {
+	/**
+	 * Minimal WP_CLI_Command stub — just enough for `class X extends WP_CLI_Command`
+	 * to load outside a real WP-CLI process. No command methods are exercised via
+	 * this base class by any test; they're called directly on the subclass.
+	 */
+	class WP_CLI_Command { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+	}
+}
+
+if ( ! class_exists( 'WP_CLI' ) ) {
+	/**
+	 * Minimal WP_CLI facade stub. `add_command()` is a no-op so that requiring a
+	 * `includes/cli/class-wpmar-cli-*-command.php` file (which registers itself at
+	 * the bottom) doesn't fatal; `confirm()` is only stubbed to avoid a fatal if a
+	 * future test calls a command method that reaches it — no test currently does.
+	 */
+	class WP_CLI { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+		/**
+		 * @param string $name     Command name.
+		 * @param mixed  $callable Command class/callable.
+		 * @return void
+		 */
+		public static function add_command( $name, $callable ) {
+			unset( $name, $callable );
+		}
+
+		/**
+		 * @param string                        $message     Prompt message.
+		 * @param array<string,string|bool|int> $assoc_flags Flags (checked for --yes in real WP-CLI).
+		 * @return void
+		 */
+		public static function confirm( $message, $assoc_flags = array() ) {
+			unset( $message, $assoc_flags );
+		}
+	}
+}
