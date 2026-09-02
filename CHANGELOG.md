@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Network rollup reports can now narrow which sites' data appears in the merged report — "all sites" (unchanged default), "main site only", or "main site + selected child sites" — via a new "レポート出力範囲" (Report output scope) setting on the network admin screen. This is a *report* filter only: every target site is still audited and its `wpmar_snapshots` diff baseline still updates regardless of scope, so a site excluded from the report keeps a fresh baseline and rejoins the report later without a months-wide changelog. Implemented as a single filter (`WPMAR_Network_Runner::filter_segments_for_report()`) applied inside `finalize_rollup()`, the one convergence point every execution path (admin dry run, admin "run now", WP-Cron, WP-CLI `--network`, the async job dispatcher) already shares, so no path can miss it. A scope that resolves to zero segments (e.g. a selected blog ID that no longer exists) falls back to the full, unfiltered set rather than shipping an empty report, and logs a warning. The rollup's `summary_json` keeps `blog_ids` (every audited site) and adds `report_blog_ids` (only the sites shown in the report) as a separate key, so `sites_audited` keeps its existing meaning.
+
+### Changed
+
+- **"Run now" on the network admin screen always audits every target site now.** The existing run-scope radio (all sites / main site only / a specific site) previously applied to "Run now" as well as dry runs; narrowing "Run now" left the sites it skipped with a stale snapshot baseline once the run completed, since only sites that actually ran `run_site_segment()` got a fresh snapshot. Dry runs don't have this problem (they never persist snapshots), so the selector — relabelled "ドライランの対象サイト" (dry run target sites) — is now dry-run-only. A scoped manual run is still available via WP-CLI's `--same-setting` / `--id=<blog_id>`.
+
 ## [1.5.3] - 2026-09-02
 
 ### Added
