@@ -52,6 +52,8 @@ class WPMAR_Data_Collector {
 		wp_update_themes();
 		WPMAR_Logger::step( 'gather:core-updates' );
 
+		$core_pending_upgrades = $this->gather_core_updates();
+
 		$dataset = array(
 			'meta'    => array(
 				'blogname' => get_option( 'blogname' ),
@@ -62,7 +64,8 @@ class WPMAR_Data_Collector {
 			'core'    => array(
 				'version'           => get_bloginfo( 'version' ),
 				'locale'            => get_locale(),
-				'available_updates' => $this->gather_core_updates(),
+				'available_updates' => $core_pending_upgrades,
+				'release_status'    => $this->gather_core_release_status( $core_pending_upgrades ),
 			),
 			'themes'  => $this->gather_themes_bundle(),
 			'plugins' => $this->gather_plugins_bundle(),
@@ -175,6 +178,32 @@ class WPMAR_Data_Collector {
 		$updates = get_core_updates( array( 'dismissed' => false ) );
 
 		return self::pending_core_upgrade_versions( $updates );
+	}
+
+	/**
+	 * Resolves this site's core release status (security-patch state) via wp.org's
+	 * stable-check API, delegating the classification to {@see self::core_release_status()}.
+	 *
+	 * Short-circuits when there is no pending upgrade: an already-latest site has nothing
+	 * to classify, so it is skipped to avoid fetching the ~20KB stable-check payload (and,
+	 * in a network rollup, doing so on every already-current site in the loop).
+	 *
+	 * @param string[] $pending_upgrades Output of {@see self::gather_core_updates()}.
+	 * @return array{status:string,branch:string,branch_tip:string,latest:string}
+	 */
+	protected function gather_core_release_status( array $pending_upgrades ) {
+		if ( empty( $pending_upgrades ) ) {
+			return array(
+				'status'     => 'latest',
+				'branch'     => '',
+				'branch_tip' => '',
+				'latest'     => '',
+			);
+		}
+
+		$stable_map = $this->org->fetch_core_stable_check();
+
+		return self::core_release_status( get_bloginfo( 'version' ), $stable_map );
 	}
 
 	/**
