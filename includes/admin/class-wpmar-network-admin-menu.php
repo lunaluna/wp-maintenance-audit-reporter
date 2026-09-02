@@ -143,12 +143,7 @@ class WPMAR_Network_Admin_Menu {
 					break;
 				}
 
-				$dry_options = array(
-					'dry'            => true,
-					'triggered_by'   => 'manual_network',
-					'same_setting'   => $scope['same_setting'],
-					'target_blog_id' => $scope['target_blog_id'],
-				);
+				$dry_options = self::network_run_args( 'dry_run', $scope );
 
 				$enqueued_dry = WPMAR_Job_Dispatcher::enqueue_audit_job( $dry_options, 'network' );
 
@@ -174,24 +169,16 @@ class WPMAR_Network_Admin_Menu {
 				break;
 
 			case 'full_run':
-				$scope = self::read_run_scope( $input, $scope_error );
-				if ( '' !== $scope_error ) {
-					add_settings_error( 'wpmar_network_messages', 'wpmar_network_full', $scope_error, 'error' );
-					break;
-				}
+				// "Run now" always audits every target site - the one-shot scope radio
+				// below is dry-run-only, see network_run_args().
 				$persist = ! empty( $input['wpmar_persist_snapshots'] );
 				$qa_mail = '';
 				if ( isset( $input['wpmar_qa_mail'] ) ) {
 					$qa_mail = sanitize_email( $input['wpmar_qa_mail'] );
 				}
-				$run_options = array(
-					'dry'               => false,
-					'triggered_by'      => 'manual_network',
-					'persist_snapshots' => $persist,
-					'mail_qa_extra'     => $qa_mail,
-					'same_setting'      => $scope['same_setting'],
-					'target_blog_id'    => $scope['target_blog_id'],
-				);
+				$run_options                      = self::network_run_args( 'full_run', array() );
+				$run_options['persist_snapshots'] = $persist;
+				$run_options['mail_qa_extra']     = $qa_mail;
 
 				$enqueued = WPMAR_Job_Dispatcher::enqueue_audit_job( $run_options, 'network' );
 
@@ -291,7 +278,39 @@ class WPMAR_Network_Admin_Menu {
 	}
 
 	/**
+	 * Builds the exec args for a network run.
+	 *
+	 * Dry runs honour the one-shot scope radio; "run now" never does - it always covers
+	 * every target site, so a narrowed manual run can no longer leave the sites it
+	 * skipped with a stale snapshot baseline (see class docblock discussion in the
+	 * 1.5.4 plan: full_run previously let this radio silently go stale for the skipped
+	 * sites' diff history). Split out from handle_post() so this rule is unit-testable
+	 * without $_POST.
+	 *
+	 * @param string                                             $action 'dry_run' or 'full_run'.
+	 * @param array{ same_setting?: bool, target_blog_id?: int } $scope  Result of read_run_scope(); ignored for 'full_run'.
+	 * @return array<string,mixed>
+	 */
+	protected static function network_run_args( $action, array $scope ) {
+		$is_dry = ( 'dry_run' === $action );
+
+		$args = array(
+			'dry'          => $is_dry,
+			'triggered_by' => 'manual_network',
+		);
+
+		if ( $is_dry ) {
+			$args['same_setting']   = ! empty( $scope['same_setting'] );
+			$args['target_blog_id'] = isset( $scope['target_blog_id'] ) ? absint( $scope['target_blog_id'] ) : 0;
+		}
+
+		return $args;
+	}
+
+	/**
 	 * Reads and validates the run-scope POST fields, mapping them to runner option keys.
+	 *
+	 * Only meaningful for dry runs as of 1.5.4 - see {@see self::network_run_args()}.
 	 *
 	 * @param array  $input       wp_unslash()'d $_POST.
 	 * @param string $scope_error Output: non-empty string when validation fails.
