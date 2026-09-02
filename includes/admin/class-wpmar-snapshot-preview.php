@@ -316,13 +316,6 @@ class WPMAR_Snapshot_Preview {
 	protected static function current_site_markdown() {
 		global $wpdb;
 
-		$repo    = new WPMAR_Snapshot_Repository();
-		$by_type = array();
-
-		foreach ( self::display_types( $repo->types() ) as $type ) {
-			$by_type[ $type ] = $repo->recent( $type, 2 );
-		}
-
 		$context = array( 'table' => $wpdb->prefix . 'wpmar_snapshots' );
 
 		if ( is_multisite() ) {
@@ -332,6 +325,40 @@ class WPMAR_Snapshot_Preview {
 				get_current_blog_id(),
 				home_url( '/' )
 			);
+		}
+
+		return self::markdown_for_repository( new WPMAR_Snapshot_Repository(), $context );
+	}
+
+	/**
+	 * Loads a repository's rows (already scoped to whichever blog it was
+	 * constructed against - see the "always new() inside switch_to_blog()" rule
+	 * both callers below follow) and renders them to Markdown.
+	 *
+	 * The "table missing" notice takes precedence over the regular "nothing saved
+	 * yet" message to_markdown() would otherwise produce for an empty $by_type:
+	 * the two mean different things to whoever reads the screen (never upgraded
+	 * vs. never audited), and only this method can tell them apart, since
+	 * to_markdown() itself never touches the database.
+	 *
+	 * Never switches blogs itself - callers own that (WPMAR_Network::on_blog() /
+	 * on_main_site(), or simply staying on the current blog) - so this is reachable
+	 * by unit tests without any switch_to_blog() involved; only the network cross-
+	 * site view (Step 4) needs one, and its own render path is what 6-3's live
+	 * multisite check covers.
+	 *
+	 * @param WPMAR_Snapshot_Repository               $repo    Repository already scoped to the target blog.
+	 * @param array{table?:string,site_label?:string} $context Passed through to to_markdown().
+	 * @return string
+	 */
+	public static function markdown_for_repository( WPMAR_Snapshot_Repository $repo, array $context = array() ) {
+		if ( ! $repo->table_exists() ) {
+			return __( '* このサイトにはスナップショットのテーブルがまだ作成されていません。', 'wp-maintenance-audit-reporter' );
+		}
+
+		$by_type = array();
+		foreach ( self::display_types( $repo->types() ) as $type ) {
+			$by_type[ $type ] = $repo->recent( $type, 2 );
 		}
 
 		return self::to_markdown( $by_type, $context );
