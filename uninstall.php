@@ -268,6 +268,55 @@ function wpmar_uninstall_delete_private_storage() {
 }
 
 /**
+ * Resolves the external PDF library directory, mirroring `wpmar_pdf_lib_dir()`
+ * in wp-maintenance-audit-reporter.php — `uninstall.php` runs with only
+ * `WP_UNINSTALL_PLUGIN` defined, so none of this plugin's own code is loaded
+ * here (same reason {@see wpmar_uninstall_private_storage_base_dir()} restates
+ * its own resolution logic locally instead of loading WPMAR_PDF_Installer).
+ *
+ * @return string Absolute path without a trailing slash, or '' when unresolvable.
+ */
+function wpmar_uninstall_pdf_lib_dir() {
+	/** This filter is documented in wp-maintenance-audit-reporter.php */
+	$dir = (string) apply_filters( 'wpmar_pdf_lib_dir', WP_CONTENT_DIR . '/wpmar-pdf-lib/' );
+	$dir = wp_normalize_path( untrailingslashit( trim( $dir ) ) );
+
+	// A filter returning an empty value would otherwise turn into a delete of '/'.
+	if ( '' === $dir || '/' === $dir ) {
+		return '';
+	}
+
+	return $dir;
+}
+
+/**
+ * Removes the external PDF library directory (`vendor/` + `fonts/`, ~94 MB).
+ *
+ * Shared network-wide ({@see wpmar_pdf_lib_dir()} in wp-maintenance-audit-reporter.php
+ * never appends a `site-{blog_id}` segment) — call this once total, not per blog
+ * like {@see wpmar_uninstall_delete_private_storage()}.
+ *
+ * Gated behind the `wpmar_pdf_lib_delete_on_uninstall` filter (default true) so
+ * an operator who wants to keep the ~94 MB library across an uninstall/reinstall
+ * cycle (e.g. a staging workflow that reinstalls the plugin often) can opt out
+ * via an mu-plugin instead of losing the library and re-downloading it.
+ *
+ * @return void
+ */
+function wpmar_uninstall_delete_pdf_lib() {
+	if ( ! (bool) apply_filters( 'wpmar_pdf_lib_delete_on_uninstall', true ) ) {
+		return;
+	}
+
+	$dir = wpmar_uninstall_pdf_lib_dir();
+	if ( '' === $dir ) {
+		return;
+	}
+
+	wpmar_uninstall_rrmdir( $dir );
+}
+
+/**
  * Removes a directory only when it has no entries left (uninstall-only).
  *
  * Used for the shared private storage parent: an operator-chosen path (or one holding
@@ -364,3 +413,7 @@ if ( is_multisite() ) {
 	wpmar_uninstall_delete_uploads();
 	wpmar_uninstall_delete_private_storage();
 }
+
+// Shared network-wide regardless of single-site/multisite — run once total,
+// outside the per-blog loop above (see wpmar_uninstall_delete_pdf_lib()'s docblock).
+wpmar_uninstall_delete_pdf_lib();

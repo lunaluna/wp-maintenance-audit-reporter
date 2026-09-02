@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.5**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -96,6 +96,8 @@ Entries containing `*` (any string, crosses `/`) or `?` (any single character) a
 Shows the mPDF installation status. When absent, a one-click button downloads `vendor-pdf.zip` from GitHub Releases and extracts it (no server-side `composer install` needed). If the automatic download fails, a manual ZIP-upload fallback appears.
 
 Installing (both download and manual upload) requires the `install_plugins` capability (super admins only on multisite; disabled when `DISALLOW_FILE_MODS` is set). The archive is validated in an isolated staging directory — absolute paths, `..`, symlinks, and any top-level entry other than `vendor/` or `fonts/` are rejected — before it is moved into place.
+
+**Install location (since v1.5.5):** the library (mPDF + fonts, ~94 MB) installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, so it survives a plugin update regardless of upgrade path — including an update applied while the plugin is deactivated, which previously wiped it. An existing in-plugin install from before v1.5.5 is migrated there automatically on first load. When `wp-content` isn't writable, both a fresh install and the automatic migration fall back to the plugin directory instead of failing. The location is filterable via `wpmar_pdf_lib_dir` (default `WP_CONTENT_DIR . '/wpmar-pdf-lib/'`); uninstalling the plugin deletes it too, unless the `wpmar_pdf_lib_delete_on_uninstall` filter returns `false`.
 
 **Optional checksum pinning:** each release ships a `vendor-pdf.zip.sha256`. Set that value in the `WPMAR_PDF_VENDOR_ZIP_SHA256` constant (e.g. in `wp-config.php`) or return it from the `wpmar_pdf_vendor_zip_sha256` filter to require a SHA-256 match before extraction (no verification is performed when unset).
 
@@ -330,6 +332,8 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.5.5** (2026-09-03) — The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`; an existing in-plugin install is migrated there automatically on first load after updating. Fixes the library disappearing entirely when the plugin was updated while deactivated (the previous `vendor/`-backup safeguard only ran while the plugin was active). Filterable via `wpmar_pdf_lib_dir`; falls back to the plugin directory when `wp-content` isn't writable. Uninstalling deletes the external directory too, unless `wpmar_pdf_lib_delete_on_uninstall` returns `false`.
+- **v1.5.4** (2026-09-03) — Network rollup reports can now narrow which sites' data appears in the merged report via a new "Report output scope" setting (all sites / main site only / main site + selected sites) on the network admin screen; every target site is still audited and its snapshot baseline still updates regardless of scope, so only what's shown in the report changes. "Run now" on the network admin screen now always audits every target site — the existing run-scope selector is dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline; use a dry run or WP-CLI's `--same-setting`/`--id=<blog_id>` for a scoped manual run.
 - **v1.5.3** (2026-09-02) — Adds a snapshot preview to both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.
 - **v1.5.2.1** (2026-09-02) — `wp wpmar audit run --network` now prompts for confirmation before a synchronous run (no `--async`, dry-run or not), since it loops every target site in a single PHP process and can exceed a host's execution/cron timeout on large networks. `--yes` bypasses it as usual; `--same-setting`/`--id=<blog_id>` runs are unaffected.
 - **v1.5.2** (2026-09-02) — Core update copy now distinguishes "security patch applied, just an old major" from "known-vulnerable" using wp.org's stable-check API, instead of one generic "an update is available" message for both. Applies to the admin body, the client body, and PDF/mail. Adds a `wp_insecure` machine-readable summary code and a dedicated warning-count slot; a site with unpatched known vulnerabilities now increases `warning_count` by 2 instead of 1.
@@ -346,14 +350,15 @@ Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## Git Management
 
-If you manage this plugin in a project under Git version control, it is recommended to add the following two directories to your `.gitignore`, as they are generated on demand and should not be committed:
+If you manage this plugin in a project under Git version control, it is recommended to add the following three directories to your `.gitignore`, as they are generated on demand and should not be committed:
 
 ```gitignore
+wp-content/wpmar-pdf-lib/
 wp-content/plugins/wp-maintenance-audit-reporter/fonts/
 wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 ```
 
-`fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) together with the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+`wp-content/wpmar-pdf-lib/` is where the PDF library installs since v1.5.5 (see "PDF library" above); its `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) together with the font-metric cache mPDF writes during generation, and its `vendor/` is the on-demand install target for the PDF library (mPDF). The two paths under the plugin directory are kept as a fallback: they're still used by a site mid-migration from before v1.5.5, or one where `wp-content` isn't writable and installation falls back into the plugin directory.
 
 ## Development
 

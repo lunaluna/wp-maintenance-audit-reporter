@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.4
+Stable tag: 1.5.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,8 @@ Entries containing `*` (any string, crosses `/`) or `?` (any single character) a
 **PDF ライブラリ（mPDF） (PDF library)** — shows the mPDF installation status. When absent, a one-click button downloads `vendor-pdf.zip` from GitHub Releases and extracts it (no server-side `composer install` needed). If the automatic download fails, a manual ZIP-upload fallback appears.
 
 Installing (both download and manual upload) requires the `install_plugins` capability (super admins only on multisite; disabled when `DISALLOW_FILE_MODS` is set). The archive is validated in an isolated staging directory — absolute paths, `..`, symlinks, and any top-level entry other than `vendor/` or `fonts/` are rejected — before it is moved into place.
+
+Install location (since v1.5.5): the library (mPDF + fonts, ~94 MB) installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, so it survives a plugin update regardless of upgrade path — including an update applied while the plugin is deactivated, which previously wiped it. An existing in-plugin install from before v1.5.5 is migrated there automatically on first load. When `wp-content` isn't writable, both a fresh install and the automatic migration fall back to the plugin directory instead of failing. The location is filterable via `wpmar_pdf_lib_dir` (default `WP_CONTENT_DIR . '/wpmar-pdf-lib/'`); uninstalling the plugin deletes it too, unless the `wpmar_pdf_lib_delete_on_uninstall` filter returns `false`.
 
 Optional checksum pinning: each release ships a `vendor-pdf.zip.sha256`. Set that value in the `WPMAR_PDF_VENDOR_ZIP_SHA256` constant (e.g. in `wp-config.php`) or return it from the `wpmar_pdf_vendor_zip_sha256` filter to require a SHA-256 match before extraction (no verification is performed when unset).
 
@@ -293,14 +295,20 @@ Coding standards and tests:
 
 == Git Management ==
 
-If you manage this plugin in a project under Git version control, it is recommended to add the following two directories to your `.gitignore`, as they are generated on demand and should not be committed:
+If you manage this plugin in a project under Git version control, it is recommended to add the following three directories to your `.gitignore`, as they are generated on demand and should not be committed:
 
+  wp-content/wpmar-pdf-lib/
   wp-content/plugins/wp-maintenance-audit-reporter/fonts/
   wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 
-`fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
+`wp-content/wpmar-pdf-lib/` is where the PDF library installs since v1.5.5 (see "PDF library" above); its `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation, and its `vendor/` is the on-demand install target for the PDF library (mPDF). The two paths under the plugin directory are kept as a fallback: they're still used by a site mid-migration from before v1.5.5, or one where `wp-content` isn't writable and installation falls back into the plugin directory.
 
 == Changelog ==
+
+= 1.5.5 =
+* Added: the PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`. An existing in-plugin install is migrated there automatically on first load after updating. The location is filterable via `wpmar_pdf_lib_dir`; uninstalling the plugin deletes it too, unless the new `wpmar_pdf_lib_delete_on_uninstall` filter returns `false`. When `wp-content` isn't writable, both a fresh install and the automatic migration fall back to the plugin directory instead of failing.
+* Fixed: the PDF library could disappear entirely when the plugin was updated while deactivated — the existing `vendor/`-backup safeguard only ran while the plugin was active, so an update applied while deactivated silently wiped it with no way to recover. Moving the library outside the plugin directory removes the underlying cause.
+* See CHANGELOG.md for full details.
 
 = 1.5.4 =
 * Added: network rollup reports can now narrow which sites' data appears in the merged report — all sites (default), main site only, or main site + selected child sites — via a new "Report output scope" setting on the network admin screen. Every target site is still audited and its snapshot baseline still updates regardless of scope; only what's shown in the report changes.

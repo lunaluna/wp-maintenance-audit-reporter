@@ -103,7 +103,7 @@ class WPMAR_PDF_Writer {
 
 		$fragment = self::markdown_to_safe_html_fragment( $markdown );
 
-		$font_dir   = rtrim( WPMAR_PLUGIN_DIR, '/\\' ) . DIRECTORY_SEPARATOR . 'fonts';
+		$font_dir   = WPMAR_PDF_Installer::fonts_dir();
 		$has_notojp = is_dir( $font_dir )
 			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP-Regular.ttf' )
 			&& is_readable( $font_dir . DIRECTORY_SEPARATOR . 'NotoSansJP-Bold.ttf' );

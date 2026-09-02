@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.4
+Stable tag: 1.5.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,8 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 **PDF ライブラリ（mPDF）** — PDF 生成に使う mPDF のインストール状況を表示するパネルです。未インストールの場合はボタン 1 つで GitHub Releases から `vendor-pdf.zip` をダウンロードして展開します（サーバーでの `composer install` は不要）。自動ダウンロードが失敗する環境では、手動でダウンロードした ZIP をブラウザからアップロードするフォールバックが表示されます。
 
 インストール（ダウンロード・手動アップロードとも）には `install_plugins` 権限が必要です（マルチサイトではネットワーク管理者のみ、`DISALLOW_FILE_MODS` 有効時は無効）。ZIP は隔離した一時ディレクトリで検証（絶対パス・`..`・シンボリックリンク・`vendor/`/`fonts/` 以外の最上位エントリを拒否）してから配置されます。
+
+インストール先（v1.5.5 以降）: ライブラリ（mPDF + フォント、展開後 約94MB）はプラグインディレクトリの外、`wp-content/wpmar-pdf-lib/` にインストールされます。これにより、プラグインを更新してもアップデート経路（WP-CLI・管理画面の「今すぐ更新」・zip 上書き、そして従来は消えていた「プラグイン停止中の更新」も含む）にかかわらずライブラリが残ります。v1.5.5 より前からプラグイン内にインストール済みの場合は、次回読み込み時に自動的にこちらへ移設されます。`wp-content` に書き込めない環境では、新規インストール・自動移設ともに従来どおりプラグインディレクトリへフォールバックし、失敗にはなりません。インストール先は `wpmar_pdf_lib_dir` フィルター（既定 `WP_CONTENT_DIR . '/wpmar-pdf-lib/'`）で変更でき、プラグインをアンインストールするとこのディレクトリも削除されます（`wpmar_pdf_lib_delete_on_uninstall` フィルターで `false` を返すと削除されません）。
 
 チェックサム固定（任意）: リリースには `vendor-pdf.zip.sha256` が同梱されます。その値を `wp-config.php` などで定数 `WPMAR_PDF_VENDOR_ZIP_SHA256` に設定するか、`wpmar_pdf_vendor_zip_sha256` フィルターで返すと、展開前に SHA-256 を照合し不一致なら中止します（未設定時は従来どおり照合なし）。
 
@@ -293,14 +295,20 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 
 == Git 管理 ==
 
-このプラグインをプロジェクト内で Git 管理している場合、以下の2ディレクトリはオンデマンドで生成されるため `.gitignore` に追加することを推奨します。
+このプラグインをプロジェクト内で Git 管理している場合、以下の3ディレクトリはオンデマンドで生成されるため `.gitignore` に追加することを推奨します。
 
+  wp-content/wpmar-pdf-lib/
   wp-content/plugins/wp-maintenance-audit-reporter/fonts/
   wp-content/plugins/wp-maintenance-audit-reporter/vendor/
 
-`fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と、mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場です。`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。
+`wp-content/wpmar-pdf-lib/` は v1.5.5 以降の PDF ライブラリのインストール先です（前述の「PDF ライブラリ（mPDF）」参照）。その `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場、`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。プラグインディレクトリ配下の2つは、v1.5.5 より前から移行途中のサイトや、`wp-content` に書き込めずプラグインディレクトリへフォールバックしたサイトで引き続き使われるため残しています。
 
 == 変更履歴 ==
+
+= 1.5.5 =
+* 追加：PDF ライブラリ（mPDF + フォント、展開後 約94MB）のインストール先を、プラグイン自身の `vendor/`/`fonts/` から、プラグインディレクトリの外の `wp-content/wpmar-pdf-lib/` に変更しました。プラグイン内にインストール済みの場合は、更新後の次回読み込み時に自動的にこちらへ移設されます。インストール先は `wpmar_pdf_lib_dir` フィルターで変更でき、プラグインをアンインストールするとこのディレクトリも削除されます（`wpmar_pdf_lib_delete_on_uninstall` フィルターで `false` を返すと削除されません）。`wp-content` に書き込めない環境では、新規インストール・自動移設ともに従来どおりプラグインディレクトリへフォールバックし、失敗にはなりません。
+* 修正：プラグインが停止中に更新されると PDF ライブラリが完全に消えてしまう不具合を修正しました。従来の `vendor/` 退避の仕組みはプラグインが有効なときにしか動かず、停止中の更新では退避されないまま失われ、復旧手段がありませんでした。ライブラリをプラグインディレクトリの外に置くことで、根本原因そのものを解消しています。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.4 =
 * 追加：ネットワーク集約レポートに、どのサイトのデータを載せるかを選べる「レポート出力範囲」設定をネットワーク管理画面に追加しました(すべてのサイト[既定] / 親サイトのみ / 親サイト + 指定した子サイト)。監査はスコープに関わらず全対象サイトで実行され、スナップショットの基準も更新され続けます。変わるのはレポートに掲載される内容だけです。

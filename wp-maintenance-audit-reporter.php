@@ -3,7 +3,7 @@
  * Plugin Name:       WP Maintenance Audit Reporter
  * Plugin URI:        https://github.com/lunaluna/wp-maintenance-audit-reporter
  * Description:       Monthly maintenance reports for WordPress: core, themes, plugins, deltas, checksums, security ops, mail, CLI.
- * Version:           1.5.4
+ * Version:           1.5.5
  * Requires at least: 6.0
  * Tested up to:      7.1
  * Requires PHP:      7.4
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPMAR_VERSION', '1.5.4' );
+define( 'WPMAR_VERSION', '1.5.5' );
 define( 'WPMAR_PLUGIN_FILE', __FILE__ );
 define( 'WPMAR_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPMAR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -56,6 +56,23 @@ $wpmar_updater_register(
  * library is absent the plugin keeps working through the synchronous CLI/cron paths.
  */
 wpmar_maybe_load_action_scheduler();
+
+/**
+ * Absolute path (trailing slash) to the directory the PDF library (mPDF +
+ * fonts) lives in outside the plugin directory.
+ *
+ * Placed at `WP_CONTENT_DIR` rather than under `wp_upload_dir()` because the
+ * uploads directory is per-site on multisite, which would multiply the ~94 MB
+ * bundle by the number of sites; `wp-content` is shared network-wide, matching
+ * the single-copy behaviour the plugin already had when the library lived
+ * inside the (also shared) plugin directory. Override with the
+ * `wpmar_pdf_lib_dir` filter (e.g. to move it off a read-only `wp-content`).
+ *
+ * @return string
+ */
+function wpmar_pdf_lib_dir() {
+	return trailingslashit( (string) apply_filters( 'wpmar_pdf_lib_dir', WP_CONTENT_DIR . '/wpmar-pdf-lib/' ) );
+}
 
 /**
  * Includes loaded for activation hooks and runtime.
@@ -123,9 +140,29 @@ function wpmar_require_includes_once() {
 		return;
 	}
 
-	$autoload = WPMAR_PLUGIN_DIR . 'vendor/autoload.php';
-	if ( is_readable( $autoload ) ) {
-		require_once $autoload;
+	// Required standalone (ahead of the manifest loop below, which would also
+	// require it) so maybe_migrate() can run before the autoload require: doing
+	// the migration first, and the autoload lookup after, matters because
+	// loading the autoloader would otherwise cache the in-plugin absolute path
+	// in its classmap, breaking mPDF/Parsedown class resolution for the rest of
+	// any request that migrated vendor/ mid-flight.
+	require_once WPMAR_PLUGIN_DIR . 'includes/admin/class-wpmar-pdf-installer.php';
+	WPMAR_PDF_Installer::maybe_migrate();
+
+	// Resolution order: inside the plugin directory first (development
+	// checkouts and sites not yet migrated to the external location), then
+	// the external `wpmar-pdf-lib` directory (see wpmar_pdf_lib_dir()).
+	// Not routed through WPMAR_PDF_Installer::autoload_path() to avoid a
+	// naming/behavior mismatch with the require_once semantics needed here.
+	$autoload_candidates = array(
+		WPMAR_PLUGIN_DIR . 'vendor/autoload.php',
+		wpmar_pdf_lib_dir() . 'vendor/autoload.php',
+	);
+	foreach ( $autoload_candidates as $autoload_candidate ) {
+		if ( is_readable( $autoload_candidate ) ) {
+			require_once $autoload_candidate;
+			break;
+		}
 	}
 
 	foreach ( wpmar_get_include_manifest() as $relative_path ) {
