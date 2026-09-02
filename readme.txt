@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.3
+Stable tag: 1.5.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -165,7 +165,15 @@ Reports (Markdown), PDFs, and diagnostics logs are stored by default under `wp-c
 
 = Network admin (multisite) =
 
-Network-activate the plugin, then configure rollup audits under **Network Admin → Maintenance Audit**. All target sites are visited and one client-facing plus one administrator-facing merged report is stored on the main site, with a single mail dispatch. Settings mirror the single-site screen, plus site filters (max sites, excluded blog IDs) and a run-scope selector (all target sites / main site only / a specific site).
+Network-activate the plugin, then configure rollup audits under **Network Admin → Maintenance Audit**. All target sites are visited and one client-facing plus one administrator-facing merged report is stored on the main site, with a single mail dispatch. Settings mirror the single-site screen, plus site filters (max sites, excluded blog IDs), a **"Report output scope"** selector (all sites / main site only / main site + selected child sites), and a dry-run-only "dry run target sites" selector.
+
+Several similarly-named settings sit side by side here, so the distinction matters:
+
+* **Target sites** (max sites, excluded blog IDs) — narrows **the audit itself**. Persisted; excluded sites are never audited, so their snapshot baseline never updates.
+* **Report output scope** (v1.5.4+) — narrows **which sites' data appears in the report**. Persisted, applied to every run including scheduled ones. Every site is still audited and its snapshot still updates — only what's shown in the report changes.
+* **Dry run target sites** — a one-shot pick for dry runs only. Not persisted. As of v1.5.4 this has no effect on "Run now" (earlier versions applied it there too).
+
+**Behaviour change in v1.5.4:** "Run now" always audits every target site now. Previously this same selector could narrow "Run now" to the main site or a single site, but any site left out kept a stale snapshot baseline once the run finished — dry runs don't have this problem since they never persist snapshots. Use a dry run, or WP-CLI's `--same-setting` / `--id=<blog_id>`, for a scoped manual run.
 
 = WP-CLI =
 
@@ -293,6 +301,11 @@ If you manage this plugin in a project under Git version control, it is recommen
 `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation. `vendor/` is the on-demand install target for the PDF library (mPDF).
 
 == Changelog ==
+
+= 1.5.4 =
+* Added: network rollup reports can now narrow which sites' data appears in the merged report — all sites (default), main site only, or main site + selected child sites — via a new "Report output scope" setting on the network admin screen. Every target site is still audited and its snapshot baseline still updates regardless of scope; only what's shown in the report changes.
+* Changed: "Run now" on the network admin screen always audits every target site now. The existing run-scope selector (all sites / main site only / a specific site) is now dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline. Use a dry run, or WP-CLI's `--same-setting` / `--id=<blog_id>`, for a scoped manual run.
+* See CHANGELOG.md for full details.
 
 = 1.5.3 =
 * Added: snapshot preview on both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown — a slug→version map used purely for diffing, not a copy of the audit report body. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.

@@ -181,6 +181,37 @@ class WPMAR_Network_Settings_Page {
 							</td>
 						</tr>
 					</table>
+					<p class="description">
+						<?php esc_html_e( 'ここで除外したサイトは監査自体が行われません（スナップショットも更新されません）。レポートの掲載範囲だけを変えたい場合は『レポート出力範囲』を使ってください。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+				</div>
+
+				<div class="wpmar-section-panel">
+					<h2><?php esc_html_e( 'レポート出力範囲', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<?php $report_scope = isset( $settings['report']['scope'] ) ? (string) $settings['report']['scope'] : 'all'; ?>
+					<fieldset class="wpmar-report-scope">
+						<legend class="screen-reader-text"><?php esc_html_e( 'レポート出力範囲', 'wp-maintenance-audit-reporter' ); ?></legend>
+						<label for="wpmar-report-scope-all">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-all" value="all" <?php checked( 'all', $report_scope ); ?> />
+							<?php esc_html_e( 'すべてのサイト（デフォルト）', 'wp-maintenance-audit-reporter' ); ?>
+						</label><br />
+						<label for="wpmar-report-scope-main">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-main" value="main_only" <?php checked( 'main_only', $report_scope ); ?> />
+							<?php esc_html_e( '親サイト（メインサイト）のみ', 'wp-maintenance-audit-reporter' ); ?>
+						</label><br />
+						<label for="wpmar-report-scope-selected">
+							<input type="radio" name="wpmar_report_scope" id="wpmar-report-scope-selected" value="main_and_selected" <?php checked( 'main_and_selected', $report_scope ); ?> />
+							<?php esc_html_e( '親サイト + 指定した子サイト', 'wp-maintenance-audit-reporter' ); ?>
+						</label>
+						<p>
+							<label for="wpmar-report-blog-ids"><?php esc_html_e( '子サイトの blog ID', 'wp-maintenance-audit-reporter' ); ?></label><br />
+							<textarea class="large-text code" rows="3" name="wpmar_report_blog_ids" id="wpmar-report-blog-ids"><?php echo esc_textarea( implode( "\n", array_map( 'strval', (array) ( $settings['report']['blog_ids'] ?? array() ) ) ) ); ?></textarea>
+							<span class="description"><?php esc_html_e( '1行1件、またはカンマ区切り。「親サイト + 指定した子サイト」のときだけ使われます。', 'wp-maintenance-audit-reporter' ); ?></span>
+						</p>
+					</fieldset>
+					<p class="description">
+						<?php esc_html_e( '保存され、定期実行を含むすべての実行に適用されます。監査はすべてのサイトで実行され、レポートに載せる範囲だけが変わります。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
 				</div>
 
 				<div class="wpmar-section-panel">
@@ -289,7 +320,7 @@ class WPMAR_Network_Settings_Page {
 				</div>
 
 				<fieldset class="wpmar-run-scope">
-					<legend class="wpmar-run-scope-legend"><?php esc_html_e( '実行範囲（ドライラン／今すぐ実行）', 'wp-maintenance-audit-reporter' ); ?></legend>
+					<legend class="wpmar-run-scope-legend"><?php esc_html_e( 'ドライランの対象サイト', 'wp-maintenance-audit-reporter' ); ?></legend>
 					<label for="wpmar-run-scope-all">
 						<input type="radio" name="wpmar_run_scope" id="wpmar-run-scope-all" value="all" checked />
 						<?php esc_html_e( 'すべての対象サイト（デフォルト）', 'wp-maintenance-audit-reporter' ); ?>
@@ -305,8 +336,11 @@ class WPMAR_Network_Settings_Page {
 					<label for="wpmar-target-blog-id" class="screen-reader-text"><?php esc_html_e( '対象 blog ID', 'wp-maintenance-audit-reporter' ); ?></label>
 					<input type="number" name="wpmar_target_blog_id" id="wpmar-target-blog-id" class="small-text" min="1" step="1" value="" />
 					<p class="description">
+						<?php esc_html_e( 'ドライラン（試し実行）にのみ適用されます。保存されません。「今すぐ実行」は常にすべての対象サイトを監査します。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
+					<p class="description">
 						<?php
-						esc_html_e( '「親サイトのみ」は WP-CLI の --same-setting、「特定のサイトのみ」は --id=<blog_id> に相当します。全サイトが同一のプラグイン・テーマ構成なら親サイトのみでレポートを作成できます。', 'wp-maintenance-audit-reporter' );
+						esc_html_e( '「親サイトのみ」は WP-CLI の --same-setting、「特定のサイトのみ」は --id=<blog_id> に相当します。全サイトが同一のプラグイン・テーマ構成なら親サイトのみでドライランできます。', 'wp-maintenance-audit-reporter' );
 						?>
 					</p>
 				</fieldset>
