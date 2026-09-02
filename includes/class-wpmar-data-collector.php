@@ -93,7 +93,7 @@ class WPMAR_Data_Collector {
 
 		$security = new WPMAR_Check_Security_Ops();
 		WPMAR_Logger::step( 'gather:security-ops:start' );
-		$dataset['security'] = $security->collect( $settings );
+		$dataset['security'] = $security->collect( $settings, $dataset );
 		WPMAR_Logger::step( 'gather:security-ops:done' );
 
 		$dataset['backup'] = $this->gather_backup_providers( $settings );

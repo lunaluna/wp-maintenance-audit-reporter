@@ -34,9 +34,13 @@ class WPMAR_Check_Security_Ops {
 	 * Builds the `security` envelope for the dataset.
 	 *
 	 * @param array<string,mixed> $settings Plugin settings.
+	 * @param array<string,mixed> $dataset  In-progress dataset from {@see WPMAR_Data_Collector::gather()}
+	 *                                      (used to read `core.release_status`, already built by the
+	 *                                      time this runs). Defaults to empty so pre-1.5.2 callers
+	 *                                      that only pass `$settings` still work.
 	 * @return array<string,mixed>
 	 */
-	public function collect( array $settings ) {
+	public function collect( array $settings, array $dataset = array() ) {
 		$security_settings = isset( $settings['security'] ) && is_array( $settings['security'] ) ? $settings['security'] : array();
 
 		$ssl_on = ! array_key_exists( 'ssl_check_enabled', $security_settings ) || ! empty( $security_settings['ssl_check_enabled'] );
@@ -49,7 +53,7 @@ class WPMAR_Check_Security_Ops {
 				),
 			),
 			'php_eol'              => $this->check_php_eol_branch(),
-			'recommended_versions' => $this->check_recommended_stack(),
+			'recommended_versions' => $this->check_recommended_stack( $dataset ),
 			'admin_activity'       => $this->check_administrator_activity( $settings ),
 			'wp_config'            => $this->check_wp_config_permissions(),
 			'debug'                => $this->check_debug_and_environment(),
@@ -279,9 +283,10 @@ class WPMAR_Check_Security_Ops {
 	/**
 	 * WordPress / PHP / MySQL light-touch recommendations.
 	 *
+	 * @param array<string,mixed> $dataset In-progress dataset (reads `core.release_status`).
 	 * @return array<string,mixed>
 	 */
-	protected function check_recommended_stack() {
+	protected function check_recommended_stack( array $dataset = array() ) {
 		global $wpdb;
 
 		$wp_ver = isset( $GLOBALS['wp_version'] ) ? (string) $GLOBALS['wp_version'] : '';
@@ -293,6 +298,23 @@ class WPMAR_Check_Security_Ops {
 
 		$pending_versions = WPMAR_Data_Collector::pending_core_upgrade_versions( $core_updates );
 		$wp_warn          = ! empty( $pending_versions );
+
+		$release_status = isset( $dataset['core']['release_status'] ) && is_array( $dataset['core']['release_status'] )
+			? $dataset['core']['release_status']
+			: array();
+		$wp_insecure    = isset( $release_status['status'] ) && 'insecure' === $release_status['status'];
+		$wp_branch_tip  = isset( $release_status['branch_tip'] ) ? sanitize_text_field( (string) $release_status['branch_tip'] ) : '';
+
+		// The insecure note goes first so {@see WPMAR_Runner::first_security_note_text()}
+		// (which surfaces only the first note) leads with the urgent one, not the generic
+		// "an update exists" line.
+		$wp_notes = array();
+		if ( $wp_insecure ) {
+			$wp_notes[] = __( 'WordPress コアにセキュリティパッチが適用されていません。至急アップデートしてください。', 'wp-maintenance-audit-reporter' );
+		}
+		if ( $wp_warn ) {
+			$wp_notes[] = __( 'WordPress コアの更新が利用可能です。', 'wp-maintenance-audit-reporter' );
+		}
 
 		$php_recommend = version_compare( PHP_VERSION, '8.1.0', '<' );
 
@@ -307,9 +329,9 @@ class WPMAR_Check_Security_Ops {
 			'wordpress' => array(
 				'version'          => $wp_ver,
 				'update_available' => $wp_warn,
-				'notes'            => $wp_warn
-					? array( __( 'WordPress コアの更新が利用可能です。', 'wp-maintenance-audit-reporter' ) )
-					: array(),
+				'insecure'         => $wp_insecure,
+				'branch_tip'       => $wp_branch_tip,
+				'notes'            => $wp_notes,
 			),
 			'php'       => array(
 				'version'   => PHP_VERSION,
@@ -521,6 +543,11 @@ class WPMAR_Check_Security_Ops {
 		if ( ! empty( $stack['wordpress']['update_available'] ) ) {
 			++$n;
 		}
+		// Counted separately from `update_available`: an insecure site is both "behind" and
+		// "known-vulnerable", which are two distinct problems worth flagging, so it counts twice.
+		if ( ! empty( $stack['wordpress']['insecure'] ) ) {
+			++$n;
+		}
 		if ( ! empty( $stack['php']['below_8_1'] ) ) {
 			++$n;
 		}
@@ -567,6 +594,9 @@ class WPMAR_Check_Security_Ops {
 		}
 		if ( ! empty( $bundle['recommended_versions']['wordpress']['update_available'] ) ) {
 			$codes[] = 'wp_update';
+		}
+		if ( ! empty( $bundle['recommended_versions']['wordpress']['insecure'] ) ) {
+			$codes[] = 'wp_insecure';
 		}
 		if ( ! empty( $bundle['recommended_versions']['php']['below_8_1'] ) ) {
 			$codes[] = 'php_old';
