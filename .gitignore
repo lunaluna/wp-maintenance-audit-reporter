@@ -45,3 +45,6 @@ build/
 
 # Action Scheduler bundled into lib/ by bin/build-zip.pre.sh ahead of staging
 /lib/action-scheduler/
+
+# release-notes action output (created at repo root by the reusable workflow)
+/release-notes.txt
