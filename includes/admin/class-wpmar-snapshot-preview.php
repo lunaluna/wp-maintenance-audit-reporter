@@ -33,6 +33,15 @@ class WPMAR_Snapshot_Preview {
 	const KNOWN_TYPES = array( 'core', 'themes', 'plugins', 'users' );
 
 	/**
+	 * How old the oldest dimension's baseline can be before render_freshness() adds
+	 * a staleness warning. Unmeasured provisional value (WPMAR 1.5.6 plan, section
+	 * 6): one monthly-audit cycle's worth of grace. Revisit once real-site baseline
+	 * distributions are on hand, e.g. by deriving this from WPMAR_Settings'
+	 * `schedule` instead of a fixed constant.
+	 */
+	const STALE_THRESHOLD_DAYS = 60;
+
+	/**
 	 * Builds the preview Markdown from already-loaded rows.
 	 *
 	 * Each $by_type entry is rendered as its own `##` section, in the order given
@@ -283,6 +292,8 @@ class WPMAR_Snapshot_Preview {
 			<p class="description"><?php esc_html_e( 'このサイトからは監査を実行できませんが、ネットワーク実行の結果がここに蓄積されます。', 'wp-maintenance-audit-reporter' ); ?></p>
 		<?php endif; ?>
 
+		<?php self::render_freshness( new WPMAR_Snapshot_Repository() ); ?>
+
 		<?php
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view toggle, no state change (see method docblock).
 		if ( ! isset( $_GET['wpmar_snapshot_preview'] ) ) :
@@ -362,5 +373,82 @@ class WPMAR_Snapshot_Preview {
 		}
 
 		return self::to_markdown( $by_type, $context );
+	}
+
+	/**
+	 * Newest captured_at per dimension - the "did the monthly run actually update
+	 * the baseline" check WPMAR 1.5.6 adds. Reuses recent()/types()/table_exists()
+	 * (already needed by the preview above); no new repository query shape.
+	 *
+	 * @param WPMAR_Snapshot_Repository $repo Repository already scoped to the target blog.
+	 * @return array<string,string|null> Dimension => captured_at (UTC string), or null
+	 *                                    when that dimension has never been saved.
+	 */
+	public static function freshness_rows( WPMAR_Snapshot_Repository $repo ) {
+		if ( ! $repo->table_exists() ) {
+			return array();
+		}
+
+		$rows = array();
+		foreach ( self::display_types( $repo->types() ) as $type ) {
+			$recent                 = $repo->recent( $type, 1 );
+			$rows[ (string) $type ] = isset( $recent[0]['captured_at'] ) ? (string) $recent[0]['captured_at'] : null;
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Prints the "基準の鮮度" mini-block: one line per dimension, plus a staleness
+	 * warning when the oldest of them exceeds {@see self::STALE_THRESHOLD_DAYS}.
+	 *
+	 * Deliberately not gated behind the preview's expand/collapse toggle - this is
+	 * the at-a-glance check an operator needs without opening the full table dump.
+	 *
+	 * @param WPMAR_Snapshot_Repository $repo Repository already scoped to the target blog.
+	 * @return void
+	 */
+	public static function render_freshness( WPMAR_Snapshot_Repository $repo ) {
+		$rows = self::freshness_rows( $repo );
+		if ( empty( $rows ) ) {
+			return;
+		}
+
+		$oldest_ts = null;
+		foreach ( $rows as $captured_at ) {
+			if ( null === $captured_at ) {
+				continue;
+			}
+			$ts = strtotime( $captured_at . ' UTC' );
+			if ( false !== $ts && ( null === $oldest_ts || $ts < $oldest_ts ) ) {
+				$oldest_ts = $ts;
+			}
+		}
+		?>
+		<h4><?php esc_html_e( '基準の鮮度（最終保存日時）', 'wp-maintenance-audit-reporter' ); ?></h4>
+		<ul>
+			<?php foreach ( $rows as $type => $captured_at ) : ?>
+				<li>
+					<?php echo esc_html( self::column_headings( $type )['heading'] ); ?>:
+					<?php
+					echo null !== $captured_at
+						? esc_html( $captured_at . ' UTC' )
+						: esc_html__( '記録なし（未保存）', 'wp-maintenance-audit-reporter' );
+					?>
+				</li>
+			<?php endforeach; ?>
+		</ul>
+		<?php if ( null !== $oldest_ts && ( time() - $oldest_ts ) > self::STALE_THRESHOLD_DAYS * DAY_IN_SECONDS ) : ?>
+			<p class="description">
+				<?php
+				printf(
+					/* translators: %d: number of days */
+					esc_html__( '※ 最も古い基準が %d 日以上前です。定期実行の設定間隔とずれている可能性があります。', 'wp-maintenance-audit-reporter' ),
+					absint( self::STALE_THRESHOLD_DAYS )
+				);
+				?>
+			</p>
+		<?php endif; ?>
+		<?php
 	}
 }
