@@ -78,21 +78,23 @@ class WPMAR_Network_Segments_Repository {
 			$ok = $this->db->insert(
 				$this->table,
 				array(
-					'run_id'           => $run_id,
-					'blog_id'          => $blog_id,
-					'status'           => self::STATUS_QUEUED,
-					'attempts'         => 0,
-					'domain_gate_ok'   => 0,
-					'site_name'        => '',
-					'home_url'         => '',
-					'changelog_counts' => 0,
-					'client_body'      => '',
-					'admin_body'       => '',
-					'error'            => '',
-					'created_at'       => $now,
-					'updated_at'       => $now,
+					'run_id'              => $run_id,
+					'blog_id'             => $blog_id,
+					'status'              => self::STATUS_QUEUED,
+					'attempts'            => 0,
+					'domain_gate_ok'      => 0,
+					'site_name'           => '',
+					'home_url'            => '',
+					'changelog_counts'    => 0,
+					'client_body'         => '',
+					'admin_body'          => '',
+					'baseline_json'       => '',
+					'snapshots_persisted' => 0,
+					'error'               => '',
+					'created_at'          => $now,
+					'updated_at'          => $now,
 				),
-				array( '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
+				array( '%s', '%d', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 			);
 
 			if ( false !== $ok ) {
@@ -128,24 +130,32 @@ class WPMAR_Network_Segments_Repository {
 	 *
 	 * @param string              $run_id  Parent job id.
 	 * @param int                 $blog_id Target blog id.
-	 * @param array<string,mixed> $segment Keys: site_name, home_url, domain_gate_ok, changelog_counts, client_body, admin_body.
+	 * @param array<string,mixed> $segment Keys: site_name, home_url, domain_gate_ok, changelog_counts,
+	 *                                     client_body, admin_body, baseline (dimension => captured_at
+	 *                                     or null), snapshots_persisted.
 	 * @return bool
 	 */
 	public function mark_done( $run_id, $blog_id, array $segment ) {
+		$baseline_json = isset( $segment['baseline'] ) && is_array( $segment['baseline'] )
+			? wp_json_encode( $segment['baseline'] )
+			: '';
+
 		$ok = $this->update_fields(
 			$run_id,
 			$blog_id,
 			array(
-				'status'           => self::STATUS_DONE,
-				'domain_gate_ok'   => empty( $segment['domain_gate_ok'] ) ? 0 : 1,
-				'site_name'        => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
-				'home_url'         => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
-				'changelog_counts' => isset( $segment['changelog_counts'] ) ? absint( $segment['changelog_counts'] ) : 0,
-				'client_body'      => isset( $segment['client_body'] ) ? (string) $segment['client_body'] : '',
-				'admin_body'       => isset( $segment['admin_body'] ) ? (string) $segment['admin_body'] : '',
-				'error'            => '',
+				'status'              => self::STATUS_DONE,
+				'domain_gate_ok'      => empty( $segment['domain_gate_ok'] ) ? 0 : 1,
+				'site_name'           => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
+				'home_url'            => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
+				'changelog_counts'    => isset( $segment['changelog_counts'] ) ? absint( $segment['changelog_counts'] ) : 0,
+				'client_body'         => isset( $segment['client_body'] ) ? (string) $segment['client_body'] : '',
+				'admin_body'          => isset( $segment['admin_body'] ) ? (string) $segment['admin_body'] : '',
+				'baseline_json'       => is_string( $baseline_json ) ? $baseline_json : '',
+				'snapshots_persisted' => empty( $segment['snapshots_persisted'] ) ? 0 : 1,
+				'error'               => '',
 			),
-			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
+			array( '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%s' )
 		);
 
 		if ( $ok ) {

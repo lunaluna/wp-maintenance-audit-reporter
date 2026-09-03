@@ -33,6 +33,20 @@ final class NetworkMultisiteTest extends TestCase {
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-domain-gate.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-runner.php';
+		require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-runner.php';
+	}
+
+	/**
+	 * Calls the protected WPMAR_Network_Runner::extract_segment_baseline() via reflection.
+	 *
+	 * @param array<string,mixed> $segment One report_segments entry.
+	 * @return array<string,mixed>
+	 */
+	private function extract_segment_baseline( array $segment ) {
+		$method = new \ReflectionMethod( \WPMAR_Network_Runner::class, 'extract_segment_baseline' );
+		$method->setAccessible( true );
+
+		return $method->invoke( null, $segment );
 	}
 
 	/**
@@ -107,5 +121,54 @@ final class NetworkMultisiteTest extends TestCase {
 		self::assertStringContainsString( 'https://example.com/child/', $merged );
 		self::assertStringContainsString( 'Hello client', $merged );
 		self::assertStringContainsString( '---', $merged );
+	}
+
+	/**
+	 * Sync path: finalize_rollup() receives run_site_segment()'s in-memory return
+	 * value, where `baseline` is already a native array.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_reads_native_array_from_sync_path(): void {
+		$baseline = array(
+			'core'   => '2026-07-28 00:04:06',
+			'themes' => null,
+		);
+
+		self::assertSame( $baseline, $this->extract_segment_baseline( array( 'baseline' => $baseline ) ) );
+	}
+
+	/**
+	 * Async path: finalize_rollup() receives rows read back from
+	 * `{$wpdb->prefix}wpmar_network_segments`, where baseline survived as the
+	 * `baseline_json` JSON string column (see WPMAR_Network_Segments_Repository).
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_decodes_baseline_json_from_async_path(): void {
+		$decoded = $this->extract_segment_baseline(
+			array( 'baseline_json' => wp_json_encode( array( 'core' => '2026-07-28 00:04:06' ) ) )
+		);
+
+		self::assertSame( array( 'core' => '2026-07-28 00:04:06' ), $decoded );
+	}
+
+	/**
+	 * Neither the sync nor the async shape's key is present.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_returns_empty_array_when_neither_key_present(): void {
+		self::assertSame( array(), $this->extract_segment_baseline( array() ) );
+	}
+
+	/**
+	 * A malformed baseline_json (corrupt row, truncated column) must not surface as a
+	 * fatal - the freshness line just shows "no baseline" instead of crashing the report.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_returns_empty_array_for_corrupt_json(): void {
+		self::assertSame( array(), $this->extract_segment_baseline( array( 'baseline_json' => '{not valid json' ) ) );
 	}
 }
