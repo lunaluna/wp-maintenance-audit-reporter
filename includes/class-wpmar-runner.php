@@ -32,7 +32,7 @@ class WPMAR_Runner {
 	/**
 	 * Executes audits according to behavioural flags.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (manual only; cron/cli always save).
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (null = trigger-derived default; cron/cli always save, manual does not; true/false override explicitly).
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
@@ -42,7 +42,9 @@ class WPMAR_Runner {
 			'mail_override'     => '',
 			'mail_qa_extra'     => '',
 			'capture_cli'       => defined( 'WP_CLI' ) && WP_CLI,
-			'persist_snapshots' => false,
+			// null (not false) so should_persist_snapshots() can tell "caller didn't say" apart
+			// from "caller explicitly opted out" - see that method's docblock.
+			'persist_snapshots' => null,
 		);
 
 		$exec = wp_parse_args( $options, $defaults );
@@ -456,25 +458,38 @@ class WPMAR_Runner {
 	/**
 	 * Whether to write snapshot rows: WP-Cron always; CLI always; manual paths only when opted in.
 	 *
+	 * `persist_snapshots` is tri-state: `null` (absent/unspecified) falls back to the
+	 * trigger-derived default below; explicit `false` always opts out; any other explicit
+	 * value is honoured as-is. This lets a caller that forgets to pass the key still get the
+	 * correct trigger-based default instead of silently skipping persistence (see the incident
+	 * fixed in c9b345e, where `wp_parse_args()` used to backfill a `false` default that then
+	 * tripped the opt-out branch below before the cron/cli branch could ever run).
+	 *
 	 * @param array<string,mixed> $exec Normalised {@see self::run()} options.
 	 * @return bool
 	 */
 	protected static function should_persist_snapshots( array $exec ) {
+		$persist_option = array_key_exists( 'persist_snapshots', $exec ) ? $exec['persist_snapshots'] : null;
+
 		// Explicit false opt-out takes priority over any trigger default.
-		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
+		if ( false === $persist_option ) {
 			return false;
 		}
 
-		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
-		if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
-			return true;
-		}
-		// Unattended CLI runs mirror legacy “always persist” behaviour.
-		if ( 'cli' === $triggered || 'cli_network' === $triggered ) {
-			return true;
+		if ( null === $persist_option ) {
+			$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
+			if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
+				return true;
+			}
+			// Unattended CLI runs mirror legacy “always persist” behaviour.
+			if ( 'cli' === $triggered || 'cli_network' === $triggered ) {
+				return true;
+			}
+
+			return false;
 		}
 
-		return ! empty( $exec['persist_snapshots'] );
+		return ! empty( $persist_option );
 	}
 
 	/**

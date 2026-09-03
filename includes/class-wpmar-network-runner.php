@@ -19,14 +19,16 @@ class WPMAR_Network_Runner {
 	/**
 	 * Executes a network rollup audit.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots, mail_qa_extra, same_setting, target_blog_id.
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots (null = trigger-derived default; cron_network/cli_network always save, manual_network does not), mail_qa_extra, same_setting, target_blog_id.
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
 		$defaults = array(
 			'dry'               => false,
 			'triggered_by'      => 'manual_network',
-			'persist_snapshots' => false,
+			// null (not false) so should_persist_snapshots() can tell "caller didn't say" apart
+			// from "caller explicitly opted out" - see that method's docblock.
+			'persist_snapshots' => null,
 			'mail_qa_extra'     => '',
 			'same_setting'      => false,
 			'target_blog_id'    => 0,
@@ -446,20 +448,27 @@ class WPMAR_Network_Runner {
 	 * and hand the single resulting flag to every per-site segment job, instead of each
 	 * one re-deriving it from `$exec['triggered_by']` independently.
 	 *
+	 * `persist_snapshots` is tri-state: `null` (absent/unspecified) falls back to the
+	 * trigger-derived default below; explicit `false` always opts out; any other explicit
+	 * value is honoured as-is. See {@see WPMAR_Runner::should_persist_snapshots()} for the
+	 * incident (c9b345e) this guards against.
+	 *
 	 * @param array<string,mixed> $exec Options.
 	 * @return bool
 	 */
 	public static function should_persist_snapshots( array $exec ) {
+		$persist_option = array_key_exists( 'persist_snapshots', $exec ) ? $exec['persist_snapshots'] : null;
+
 		// Explicit false opt-out takes priority over any trigger default.
-		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
+		if ( false === $persist_option ) {
 			return false;
 		}
 
-		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual_network';
-		if ( 'cron_network' === $triggered || 'cli_network' === $triggered ) {
-			return true;
+		if ( null === $persist_option ) {
+			$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual_network';
+			return 'cron_network' === $triggered || 'cli_network' === $triggered;
 		}
 
-		return ! empty( $exec['persist_snapshots'] );
+		return ! empty( $persist_option );
 	}
 }
