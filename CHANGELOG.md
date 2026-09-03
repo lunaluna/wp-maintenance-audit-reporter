@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-03
+
+利用者から見た機能変更はありません。リリース基盤(配布ZIPの作り方・GitHub
+Releaseの作り方)を共有ライブラリ `l2d-wp-github-update-lib`(1.2.0)の
+reusable workflow へ寄せました。PHPコードは1行も変わっておらず、配布ZIPの
+中身は1.5.6と同一です(`vendor-pdf.sha256` を除く。フォントの取得元
+`google/fonts` の更新によりビルド時点でハッシュが変わり得るため)。
+
+### Changed
+
+- `bin/build-zip.sh` を、同梱ライブラリの汎用ビルダーへ委譲する薄いラッパーに変更。プラグイン固有の前処理(composer install、Action Scheduler の同梱)は `bin/build-zip.pre.sh` へ分離した。
+- `.github/workflows/release.yml`(184行の独自実装)を、ライブラリの `plugin-release.yml@1.2.0` を呼び出す約25行の構成に置き換えた。フォント生成・`vendor-pdf.zip` 作成・チェックサムの3ステップは `bin/release.pre.sh` フックへ移設した(内容は変更なし)。
+- ローカルビルドの出力先が「プラグインルートの1つ上」から「プラグインルート」へ変わった(`.gitignore` で無視)。
+
 ## [1.5.6] - 2026-09-03
 
 ### Fixed
