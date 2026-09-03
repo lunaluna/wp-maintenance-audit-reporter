@@ -242,6 +242,51 @@ final class RunnerFullRunTest extends TestCase {
 		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
 	}
 
+	/**
+	 * Regression test for WPMAR 1.5.6 / commit c9b345e: a caller that omits
+	 * persist_snapshots entirely (as WPMAR_Scheduler::handle_event() used to,
+	 * before that fix) must still get the trigger-derived default. Before 1.5.6,
+	 * run()'s wp_parse_args() backfilled an explicit `false`, which tripped
+	 * should_persist_snapshots()'s opt-out branch and made this fail.
+	 */
+	public function test_persist_snapshots_defaults_to_true_for_cron_runs_with_key_omitted(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run( array( 'triggered_by' => 'cron' ) );
+
+		self::assertArrayHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
+		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
+	}
+
+	/**
+	 * Same regression, for the CLI trigger (WPMAR_CLI_Audit_Command already passes
+	 * the key explicitly today, but should_persist_snapshots() must not silently
+	 * flip behaviour if a future call site forgets to).
+	 */
+	public function test_persist_snapshots_defaults_to_true_for_cli_runs_with_key_omitted(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run( array( 'triggered_by' => 'cli' ) );
+
+		self::assertArrayHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
+		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
+	}
+
+	/**
+	 * An explicit false must still win over the cron/cli trigger default - the
+	 * tri-state design's other half (opt-out stays possible, it just no longer
+	 * happens by accident).
+	 */
+	public function test_persist_snapshots_explicit_false_overrides_cron_default(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run(
+			array(
+				'triggered_by'      => 'cron',
+				'persist_snapshots' => false,
+			)
+		);
+
+		self::assertArrayNotHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
+	}
+
 	public function test_summary_json_records_baseline_and_whether_snapshots_were_persisted(): void {
 		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
 		$runner->run(

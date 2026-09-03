@@ -171,4 +171,67 @@ final class NetworkMultisiteTest extends TestCase {
 	public function test_extract_segment_baseline_returns_empty_array_for_corrupt_json(): void {
 		self::assertSame( array(), $this->extract_segment_baseline( array( 'baseline_json' => '{not valid json' ) ) );
 	}
+
+	// -------------------------------------------------------------------------
+	// should_persist_snapshots() - WPMAR 1.5.6 tri-state regression (network side
+	// of the same fix covered for WPMAR_Runner in RunnerFullRunTest.php)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Regression test for WPMAR 1.5.6: a caller that omits persist_snapshots
+	 * entirely must still get the cron_network trigger default, the same fix
+	 * applied to WPMAR_Runner::should_persist_snapshots().
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_true_for_cron_network_with_key_omitted(): void {
+		self::assertTrue( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'cron_network' ) ) );
+	}
+
+	/**
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_true_for_cli_network_with_key_omitted(): void {
+		self::assertTrue( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'cli_network' ) ) );
+	}
+
+	/**
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_false_for_manual_network_with_key_omitted(): void {
+		self::assertFalse( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'manual_network' ) ) );
+	}
+
+	/**
+	 * An explicit false must still win over the cron_network trigger default.
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_explicit_false_overrides_cron_network_default(): void {
+		self::assertFalse(
+			\WPMAR_Network_Runner::should_persist_snapshots(
+				array(
+					'triggered_by'      => 'cron_network',
+					'persist_snapshots' => false,
+				)
+			)
+		);
+	}
+
+	/**
+	 * An explicit true is honoured regardless of trigger (the manual + checkbox
+	 * path).
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_explicit_true_is_honoured_for_manual_network(): void {
+		self::assertTrue(
+			\WPMAR_Network_Runner::should_persist_snapshots(
+				array(
+					'triggered_by'      => 'manual_network',
+					'persist_snapshots' => true,
+				)
+			)
+		);
+	}
 }
