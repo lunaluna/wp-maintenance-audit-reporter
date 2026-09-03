@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.5.6**。
+WordPress 用プラグイン：コア・テーマ・プラグインの定期保守監査 — **v1.6.0**。
 
 WordPress.org 形式のメタデータと変更履歴は [readme-ja.txt](readme-ja.txt)（日本語） / [readme.txt](readme.txt)（英語）を参照してください。
 
@@ -338,6 +338,7 @@ Basic 認証環境で定期的にレポートを生成したい場合は、サ�
 
 各バージョンの詳しい変更内容はすべて [CHANGELOG.md](CHANGELOG.md) に記載しています。
 
+- **v1.6.0**（2026-09-03） — 利用者から見た機能変更はありません。リリース基盤(配布ZIP・GitHub Releaseの作り方)を、共有ライブラリ `l2d-wp-github-update-lib`(1.2.0)の reusable workflow を使う方式に変更しました。PHPコードは1行も変わっておらず、配布ZIPの中身は `vendor-pdf.sha256`(同梱フォントの取得元 `google/fonts` の更新によりビルド時点でハッシュが変わり得る)を除いて1.5.6と完全に一致します。
 - **v1.5.5**（2026-09-03） — PDF ライブラリ（mPDF + フォント、展開後 約94MB）のインストール先を、プラグイン自身の `vendor/`/`fonts/` から、プラグインディレクトリの外の `wp-content/wpmar-pdf-lib/` に変更しました。プラグイン内にインストール済みの場合は更新後の次回読み込み時に自動的にこちらへ移設されます。プラグインが停止中に更新されるとライブラリが完全に消えてしまう不具合(従来の `vendor/` 退避の仕組みはプラグインが有効なときにしか動きませんでした)を修正。インストール先は `wpmar_pdf_lib_dir` フィルターで変更でき、`wp-content` に書き込めない環境ではプラグインディレクトリへフォールバックします。アンインストール時はこのディレクトリも削除されます(`wpmar_pdf_lib_delete_on_uninstall` フィルターで `false` を返すと削除されません)。
 - **v1.5.4**（2026-09-03） — ネットワーク集約レポートに、どのサイトのデータを掲載するかを選べる「レポート出力範囲」設定（すべてのサイト／親サイトのみ／親サイト＋選択した子サイト）をネットワーク管理画面に追加しました。監査はスコープに関わらず全対象サイトで実行され、スナップショットの基準も更新され続けます。変わるのはレポートに掲載される内容だけです。ネットワーク管理画面の「今すぐ実行」は常にすべての対象サイトを監査するようになり、既存の実行範囲セレクターはドライラン専用になります(絞り込むとスキップしたサイトのスナップショット基準が古いまま残る問題があったため)。サイトを絞った実行が必要な場合はドライラン、または WP-CLI の `--same-setting` / `--id=<blog_id>` をご利用ください。
 - **v1.5.3**（2026-09-02） — 「システム機能」画面(サイト単位・ネットワーク単位)にスナップショットのプレビューを追加しました。「スナップショットをプレビュー」ボタンで、コア・テーマ・プラグイン・ユーザーそれぞれの直近2世代を Markdown 整形で確認できます。マルチサイトのサイト単位画面はスーパー管理者限定(プラグイン/テーマがネットワーク共有・ユーザーのメールアドレスが平文で入るため)。ネットワーク管理画面ではサイトを選んで横断的に確認できます。
@@ -401,18 +402,17 @@ composer run phpunit
 
 ### 配布用 ZIP（GitHub リリース）
 
-**`.github/workflows/release.yml`** として実装済み。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。
+v1.6.0 以降、**`.github/workflows/release.yml`** は共有ライブラリ `l2d-wp-github-update-lib`(`lib/l2d-updater/` に同梱)の reusable workflow `plugin-release.yml` を呼び出す約25行の構成。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。参照タグ(`@1.2.0`)は `lib/l2d-updater/` のベンダーコピーと必ず揃えること — 片方だけ更新すると版が食い違う。
 
-1. タグを解析し、バージョンを記載している5箇所と一致するか検証: `wp-maintenance-audit-reporter.php` の `Version:` ヘッダと `WPMAR_VERSION` 定数、`readme.txt` / `readme-ja.txt` の `Stable tag:`、`composer.json` の `"version"`。1つでも不一致ならジョブが失敗。
-2. **`composer install --no-dev --optimize-autoloader`** を実行してプロダクション依存をインストール。
-3. **`bash bin/build-zip.sh`** が `wp-maintenance-audit-reporter/` ディレクトリにステージングし、`wp-maintenance-audit-reporter.<version>.zip` として圧縮。CI とローカルビルドはこの1本のスクリプトを共有するため、両者がずれることはない。除外パス（`tests/` / `bin/` / `vendor/` / `fonts/` など開発・ビルド用のパス）は **`.distignore`**（配布しないものの単一の正）から読み込む。Action Scheduler は `vendor/` 自体を除外しているため、同スクリプト内の別ステップで `lib/action-scheduler/` に個別バンドルする。
-4. インストール済みの `vendor/` から **`vendor-pdf.zip`** を別途作成し、管理画面からのオンデマンドインストール用の追加アセットとして添付。
-5. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出（無ければ汎用の文言にフォールバック）。
-6. `gh release create` で GitHub Release を **draft** として作成し、両 zip を添付。draft は `/releases/latest` に出ないため、担当者がアセットを検証して `gh release edit <tag> --draft=false` で本公開するまで、どのサイトも自動更新で取り込まない。
+1. タグを解析し、バージョンを記載している5箇所(`release.yml` の `version_files`)と一致するか検証: `wp-maintenance-audit-reporter.php` の `Version:` ヘッダと `WPMAR_VERSION` 定数、`readme.txt` / `readme-ja.txt` の `Stable tag:`、`composer.json` の `"version"`。1つでも不一致ならジョブが失敗。
+2. **`bin/release.pre.sh`** が ZIP 組み立て前に実行される: プロダクション依存のインストール(`composer install --no-dev --optimize-autoloader`)、mPDF 用の Noto Sans JP 静的フォント生成、`vendor/` + `fonts/` を `vendor-pdf.zip` に圧縮、その SHA-256 を `vendor-pdf.zip.sha256`(Release アセット)と `vendor-pdf.sha256`(配布ZIPに同梱し既定でチェックサム検証を有効にする)の両方に書き出す。
+3. **`bin/build-zip.sh`** がライブラリの汎用ビルダー(`lib/l2d-updater/bin/build-zip.sh`)へ委譲し、プラグインツリーをステージングして `wp-maintenance-audit-reporter.<version>.zip` として**プラグインルート**に出力する(従来は1つ上のディレクトリだった)。ステージング前に汎用ビルダーが **`bin/build-zip.pre.sh`** を呼び、プロダクション依存の再インストール(冪等。単独のローカルビルド用)と `lib/action-scheduler/` へのバンドルを行う(`vendor/` 自体は配布ZIPから除外されるため)。除外パスは CI とローカルビルドが共有する **`.distignore`**(配布しないものの単一の正)から読み込む。
+4. `CHANGELOG.md` から該当 `## [version]` 節をリリースノートとして抽出(無ければ汎用の文言にフォールバック)。
+5. `gh release create` で GitHub Release を **draft** として作成し、プラグインZIPと `vendor-pdf.zip` / `vendor-pdf.zip.sha256` を添付。draft は `/releases/latest` に出ないため、担当者がアセットを検証して `gh release edit <tag> --draft=false` で本公開するまで、どのサイトも自動更新で取り込まない。
 
-PR 向け CI（**`.github/workflows/ci.yml`**）はこれまでどおり **`composer install`（dev 込み）** で PHPCS / PHPUnit を回します。
+PR 向け CI(**`.github/workflows/ci.yml`**)はこれまでどおり **`composer install`(dev 込み)** で PHPCS / PHPUnit を回します。
 
-同じ ZIP をローカルで作る（タグを打つ前に内容を確認したい場合など）には、プラグイン直下で `bash bin/build-zip.sh` を実行する。`../wp-maintenance-audit-reporter.<version>.zip` に出力される。
+同じプラグイン ZIP をローカルで作る(タグを打つ前に内容を確認したい場合など)には、プラグイン直下で `bash bin/build-zip.sh` を実行する。`wp-maintenance-audit-reporter.<version>.zip` がプラグインルートに出力される。これは `bin/release.pre.sh` を実行しないため、単独のローカルビルドには `vendor-pdf.sha256` が含まれない(v1.6.0 より前と同じ)。CI と完全に同じビルドを再現したい場合は先に `bash bin/release.pre.sh` を実行すること。
 
 ### リリース手順
 

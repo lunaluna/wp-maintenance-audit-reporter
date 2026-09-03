@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.6**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.6.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -336,6 +336,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.6.0** (2026-09-03) — No user-facing behaviour change. The release pipeline (how the distribution zip and GitHub Release are built) now uses the shared `l2d-wp-github-update-lib` (1.2.0) reusable workflow instead of a bespoke implementation; no PHP code changed, and the distribution zip is byte-for-byte identical to 1.5.6 aside from `vendor-pdf.sha256` (can shift because the bundled font is fetched from `google/fonts` at build time).
 - **v1.5.5** (2026-09-03) — The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`; an existing in-plugin install is migrated there automatically on first load after updating. Fixes the library disappearing entirely when the plugin was updated while deactivated (the previous `vendor/`-backup safeguard only ran while the plugin was active). Filterable via `wpmar_pdf_lib_dir`; falls back to the plugin directory when `wp-content` isn't writable. Uninstalling deletes the external directory too, unless `wpmar_pdf_lib_delete_on_uninstall` returns `false`.
 - **v1.5.4** (2026-09-03) — Network rollup reports can now narrow which sites' data appears in the merged report via a new "Report output scope" setting (all sites / main site only / main site + selected sites) on the network admin screen; every target site is still audited and its snapshot baseline still updates regardless of scope, so only what's shown in the report changes. "Run now" on the network admin screen now always audits every target site — the existing run-scope selector is dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline; use a dry run or WP-CLI's `--same-setting`/`--id=<blog_id>` for a scoped manual run.
 - **v1.5.3** (2026-09-02) — Adds a snapshot preview to both the site-level and network "システム機能" (System Tools) screens. A "スナップショットをプレビュー" button expands the latest 2 generations of core/themes/plugins/users as formatted Markdown. On multisite, the site-level section is restricted to super admins (plugin/theme snapshots are network-shared and the users snapshot carries plain-text emails); the network admin screen adds a site picker to view any one site's snapshots.
@@ -399,18 +400,17 @@ composer run phpunit
 
 ### Distribution ZIP (GitHub releases)
 
-Implemented as **`.github/workflows/release.yml`**. Trigger: push of a `v*` tag (or manual `workflow_dispatch`).
+Since v1.6.0, **`.github/workflows/release.yml`** is a ~25-line call into the shared `l2d-wp-github-update-lib` (vendored into `lib/l2d-updater/`) reusable workflow, `plugin-release.yml`. Trigger: push of a `v*` tag (or manual `workflow_dispatch`). The referenced tag (`@1.2.0`) must always match the vendored copy under `lib/l2d-updater/` — bumping one without the other leaves the library and this plugin out of sync.
 
-1. The tag is parsed and asserted to match five version-bearing locations: the `Version:` header and `WPMAR_VERSION` constant in `wp-maintenance-audit-reporter.php`, `Stable tag:` in `readme.txt` and `readme-ja.txt`, and `"version"` in `composer.json`. Any mismatch fails the job.
-2. **`composer install --no-dev --optimize-autoloader`** is run to install production dependencies.
-3. **`bash bin/build-zip.sh`** stages the plugin tree into `wp-maintenance-audit-reporter/` and zips it as `wp-maintenance-audit-reporter.<version>.zip`. CI and local builds share this one script so they can't drift apart. Excluded paths (`tests/`, `bin/`, `vendor/`, `fonts/`, and similar dev/build paths) come from **`.distignore`**, the single source of truth for what does *not* ship — Action Scheduler is bundled into `lib/action-scheduler/` by a separate step in the same script, since `vendor/` itself is excluded.
-4. A separate **`vendor-pdf.zip`** is created from the installed `vendor/` directory and attached to the release as an additional asset for on-demand installation via the admin UI.
-5. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
-6. `gh release create` publishes the GitHub Release with both zips attached, as a **draft** — draft releases don't show up at `/releases/latest`, so no site picks them up via auto-update until a maintainer verifies the assets and publishes with `gh release edit <tag> --draft=false`.
+1. The tag is parsed and asserted to match five version-bearing locations (`version_files` in `release.yml`): the `Version:` header and `WPMAR_VERSION` constant in `wp-maintenance-audit-reporter.php`, `Stable tag:` in `readme.txt` and `readme-ja.txt`, and `"version"` in `composer.json`. Any mismatch fails the job.
+2. **`bin/release.pre.sh`** runs before the zip is built: installs production dependencies (`composer install --no-dev --optimize-autoloader`), builds the static Noto Sans JP fonts used by mPDF, zips `vendor/` + `fonts/` into `vendor-pdf.zip`, and writes its SHA-256 to both `vendor-pdf.zip.sha256` (a release asset) and `vendor-pdf.sha256` (bundled into the plugin zip, enabling checksum verification by default).
+3. **`bin/build-zip.sh`** delegates to the library's generic builder (`lib/l2d-updater/bin/build-zip.sh`), which stages the plugin tree and zips it as `wp-maintenance-audit-reporter.<version>.zip`, writing it to **the plugin root** (previously one directory up). Before staging, the builder runs **`bin/build-zip.pre.sh`**, which installs production dependencies again (idempotent; needed for a standalone local build) and bundles Action Scheduler into `lib/action-scheduler/`, since `vendor/` itself is excluded from the zip. Excluded paths come from **`.distignore`**, the single source of truth shared by the local build and CI.
+4. Release notes are extracted from the matching `## [version]` section of `CHANGELOG.md` (falls back to a generic note when absent).
+5. `gh release create` publishes the GitHub Release with the plugin zip plus `vendor-pdf.zip` / `vendor-pdf.zip.sha256` attached, as a **draft** — draft releases don't show up at `/releases/latest`, so no site picks them up via auto-update until a maintainer verifies the assets and publishes with `gh release edit <tag> --draft=false`.
 
 Pull-request CI continues to use **`composer install`** (dev deps) for PHPCS / PHPUnit via **`.github/workflows/ci.yml`**.
 
-To build the same zip locally (e.g. to inspect its contents before tagging), run `bash bin/build-zip.sh` from the plugin root; it writes `../wp-maintenance-audit-reporter.<version>.zip`.
+To build the same plugin zip locally (e.g. to inspect its contents before tagging), run `bash bin/build-zip.sh` from the plugin root; it writes `wp-maintenance-audit-reporter.<version>.zip` there. This does **not** run `bin/release.pre.sh`, so a standalone local build won't include `vendor-pdf.sha256` (same as before v1.6.0); run `bash bin/release.pre.sh` first to reproduce the CI build exactly.
 
 ### Release procedure
 

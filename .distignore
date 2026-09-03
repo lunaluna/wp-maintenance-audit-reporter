@@ -17,6 +17,9 @@
 .claude
 .DS_Store
 .phpunit.result.cache
+# release-notes action がリポジトリルートに作る一時ファイル。build-zip より
+# 後に走るため ZIP には入らないが、多層防御として明示しておく.
+release-notes.txt
 # Unanchored, so this also drops lib/l2d-updater/bin/ (the vendored library's
 # own build script), which must not ship inside our release zip.
 bin

@@ -38,3 +38,13 @@ build/
 
 # Fonts extracted from vendor-pdf.zip — downloaded at runtime via the admin installer
 /fonts/
+
+# Local build output of bin/build-zip.sh (now written to the plugin root by
+# the shared library's generic builder, previously one directory up)
+/wp-maintenance-audit-reporter.*.zip
+
+# Action Scheduler bundled into lib/ by bin/build-zip.pre.sh ahead of staging
+/lib/action-scheduler/
+
+# release-notes action output (created at repo root by the reusable workflow)
+/release-notes.txt

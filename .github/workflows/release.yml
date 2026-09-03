@@ -1,191 +1,46 @@
 name: Release
 
+# 同梱ライブラリ(lib/l2d-updater)が提供する reusable workflow を呼び、
+# タグから配布用 ZIP を組み立てて GitHub Release を作成する。
+#
+# 参照タグ(@X.Y.Z)は lib/l2d-updater/ のベンダーコピーと必ず揃えること。
+# 片方だけ更新すると、ライブラリ本体と利用側で版が食い違う。ライブラリ
+# 側の反映手順は https://github.com/lunaluna/l2d-wp-github-update-lib を
+# 参照(1.1.0 以降、手順はベンダーコピーには同梱されない)。
+
 on:
   push:
     tags:
-      # Accept both v-prefixed (v1.2.3) and bare semver (1.2.3) tags.
+      # v 付き(v1.2.3)と素の semver(1.2.3)の両方を受ける.
       - 'v[0-9]*'
       - '[0-9]*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. 0.10.2 or v0.10.2). Leave blank when triggered by tag push.'
+        description: 'Release tag (e.g. 1.6.0). Leave blank when triggered by tag push.'
         required: false
 
+# 呼び出し先の GITHUB_TOKEN 権限は呼び出し元を超えられないため、
+# Release 作成に必要な contents: write はここで与える必要がある.
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build plugin zip and publish release
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Resolve release tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
-          if [ -z "$TAG" ]; then
-            echo "::error::Release tag could not be resolved."
-            exit 1
-          fi
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Verify tag matches all version-bearing files
-        run: |
-          VERSION="${{ steps.tag.outputs.version }}"
-          FAILED=0
-
-          HEADER_VERSION=$(grep -E '^[[:space:]]*\*[[:space:]]*Version:' wp-maintenance-audit-reporter.php \
-            | head -n1 | sed -E 's/.*Version:[[:space:]]*//' | tr -d '\r')
-          WPMAR_VERSION_CONST=$(grep -E "define\( *'WPMAR_VERSION'" wp-maintenance-audit-reporter.php \
-            | head -n1 | sed -E "s/.*'WPMAR_VERSION',[[:space:]]*'([^']*)'.*/\1/" | tr -d '\r')
-          README_STABLE_TAG=$(grep -E '^Stable tag:' readme.txt \
-            | head -n1 | sed -E 's/.*Stable tag:[[:space:]]*//' | tr -d '\r')
-          README_JA_STABLE_TAG=$(grep -E '^Stable tag:' readme-ja.txt \
-            | head -n1 | sed -E 's/.*Stable tag:[[:space:]]*//' | tr -d '\r')
-          COMPOSER_VERSION=$(grep -E '"version":' composer.json \
-            | head -n1 | sed -E 's/.*"version":[[:space:]]*"([^"]*)".*/\1/' | tr -d '\r')
-
-          echo "Release tag:                  $VERSION"
-          echo "Plugin header Version:        $HEADER_VERSION"
-          echo "WPMAR_VERSION constant:       $WPMAR_VERSION_CONST"
-          echo "readme.txt Stable tag:         $README_STABLE_TAG"
-          echo "readme-ja.txt Stable tag:      $README_JA_STABLE_TAG"
-          echo "composer.json version:        $COMPOSER_VERSION"
-
-          check() {
-            if [ "$2" != "$VERSION" ]; then
-              echo "::error::$1 ($2) does not match release tag ($VERSION)."
-              FAILED=1
-            fi
-          }
-
-          check "Plugin header Version" "$HEADER_VERSION"
-          check "WPMAR_VERSION constant" "$WPMAR_VERSION_CONST"
-          check "readme.txt Stable tag" "$README_STABLE_TAG"
-          check "readme-ja.txt Stable tag" "$README_JA_STABLE_TAG"
-          check "composer.json version" "$COMPOSER_VERSION"
-
-          if [ "$FAILED" != "0" ]; then
-            exit 1
-          fi
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          tools: composer:v2
-
-      - name: Install production dependencies
-        run: composer install --no-dev --prefer-dist --no-progress --optimize-autoloader
-
-      - name: Build Noto Sans JP static fonts (Regular + Bold)
-        # mPDF cannot embed CFF/OpenType outlines, and Noto Sans JP ships as a
-        # single variable TTF (no distinct bold). Pin the weight axis into static
-        # Regular (400) / Bold (700) TrueType instances with fontTools.
-        run: |
-          python3 -m pip install --quiet fonttools brotli
-          mkdir -p fonts
-          curl -fsSL \
-            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf" \
-            -o /tmp/NotoSansJP-VF.ttf
-          # --update-name-table fixes each instance's naming/bold bits from STAT
-          # (family "Noto Sans JP", Regular/Bold subfamily, distinct PS names).
-          python3 -m fontTools.varLib.instancer --update-name-table /tmp/NotoSansJP-VF.ttf wght=400 \
-            -o fonts/NotoSansJP-Regular.ttf
-          python3 -m fontTools.varLib.instancer --update-name-table /tmp/NotoSansJP-VF.ttf wght=700 \
-            -o fonts/NotoSansJP-Bold.ttf
-          rm -f /tmp/NotoSansJP-VF.ttf
-
-      - name: Create vendor-pdf.zip
-        id: vendor_zip
-        run: |
-          zip -rq -X vendor-pdf.zip vendor/ fonts/
-          echo "vendor_zip_path=$GITHUB_WORKSPACE/vendor-pdf.zip" >> "$GITHUB_OUTPUT"
-
-      - name: Checksum vendor-pdf.zip
-        id: vendor_zip_sha
-        run: |
-          # Publish the SHA-256 as a release asset so installs can pin it via the
-          # WPMAR_PDF_VENDOR_ZIP_SHA256 constant / wpmar_pdf_vendor_zip_sha256 filter.
-          SHA="$(shasum -a 256 vendor-pdf.zip | awk '{print $1}')"
-          echo "$SHA" > vendor-pdf.zip.sha256
-          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
-          echo "vendor_zip_sha_path=$GITHUB_WORKSPACE/vendor-pdf.zip.sha256" >> "$GITHUB_OUTPUT"
-          echo "vendor-pdf.zip SHA-256: $SHA"
-          # Also written as vendor-pdf.sha256 at repo root (deliberately distinct
-          # name from the release asset above) so the "Assemble plugin zip" step
-          # bundles it into the main plugin package: this enables checksum
-          # verification by default for anyone installing the official release,
-          # without a second network round-trip to fetch a sidecar file.
-          echo "$SHA" > vendor-pdf.sha256
-
-      - name: Assemble plugin zip
-        id: zip
-        run: |
-          # bin/build-zip.sh is the single source of truth for how the plugin
-          # zip is built (staging, .distignore excludes, Action Scheduler
-          # bundling into lib/). Calling it here instead of duplicating its
-          # logic is what keeps CI and local builds from drifting apart.
-          bash bin/build-zip.sh
-          SLUG="wp-maintenance-audit-reporter"
-          ZIP_NAME="${SLUG}.${{ steps.tag.outputs.version }}.zip"
-          # build-zip.sh writes the zip one directory above the plugin root
-          # (see its usage comment); $GITHUB_WORKSPACE is the plugin root here.
-          ZIP_PATH="$(dirname "$GITHUB_WORKSPACE")/${ZIP_NAME}"
-          if [ ! -f "$ZIP_PATH" ]; then
-            echo "::error::Expected zip not found at $ZIP_PATH"
-            exit 1
-          fi
-          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
-          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Extract release notes from CHANGELOG.md
-        id: notes
-        run: |
-          VERSION="${{ steps.tag.outputs.version }}"
-          NOTES_FILE="$(mktemp)"
-          if [ -f CHANGELOG.md ]; then
-            awk -v ver="$VERSION" '
-              BEGIN { capture = 0 }
-              /^##[[:space:]]/ {
-                if (capture) { exit }
-                if (index($0, "[" ver "]") > 0 || index($0, ver) > 0) { capture = 1; next }
-              }
-              capture { print }
-            ' CHANGELOG.md > "$NOTES_FILE"
-          fi
-          if [ ! -s "$NOTES_FILE" ]; then
-            echo "Automated release for ${{ steps.tag.outputs.tag }}." > "$NOTES_FILE"
-          fi
-          echo "notes_path=$NOTES_FILE" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # --draft で作成する: draft は /releases/latest に出ないため、
-          # アセットを検証し終えるまでどの利用サイトからも見えない。
-          # forced-auto-update-controller 同居サイトへの不良版の自動配布を
-          # 防ぐための安全弁(1.5.0 の更新機構移行に伴う変更)。
-          # 検証後に `gh release edit <tag> --draft=false` で本公開する。
-          gh release create "${{ steps.tag.outputs.tag }}" \
-            "${{ steps.zip.outputs.zip_path }}" \
-            "${{ steps.vendor_zip.outputs.vendor_zip_path }}#vendor-pdf.zip" \
-            "${{ steps.vendor_zip_sha.outputs.vendor_zip_sha_path }}#vendor-pdf.zip.sha256" \
-            --title "${{ steps.tag.outputs.tag }}" \
-            --notes-file "${{ steps.notes.outputs.notes_path }}" \
-            --draft
-          echo "::notice::Draft release created. Verify assets, then run: gh release edit ${{ steps.tag.outputs.tag }} --draft=false"
+  release:
+    uses: lunaluna/l2d-wp-github-update-lib/.github/workflows/plugin-release.yml@1.2.0
+    with:
+      slug: wp-maintenance-audit-reporter
+      # "path:pattern" 形式。参照タグ(@1.2.0)は lib/l2d-updater/ のベンダーコピーと
+      # 必ず揃えること。片方だけ更新すると版が食い違う.
+      version_files: |
+        wp-maintenance-audit-reporter.php:^[[:space:]]*\*[[:space:]]*Version:
+        wp-maintenance-audit-reporter.php:define\( *'WPMAR_VERSION'
+        readme.txt:^Stable tag:
+        readme-ja.txt:^Stable tag:
+        composer.json:"version":
+      notes_source: CHANGELOG.md
+      php_version: '8.2'
+      extra_assets: |
+        vendor-pdf.zip
+        vendor-pdf.zip.sha256
+      draft: true

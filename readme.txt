@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.6
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -304,6 +304,10 @@ If you manage this plugin in a project under Git version control, it is recommen
 `wp-content/wpmar-pdf-lib/` is where the PDF library installs since v1.5.5 (see "PDF library" above); its `fonts/` holds the bundled PDF fonts (Noto Sans JP Regular/Bold, extracted from `vendor-pdf.zip`) plus the font-metric cache mPDF writes during generation, and its `vendor/` is the on-demand install target for the PDF library (mPDF). The two paths under the plugin directory are kept as a fallback: they're still used by a site mid-migration from before v1.5.5, or one where `wp-content` isn't writable and installation falls back into the plugin directory.
 
 == Changelog ==
+
+= 1.6.0 =
+* No user-facing behaviour change. The release pipeline (how the distribution zip and GitHub Release are built) now uses the shared `l2d-wp-github-update-lib` (1.2.0) reusable workflow instead of a bespoke implementation. No PHP code changed; the distribution zip is byte-for-byte identical to 1.5.6 (except `vendor-pdf.sha256`, which can shift because the bundled font is fetched from `google/fonts` at build time).
+* See CHANGELOG.md for full details.
 
 = 1.5.6 =
 * Fixed: `should_persist_snapshots()` couldn't tell "caller didn't say" apart from "caller explicitly opted out" — a caller that omitted `persist_snapshots` got a silently-backfilled `false`, which is the same structural bug behind the WP-Cron fix in 1.5.0/1.5.1, just not closed off for every future caller. `persist_snapshots` is now tri-state; no existing call site's behaviour changes.
