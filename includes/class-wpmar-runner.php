@@ -130,7 +130,7 @@ class WPMAR_Runner {
 			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 			$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
-			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec, $baseline, $snapshots_persisted );
 			WPMAR_Logger::step( 'render:done' );
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
@@ -340,7 +340,7 @@ class WPMAR_Runner {
 		$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 		$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
-		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec, $baseline, $snapshots_persisted );
 		WPMAR_Logger::step( "site:{$blog_id}:render:done" );
 
 		// Only the rendered bodies below are used by the network aggregate step; the raw
@@ -1449,14 +1449,18 @@ class WPMAR_Runner {
 	/**
 	 * Operator-facing plaintext shaped like `/.maintenance/inc/mainte.sh` `ADMIN_MAIL_BODY` (not a raw JSON dump).
 	 *
-	 * @param array<string,mixed> $facts          Fresh envelope.
-	 * @param string              $changelog      Diff body.
-	 * @param bool                $gate           Domain gate acknowledgement.
-	 * @param int                 $changelog_size Counter.
-	 * @param int                 $duration_sec  Wall time spent in this run (seconds).
+	 * @param array<string,mixed> $facts               Fresh envelope.
+	 * @param string              $changelog           Diff body.
+	 * @param bool                $gate                Domain gate acknowledgement.
+	 * @param int                 $changelog_size      Counter.
+	 * @param int                 $duration_sec        Wall time spent in this run (seconds).
+	 * @param array<string,mixed> $baseline            Dimension => captured_at (UTC string) of the
+	 *                                                 snapshot the diff compared against, or null
+	 *                                                 when there was none yet.
+	 * @param bool                $snapshots_persisted Whether this run actually wrote new snapshot rows.
 	 * @return string
 	 */
-	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size, $duration_sec = 0 ) {
+	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size, $duration_sec = 0, array $baseline = array(), $snapshots_persisted = false ) {
 		$duration_sec = max( 0, (int) $duration_sec );
 
 		$chunks             = array();
@@ -1473,7 +1477,7 @@ class WPMAR_Runner {
 		// Backup section hidden until backup status reporting is implemented.
 		// Re-enable by adding: render_operator_backup_section() to the chunks array.
 		$chunks[] = self::render_operator_users_section( $facts );
-		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ) );
+		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ), $baseline, (bool) $snapshots_persisted );
 		$chunks[] = self::render_operator_security_section_verbose( isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array() );
 		$chunks[] = self::render_operator_performance_section_verbose(
 			isset( $facts['performance'] ) && is_array( $facts['performance'] ) ? $facts['performance'] : array()
@@ -2157,14 +2161,24 @@ class WPMAR_Runner {
 	/**
 	 * ## 【前回スナップショットからの差分】（プラグイン独自の差分ログ）.
 	 *
-	 * @param string $changelog_stripped Plain diff body.
-	 * @param int    $changelog_size     Count.
+	 * @param string              $changelog_stripped  Plain diff body.
+	 * @param int                 $changelog_size      Count.
+	 * @param array<string,mixed> $baseline            Dimension => captured_at (UTC string) or null.
+	 * @param bool                $snapshots_persisted Whether this run actually wrote new snapshot rows.
 	 * @return string
 	 */
-	protected static function render_operator_changelog_section( $changelog_stripped, $changelog_size ) {
+	protected static function render_operator_changelog_section( $changelog_stripped, $changelog_size, array $baseline = array(), $snapshots_persisted = false ) {
 		$changelog_stripped = trim( (string) $changelog_stripped );
 		$body               = __( '## 【前回スナップショットからの差分】', 'wp-maintenance-audit-reporter' ) . "\n";
-		$body              .= sprintf(
+		// Lets an operator tell "no changes because nothing changed" apart from "no changes
+		// because the baseline is stale" - see WPMAR 1.5.6 (persist_snapshots null/false mixup).
+		$body .= self::render_baseline_freshness_line( $baseline ) . "\n";
+		$body .= sprintf(
+			/* translators: %s: はい or いいえ */
+			__( '今回の実行でスナップショットを更新: %s', 'wp-maintenance-audit-reporter' ),
+			$snapshots_persisted ? __( 'はい', 'wp-maintenance-audit-reporter' ) : __( 'いいえ', 'wp-maintenance-audit-reporter' )
+		) . "\n";
+		$body .= sprintf(
 			/* translators: %d: number of changes detected */
 			__( '件数: %d', 'wp-maintenance-audit-reporter' ),
 			absint( $changelog_size )
@@ -2177,6 +2191,47 @@ class WPMAR_Runner {
 		}
 
 		return $body;
+	}
+
+	/**
+	 * `比較基準:` line summarising when the diff's "before" side was captured.
+	 *
+	 * Each of core/themes/plugins/users can in principle hold a different generation
+	 * (e.g. a dimension saved for the first time later than the others), so this reports
+	 * the oldest captured_at across dimensions and flags it when they disagree, rather
+	 * than silently picking one.
+	 *
+	 * @param array<string,mixed> $baseline Dimension => captured_at (UTC string) or null.
+	 * @return string
+	 */
+	protected static function render_baseline_freshness_line( array $baseline ) {
+		$captured_ats = array_values(
+			array_filter(
+				$baseline,
+				static function ( $value ) {
+					return is_string( $value ) && '' !== $value;
+				}
+			)
+		);
+
+		if ( empty( $captured_ats ) ) {
+			return __( '比較基準: なし（初回収集）', 'wp-maintenance-audit-reporter' );
+		}
+
+		sort( $captured_ats );
+		$oldest = reset( $captured_ats );
+
+		$line = sprintf(
+			/* translators: %s: UTC datetime the comparison baseline was captured at */
+			__( '比較基準: %s UTC（保存済みスナップショット）', 'wp-maintenance-audit-reporter' ),
+			$oldest
+		);
+
+		if ( count( array_unique( $captured_ats ) ) > 1 ) {
+			$line .= __( '※ dimensionにより基準日時が異なります。最も古いものを表示しています。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return $line;
 	}
 
 	/**
