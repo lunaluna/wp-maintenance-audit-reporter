@@ -92,14 +92,34 @@ class WPMAR_Snapshot_Repository {
 	/**
 	 * Loads most recent decoded payload.
 	 *
+	 * Thin wrapper around {@see self::latest_row()} kept for backward compatibility
+	 * (external code may already call this) - the diff engine only needs the payload,
+	 * not the envelope.
+	 *
 	 * @param string $type Snapshot grouping key.
 	 * @return array<string,mixed>|null
 	 */
 	public function latest( $type ) {
+		$row = $this->latest_row( $type );
+
+		return null === $row ? null : $row['payload'];
+	}
+
+	/**
+	 * Loads the most recent row (id + captured_at + decoded payload) for one type.
+	 *
+	 * {@see self::latest()} drops id/captured_at because the diff engine only needs the
+	 * payload; callers that need to report *when* the comparison basis was captured
+	 * (e.g. baseline freshness in the report body) need the envelope too.
+	 *
+	 * @param string $type Snapshot grouping key.
+	 * @return array{id:int,captured_at:string,payload:array<string,mixed>}|null
+	 */
+	public function latest_row( $type ) {
 		// Ordering by both `captured_at` and `id` keeps behaviour deterministic if two rows share timestamps.
 		$sql = $this->db->prepare(
 			// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name built from prefix + known suffix.
-			"SELECT snapshot_json FROM {$this->table} WHERE snapshot_type=%s ORDER BY captured_at DESC, id DESC LIMIT 1",
+			"SELECT id, captured_at, snapshot_json FROM {$this->table} WHERE snapshot_type=%s ORDER BY captured_at DESC, id DESC LIMIT 1",
 			// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			sanitize_key( $type )
 		);
@@ -113,7 +133,15 @@ class WPMAR_Snapshot_Repository {
 		// json_decode failures yield null; caller interprets that as "no usable prior snapshot".
 		$decoded = json_decode( $row['snapshot_json'], true );
 
-		return is_array( $decoded ) ? $decoded : null;
+		if ( ! is_array( $decoded ) ) {
+			return null;
+		}
+
+		return array(
+			'id'          => isset( $row['id'] ) ? (int) $row['id'] : 0,
+			'captured_at' => isset( $row['captured_at'] ) ? (string) $row['captured_at'] : '',
+			'payload'     => $decoded,
+		);
 	}
 
 	/**
