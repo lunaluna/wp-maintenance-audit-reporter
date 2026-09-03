@@ -90,10 +90,16 @@ class WPMAR_Runner {
 			// current files/state in the mail/MD bodies and in the diff's "after" side.
 
 			// Pull previous JSON blobs prior to rewriting - drives diff headings in mail/MD.
+			// The envelope's captured_at is kept separately as $baseline so the report can
+			// state *when* the comparison basis was captured without changing what
+			// difference_summary() receives (still payload-only, as before).
 			$snapshot_repo = new WPMAR_Snapshot_Repository();
 			$prior_snap    = array();
+			$baseline      = array();
 			foreach ( array_keys( $pairs ) as $dimension ) {
-				$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
+				$prior_row                = $snapshot_repo->latest_row( $dimension );
+				$prior_snap[ $dimension ] = null === $prior_row ? null : $prior_row['payload'];
+				$baseline[ $dimension ]   = null === $prior_row ? null : $prior_row['captured_at'];
 			}
 
 			$display_names = self::build_display_name_maps( $dataset );
@@ -107,8 +113,9 @@ class WPMAR_Runner {
 
 			$persist_snapshots = self::should_persist_snapshots( $exec );
 
-			$report_repo = new WPMAR_Report_Repository();
-			$md_relative = '';
+			$report_repo         = new WPMAR_Report_Repository();
+			$md_relative         = '';
+			$snapshots_persisted = false;
 
 			if ( $domain_gate_ok && $persist_snapshots ) {
 				// Persist newest snapshot per dimension, prune older than two rows each.
@@ -116,6 +123,7 @@ class WPMAR_Runner {
 					$snapshot_repo->save( $type, $canonical );
 					$snapshot_repo->prune_keep( $type, 2 );
 				}
+				$snapshots_persisted = true;
 				WPMAR_Logger::step( 'persist-snapshots:done' );
 			}
 
@@ -156,6 +164,11 @@ class WPMAR_Runner {
 					'security_codes'         => isset( $dataset['security']['summary_codes'] ) && is_array( $dataset['security']['summary_codes'] )
 						? array_values( array_map( 'strval', $dataset['security']['summary_codes'] ) )
 						: array(),
+					// Lets an operator verify, after the fact, whether a report's diff was
+					// computed against a stale baseline and whether this run actually
+					// refreshed it - see WPMAR 1.5.6 (persist_snapshots null/false mixup).
+					'baseline'               => $baseline,
+					'snapshots_persisted'    => $snapshots_persisted,
 				),
 				JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
 			);
@@ -298,8 +311,11 @@ class WPMAR_Runner {
 
 		$snapshot_repo = new WPMAR_Snapshot_Repository();
 		$prior_snap    = array();
+		$baseline      = array();
 		foreach ( array_keys( $pairs ) as $dimension ) {
-			$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
+			$prior_row                = $snapshot_repo->latest_row( $dimension );
+			$prior_snap[ $dimension ] = null === $prior_row ? null : $prior_row['payload'];
+			$baseline[ $dimension ]   = null === $prior_row ? null : $prior_row['captured_at'];
 		}
 
 		$display_names = self::build_display_name_maps( $dataset );
@@ -311,11 +327,13 @@ class WPMAR_Runner {
 			$pairs = array();
 		}
 
+		$snapshots_persisted = false;
 		if ( $domain_gate_ok && ! empty( $exec['persist_snapshots'] ) ) {
 			foreach ( $pairs as $type => $canonical ) {
 				$snapshot_repo->save( $type, $canonical );
 				$snapshot_repo->prune_keep( $type, 2 );
 			}
+			$snapshots_persisted = true;
 			WPMAR_Logger::step( "site:{$blog_id}:persist-snapshots:done" );
 		}
 
@@ -331,16 +349,18 @@ class WPMAR_Runner {
 		self::release_heavy_dataset_memory( $dataset );
 
 		return array(
-			'blog_id'          => (int) $blog_id,
-			'site_name'        => $site_name,
-			'home_url'         => esc_url_raw( $home ),
-			'domain_gate_ok'   => $domain_gate_ok,
-			'dataset'          => $dataset,
-			'changelog_md'     => $changelog_md,
-			'changelog_counts' => absint( $changelog_counts ),
-			'client_body'      => $client_body,
-			'admin_body'       => $admin_body,
-			'duration_sec'     => $duration_sec,
+			'blog_id'             => (int) $blog_id,
+			'site_name'           => $site_name,
+			'home_url'            => esc_url_raw( $home ),
+			'domain_gate_ok'      => $domain_gate_ok,
+			'dataset'             => $dataset,
+			'changelog_md'        => $changelog_md,
+			'changelog_counts'    => absint( $changelog_counts ),
+			'client_body'         => $client_body,
+			'admin_body'          => $admin_body,
+			'duration_sec'        => $duration_sec,
+			'baseline'            => $baseline,
+			'snapshots_persisted' => $snapshots_persisted,
 		);
 	}
 

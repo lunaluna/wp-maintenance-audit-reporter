@@ -242,6 +242,40 @@ final class RunnerFullRunTest extends TestCase {
 		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
 	}
 
+	public function test_summary_json_records_baseline_and_whether_snapshots_were_persisted(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run(
+			array(
+				'triggered_by'      => 'manual',
+				'persist_snapshots' => true,
+			)
+		);
+
+		// persist_snapshots=true also inserts 4 snapshot rows before the report row -
+		// the report row is always last (mail/snapshots precede it; see the "Mail
+		// intentionally precedes INSERT" note in run()), so take the tail entry rather
+		// than assuming index 0.
+		$summary = json_decode( end( $GLOBALS['wpdb']->insert_calls )['summary_json'], true );
+
+		self::assertTrue( $summary['snapshots_persisted'] );
+		self::assertArrayHasKey( 'baseline', $summary );
+		// The fake wpdb has no rows to find a prior snapshot in, so every dimension is a
+		// first-ever collection - there is no baseline to report yet.
+		foreach ( array( 'core', 'themes', 'plugins', 'users' ) as $dimension ) {
+			self::assertArrayHasKey( $dimension, $summary['baseline'] );
+			self::assertNull( $summary['baseline'][ $dimension ] );
+		}
+	}
+
+	public function test_summary_json_reports_snapshots_not_persisted_for_manual_runs(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run( array( 'triggered_by' => 'manual' ) );
+
+		$summary = json_decode( end( $GLOBALS['wpdb']->insert_calls )['summary_json'], true );
+
+		self::assertFalse( $summary['snapshots_persisted'] );
+	}
+
 	public function test_domain_gate_mismatch_marks_row_skipped_and_suppresses_mail_and_snapshots(): void {
 		$this->configure_settings(
 			array(
