@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.5
+Stable tag: 1.5.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -304,6 +304,11 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `wp-content/wpmar-pdf-lib/` は v1.5.5 以降の PDF ライブラリのインストール先です（前述の「PDF ライブラリ（mPDF）」参照）。その `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場、`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。プラグインディレクトリ配下の2つは、v1.5.5 より前から移行途中のサイトや、`wp-content` に書き込めずプラグインディレクトリへフォールバックしたサイトで引き続き使われるため残しています。
 
 == 変更履歴 ==
+
+= 1.5.6 =
+* 修正：`should_persist_snapshots()` が「未指定」と「明示的な opt-out」を区別できない構造的な問題を修正しました。`persist_snapshots` を渡し忘れた呼び出し元は、警告もログも出さずに黙って保存をスキップする状態でした（1.5.0/1.5.1 で WP-Cron の呼び出し1箇所だけ直した不具合の再発防止）。三値化(未指定/true/false)により、既存の呼び出し元はすべて明示的にキーを渡しているため利用者から見える挙動は変わりません。
+* 追加：差分がどのスナップショットと比較されたか、今回の実行で基準が更新されたかを記録・表示するようになりました。管理者向けレポート本文(単一サイト・ネットワーク集約とも)に「比較基準:」「今回の実行でスナップショットを更新:」の2行を追加し、同じ情報を `summary_json` にも記録します。「システム機能」画面のスナップショット節にも「基準の鮮度（最終保存日時）」を常時表示し、最も古い基準が60日以上前なら注意書きを出します。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.5.5 =
 * 追加：PDF ライブラリ（mPDF + フォント、展開後 約94MB）のインストール先を、プラグイン自身の `vendor/`/`fonts/` から、プラグインディレクトリの外の `wp-content/wpmar-pdf-lib/` に変更しました。プラグイン内にインストール済みの場合は、更新後の次回読み込み時に自動的にこちらへ移設されます。インストール先は `wpmar_pdf_lib_dir` フィルターで変更でき、プラグインをアンインストールするとこのディレクトリも削除されます（`wpmar_pdf_lib_delete_on_uninstall` フィルターで `false` を返すと削除されません）。`wp-content` に書き込めない環境では、新規インストール・自動移設ともに従来どおりプラグインディレクトリへフォールバックし、失敗にはなりません。

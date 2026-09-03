@@ -220,6 +220,47 @@ DBは偶然存在した2週間前のSQLダンプから部分復元できたが�
 ため)。次回以降は前提セクションの記載どおり、事前に `wp db export` と
 `wp-content/wpmar-private/` のディレクトリコピーの両方を必ず取ってから行う。
 
+## マルチサイト確認(1.5.6: スナップショット基準の可視化)
+
+比較基準の日時・保存有無を表示する機能自体は表示・記録だけの読み取り系拡張だが、
+実行経路が2つある点がマルチサイト特有の注意点: `--sync`(同期、1プロセス内)と
+`--async`(非同期、`WPMAR_Job_Dispatcher` → Action Scheduler → `wp_wpmar_network_segments`
+テーブル経由)で、`baseline`/`snapshots_persisted` が生き残る経路が異なる
+(前者はメモリ上の配列のまま、後者は一度DBの `baseline_json` 列を往復する)。
+**両方の経路を確認しないと、非同期側だけ壊れているのに気づけない。**
+
+| # | シナリオ | 期待結果 |
+|---|---|---|
+| 1 | `wp wpmar audit run --network --id=<blog_id> --sync` | 管理者向け本文の「前回スナップショットからの差分」直下に「比較基準: <直前のsnapshotのcaptured_at> UTC」「今回の実行でスナップショットを更新: はい」が出る |
+| 2 | 同上を `--async` + `wp action-scheduler run` で実行 | 1と同じ本文表示に加え、`wp_wpmar_reports.summary_json` の `per_blog[].baseline`/`per_blog[].snapshots_persisted` に正しい値が入る(`wp_wpmar_network_segments.baseline_json`/`snapshots_persisted` 列を経由して伝播していることの確認) |
+| 3 | 「システム機能」画面(サイト単位・ネットワーク横断とも) | 「実行履歴」直下に「基準の鮮度（最終保存日時）」が常時(プレビュー未展開でも)表示される |
+
+**実施結果(2026-09-03)**: alpine-dealer.local(20サイト・WPMAR 1.3.1 network-active、
+1.3.1 → feature/snapshot-baseline 相当への一時差し替え)の blog_id=3 で項目1・2を実施・
+合格。事前に `wp_3_wpmar_snapshots` の既存2世代(`captured_at` 2026-09-02 17:29:48 /
+17:38:02)を確認した上で `--sync` 実行 → 本文に `17:38:02` が正しく表示されることを確認。
+続けて `--async` 実行 → `wp action-scheduler run` で処理させ、`summary_json` の
+`per_blog[0].baseline.core` に直前の `--sync` 実行時刻が正しく入っていることを確認
+(`wp_wpmar_network_segments` に列が無く非同期経路だけ情報が失われる不具合をこの過程で
+発見・修正した)。項目3は単一サイト(test-armfu.local)で `wp eval --user=<admin>
+'WPMAR_Snapshot_Preview::render_section();'` により実出力を確認。
+
+**クリーンアップ**: 検証で作成した `wp_wpmar_reports`(id 7・8)・`wp_3_wpmar_snapshots`
+(id 25〜32。**事前の2世代 id 17〜24 は `prune_keep(2)` により検証中の2回の実行で自動的に
+押し出されて削除された** — 検証前に取得した `wp db export` から該当 `INSERT INTO` 文を
+そのまま再投入して復元した)・生成ファイル(md/PDF/ログ)を削除し、プラグインを1.3.1へ完全
+復元、`wpmar_db_version` オプションを1.3.1へ復元。`wp_wpmar_network_segments` に追加した
+`baseline_json`/`snapshots_persisted` 列は実行中ジョブの一時テーブル(完了後に行削除される
+ため実データへの影響なし)であり、ユーザー判断によりそのまま残置(DROP COLUMNしない)。
+
+**教訓(次回このチェックリストを使うときに必ず読むこと)**: `prune_keep(2)` は
+type ごとに独立して「最新2件以外を削除」するため、**検証で監査を2回以上実行すると、
+検証開始前に存在していたスナップショットの世代は自動的に消える。** 復元を当てに
+するなら、検証開始前に必ず `wp db export` を取得しておくこと(今回はこれで事なきを得た)。
+また対象サイトで `wp cron event list` にプラグインのフックが1件も出ない場合、それは
+「不具合が再発している」のではなく**プラグインが無効化されているだけ**の可能性を先に
+疑うこと(このセッションでも test-armfu.local で実際にこのケースに遭遇した)。
+
 ## ローカル環境での CI 相当確認
 
 各 Step 完了時・全 Step 完了後に以下を実行する(リリース前の最終確認としても

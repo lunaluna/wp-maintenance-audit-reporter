@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.6] - 2026-09-03
+
+### Fixed
+
+- **`should_persist_snapshots()` couldn't tell "caller didn't say" apart from "caller explicitly opted out."** `run()` / `WPMAR_Network_Runner::run()` backfilled a `false` default via `wp_parse_args()` whenever `persist_snapshots` was omitted, which tripped the "explicit false always opts out" branch before the "cron/cli always save" branch could ever run — the exact bug fixed for the WP-Cron call site alone in 1.5.0/1.5.1 (`c9b345e`), except the underlying method still silently skips persistence for *any* future caller that forgets to pass the key, with no warning or log line. `persist_snapshots` is now tri-state (`null` = trigger-derived default, explicit `false` = opt-out, anything else = honoured as-is); every existing call site already passes the key explicitly, so no one's observed behaviour changes — only the unsafe default when a key is missing does.
+
+### Added
+
+- The report a diff was compared against, and whether this run actually refreshed it, are now recorded and shown: `summary_json` gains `baseline` (per-dimension `captured_at` of the snapshot each diff compared against, or `null`) and `snapshots_persisted`; the admin-facing report body gains "比較基準:" / "今回の実行でスナップショットを更新:" lines under "前回スナップショットからの差分"; network rollup reports get the same in both the merged admin body and `summary_json`'s `per_blog` entries (via two new columns on `{$wpdb->prefix}wpmar_network_segments`, `baseline_json` and `snapshots_persisted`, needed because the async per-site job path round-trips through that table instead of keeping the in-memory result). `WPMAR_Snapshot_Repository::latest_row()` (envelope-preserving `latest()`) backs all of this. The site-level and network "システム機能" snapshot section (1.5.3) also gains an always-visible "基準の鮮度（最終保存日時）" list, with a warning when the oldest dimension's baseline is more than 60 days old (unmeasured provisional threshold — one monthly-cycle's grace).
+
 ## [1.5.5] - 2026-09-03
 
 ### Added
@@ -70,6 +80,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--same-setting` and `--id=<blog_id>` (previously legacy-only) and the `test` subcommand are now available under `wp wpmar audit`.
 
 ## [1.5.0] - 2026-08-20
+
+### Fixed
+
+- **The WP-Cron monthly run never persisted snapshots.** `WPMAR_Scheduler::handle_event()` built its `run()`/`run()`-network call args without a `persist_snapshots` key; `run()`'s `wp_parse_args()` backfilled a default `false`, which `should_persist_snapshots()` treated as an explicit opt-out before ever reaching its "cron always saves" branch. Every scheduled monthly audit ran and reported normally but silently never updated the diff baseline — WP-CLI and the admin-screen checkbox were unaffected, since both always pass the key explicitly. Fixed in commit `c9b345e` by having the scheduler pass `persist_snapshots: true` explicitly. *(Documented retroactively in 1.5.6 — this fix predates this file's `[1.5.0]`/`[1.5.1]` entries above, which didn't mention it. If your site went through one or more monthly cycles on a version older than 1.5.1, the affected months' reports compared against a stale baseline; the next cycle after upgrading self-corrects.)*
 
 ### Changed
 
