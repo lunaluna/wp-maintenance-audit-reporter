@@ -198,6 +198,8 @@ class WPMAR_Activator {
 	changelog_counts int unsigned NOT NULL default 0,
 	client_body longtext NULL,
 	admin_body longtext NULL,
+	baseline_json longtext NULL,
+	snapshots_persisted tinyint(1) NOT NULL default 0,
 	error text NULL,
 	created_at datetime NOT NULL,
 	updated_at datetime NOT NULL,

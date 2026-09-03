@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.5**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.5.6**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -124,6 +124,10 @@ The "スナップショットをプレビュー" (Preview snapshot) button under
 - Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users); anything older is pruned automatically on the next audit run.
 - **On multisite, the site-level screen is restricted to super admins.** A subsite administrator holding `manage_options` will not see this section at all: plugin/theme files are shared network-wide, so showing them here would leak information a subsite admin cannot normally access, and the users snapshot also carries plain-text email addresses.
 - The network admin "システム機能" screen offers a site picker to view any one site's snapshots across the network (super admin only, `manage_network_options`).
+
+#### Baseline freshness (v1.5.6+)
+
+Above the preview toggle, a "基準の鮮度（最終保存日時）" (baseline freshness) list — always visible, no need to expand the preview — shows the newest `captured_at` per dimension, so you can tell at a glance whether the last scheduled run actually refreshed the diff baseline. A warning appears when the oldest dimension's baseline is more than 60 days old (an unmeasured provisional threshold — one monthly-cycle's grace). The same "いつと比べたか" (what it was compared against) and "更新したか" (whether it updated) information also appears per-run in the report body itself, under 前回スナップショットからの差分, and in `summary_json`.
 
 ### レポート (Reports) screen
 

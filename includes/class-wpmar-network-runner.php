@@ -19,14 +19,16 @@ class WPMAR_Network_Runner {
 	/**
 	 * Executes a network rollup audit.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots, mail_qa_extra, same_setting, target_blog_id.
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by, persist_snapshots (null = trigger-derived default; cron_network/cli_network always save, manual_network does not), mail_qa_extra, same_setting, target_blog_id.
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
 		$defaults = array(
 			'dry'               => false,
 			'triggered_by'      => 'manual_network',
-			'persist_snapshots' => false,
+			// null (not false) so should_persist_snapshots() can tell "caller didn't say" apart
+			// from "caller explicitly opted out" - see that method's docblock.
+			'persist_snapshots' => null,
 			'mail_qa_extra'     => '',
 			'same_setting'      => false,
 			'target_blog_id'    => 0,
@@ -315,12 +317,14 @@ class WPMAR_Network_Runner {
 			$changes          = isset( $segment['changelog_counts'] ) ? absint( $segment['changelog_counts'] ) : 0;
 			$total_changes   += $changes;
 			$per_blog[ $bid ] = array(
-				'blog_id'   => $bid,
-				'site_name' => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
-				'home_url'  => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
-				'domain_ok' => $ok,
-				'changes'   => $changes,
-				'status'    => isset( $segment['status'] ) ? sanitize_key( (string) $segment['status'] ) : 'done',
+				'blog_id'             => $bid,
+				'site_name'           => isset( $segment['site_name'] ) ? sanitize_text_field( (string) $segment['site_name'] ) : '',
+				'home_url'            => isset( $segment['home_url'] ) ? esc_url_raw( (string) $segment['home_url'] ) : '',
+				'domain_ok'           => $ok,
+				'changes'             => $changes,
+				'status'              => isset( $segment['status'] ) ? sanitize_key( (string) $segment['status'] ) : 'done',
+				'baseline'            => self::extract_segment_baseline( $segment ),
+				'snapshots_persisted' => ! empty( $segment['snapshots_persisted'] ),
 			);
 		}
 		$report_blog_ids = array_values( array_unique( $report_blog_ids ) );
@@ -440,26 +444,61 @@ class WPMAR_Network_Runner {
 	}
 
 	/**
+	 * Reads a segment's baseline map regardless of which of the two shapes it arrives in.
+	 *
+	 * The synchronous path (`run_on_main_site()`) hands finalize_rollup() the in-memory
+	 * array straight from {@see WPMAR_Runner::run_site_segment()}, so `baseline` is
+	 * already an array. The async path (`WPMAR_Job_Dispatcher`) instead reads rows back
+	 * from `{$wpdb->prefix}wpmar_network_segments`, where it's a JSON string column
+	 * (`baseline_json`) - that table has no room for a native array column, and
+	 * {@see WPMAR_Network_Segments_Repository::mark_done()} encodes it going in.
+	 *
+	 * @param array<string,mixed> $segment One report_segments entry, either shape.
+	 * @return array<string,mixed>
+	 */
+	protected static function extract_segment_baseline( array $segment ) {
+		if ( isset( $segment['baseline'] ) && is_array( $segment['baseline'] ) ) {
+			return $segment['baseline'];
+		}
+
+		if ( ! empty( $segment['baseline_json'] ) && is_string( $segment['baseline_json'] ) ) {
+			$decoded = json_decode( $segment['baseline_json'], true );
+			if ( is_array( $decoded ) ) {
+				return $decoded;
+			}
+		}
+
+		return array();
+	}
+
+	/**
 	 * Snapshot persistence policy for network rollup runs.
 	 *
 	 * Public so {@see WPMAR_Job_Dispatcher} can apply the same policy once per dispatch
 	 * and hand the single resulting flag to every per-site segment job, instead of each
 	 * one re-deriving it from `$exec['triggered_by']` independently.
 	 *
+	 * `persist_snapshots` is tri-state: `null` (absent/unspecified) falls back to the
+	 * trigger-derived default below; explicit `false` always opts out; any other explicit
+	 * value is honoured as-is. See {@see WPMAR_Runner::should_persist_snapshots()} for the
+	 * incident (c9b345e) this guards against.
+	 *
 	 * @param array<string,mixed> $exec Options.
 	 * @return bool
 	 */
 	public static function should_persist_snapshots( array $exec ) {
+		$persist_option = array_key_exists( 'persist_snapshots', $exec ) ? $exec['persist_snapshots'] : null;
+
 		// Explicit false opt-out takes priority over any trigger default.
-		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
+		if ( false === $persist_option ) {
 			return false;
 		}
 
-		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual_network';
-		if ( 'cron_network' === $triggered || 'cli_network' === $triggered ) {
-			return true;
+		if ( null === $persist_option ) {
+			$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual_network';
+			return 'cron_network' === $triggered || 'cli_network' === $triggered;
 		}
 
-		return ! empty( $exec['persist_snapshots'] );
+		return ! empty( $persist_option );
 	}
 }

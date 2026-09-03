@@ -1,9 +1,10 @@
 <?php
 /**
- * Unit tests for WPMAR_Snapshot_Repository::recent() / types() / table_exists().
+ * Unit tests for WPMAR_Snapshot_Repository::recent() / types() / table_exists() / latest_row().
  *
- * latest() and prune_keep() are already exercised elsewhere; this file covers the
- * generation-with-envelope reads the snapshot preview screen needs (WPMAR 1.5.3).
+ * The prune_keep() method is already exercised elsewhere; this file covers the
+ * generation-with-envelope reads the snapshot preview screen (WPMAR 1.5.3) and the
+ * baseline-freshness reporting (WPMAR 1.5.6) need.
  *
  * @package WPMAR\Tests
  */
@@ -38,6 +39,46 @@ final class RecordingFakeWpdb extends \WPMAR_Test_Fake_Wpdb {
 	public function prepare( $query, ...$args ) {
 		$this->prepared_queries[] = $query;
 		return parent::prepare( $query, ...$args );
+	}
+
+	/**
+	 * The inherited get_row() only knows id-keyed lookups; latest_row()'s SELECT scopes
+	 * by snapshot_type instead, so resolve that case here (newest captured_at/id first,
+	 * matching the ORDER BY latest_row() actually issues) and fall back to the parent
+	 * for anything else.
+	 *
+	 * @param array{0:string,1:array<int,mixed>}|string $prepared Prepared tuple.
+	 * @param mixed                                     $output   Output type (ignored).
+	 * @return array<string,mixed>|null
+	 */
+	public function get_row( $prepared, $output = null ) {
+		list( $sql, $args ) = $this->normalize_prepared( $prepared );
+
+		if ( false === stripos( $sql, 'snapshot_type=%s' ) ) {
+			return parent::get_row( $prepared, $output );
+		}
+
+		$table = $this->extract_table_from_sql( $sql );
+		$type  = isset( $args[0] ) ? (string) $args[0] : '';
+		$rows  = ( '' !== $table && isset( $this->tables[ $table ] ) ) ? $this->tables[ $table ] : array();
+
+		$matches = array_values(
+			array_filter(
+				$rows,
+				static function ( $row ) use ( $type ) {
+					return isset( $row['snapshot_type'] ) && $type === $row['snapshot_type'];
+				}
+			)
+		);
+
+		usort(
+			$matches,
+			static function ( $a, $b ) {
+				return array( $b['captured_at'] ?? '', $b['id'] ?? 0 ) <=> array( $a['captured_at'] ?? '', $a['id'] ?? 0 );
+			}
+		);
+
+		return $matches[0] ?? null;
 	}
 }
 
@@ -146,6 +187,51 @@ final class SnapshotRepositoryTest extends TestCase {
 		// drifts, the preview can show a generation prune_keep() has already decided
 		// to delete.
 		self::assertStringContainsString( 'ORDER BY captured_at DESC, id DESC', end( $this->db->prepared_queries ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// latest_row() / latest()
+	// -------------------------------------------------------------------------
+
+	public function test_latest_row_returns_newest_row_with_envelope(): void {
+		$this->seed_row( 10, 'core', '2026-06-01 00:00:00', wp_json_encode( array( 'version' => '7.0' ) ) );
+		$this->seed_row( 20, 'core', '2026-07-01 00:00:00', wp_json_encode( array( 'version' => '7.1' ) ) );
+
+		$row = $this->repo->latest_row( 'core' );
+
+		self::assertSame( 20, $row['id'] );
+		self::assertSame( '2026-07-01 00:00:00', $row['captured_at'] );
+		self::assertSame( array( 'version' => '7.1' ), $row['payload'] );
+	}
+
+	public function test_latest_row_returns_null_when_no_rows(): void {
+		self::assertNull( $this->repo->latest_row( 'core' ) );
+	}
+
+	public function test_latest_row_returns_null_for_corrupt_json(): void {
+		// Unlike recent(), a corrupt row must not surface with an empty payload here -
+		// callers treat null as "no usable prior snapshot" (see latest()'s own contract).
+		$this->seed_row( 7, 'core', '2026-06-01 00:00:00', '{not valid json' );
+
+		self::assertNull( $this->repo->latest_row( 'core' ) );
+	}
+
+	public function test_latest_row_issues_sql_ordered_same_as_recent_and_prune_keep(): void {
+		$this->repo->latest_row( 'core' );
+
+		self::assertStringContainsString( 'ORDER BY captured_at DESC, id DESC', end( $this->db->prepared_queries ) );
+	}
+
+	public function test_latest_delegates_to_latest_row_and_returns_only_payload(): void {
+		$this->seed_row( 1, 'core', '2026-06-01 00:00:00', wp_json_encode( array( 'version' => '7.0' ) ) );
+
+		self::assertSame( array( 'version' => '7.0' ), $this->repo->latest( 'core' ) );
+	}
+
+	public function test_latest_returns_null_for_corrupt_json(): void {
+		$this->seed_row( 7, 'core', '2026-06-01 00:00:00', '{not valid json' );
+
+		self::assertNull( $this->repo->latest( 'core' ) );
 	}
 
 	// -------------------------------------------------------------------------

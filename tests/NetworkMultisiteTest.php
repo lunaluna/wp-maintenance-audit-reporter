@@ -33,6 +33,20 @@ final class NetworkMultisiteTest extends TestCase {
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-domain-gate.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-runner.php';
+		require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-runner.php';
+	}
+
+	/**
+	 * Calls the protected WPMAR_Network_Runner::extract_segment_baseline() via reflection.
+	 *
+	 * @param array<string,mixed> $segment One report_segments entry.
+	 * @return array<string,mixed>
+	 */
+	private function extract_segment_baseline( array $segment ) {
+		$method = new \ReflectionMethod( \WPMAR_Network_Runner::class, 'extract_segment_baseline' );
+		$method->setAccessible( true );
+
+		return $method->invoke( null, $segment );
 	}
 
 	/**
@@ -107,5 +121,117 @@ final class NetworkMultisiteTest extends TestCase {
 		self::assertStringContainsString( 'https://example.com/child/', $merged );
 		self::assertStringContainsString( 'Hello client', $merged );
 		self::assertStringContainsString( '---', $merged );
+	}
+
+	/**
+	 * Sync path: finalize_rollup() receives run_site_segment()'s in-memory return
+	 * value, where `baseline` is already a native array.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_reads_native_array_from_sync_path(): void {
+		$baseline = array(
+			'core'   => '2026-07-28 00:04:06',
+			'themes' => null,
+		);
+
+		self::assertSame( $baseline, $this->extract_segment_baseline( array( 'baseline' => $baseline ) ) );
+	}
+
+	/**
+	 * Async path: finalize_rollup() receives rows read back from
+	 * `{$wpdb->prefix}wpmar_network_segments`, where baseline survived as the
+	 * `baseline_json` JSON string column (see WPMAR_Network_Segments_Repository).
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_decodes_baseline_json_from_async_path(): void {
+		$decoded = $this->extract_segment_baseline(
+			array( 'baseline_json' => wp_json_encode( array( 'core' => '2026-07-28 00:04:06' ) ) )
+		);
+
+		self::assertSame( array( 'core' => '2026-07-28 00:04:06' ), $decoded );
+	}
+
+	/**
+	 * Neither the sync nor the async shape's key is present.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_returns_empty_array_when_neither_key_present(): void {
+		self::assertSame( array(), $this->extract_segment_baseline( array() ) );
+	}
+
+	/**
+	 * A malformed baseline_json (corrupt row, truncated column) must not surface as a
+	 * fatal - the freshness line just shows "no baseline" instead of crashing the report.
+	 *
+	 * @return void
+	 */
+	public function test_extract_segment_baseline_returns_empty_array_for_corrupt_json(): void {
+		self::assertSame( array(), $this->extract_segment_baseline( array( 'baseline_json' => '{not valid json' ) ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// should_persist_snapshots() - WPMAR 1.5.6 tri-state regression (network side
+	// of the same fix covered for WPMAR_Runner in RunnerFullRunTest.php)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Regression test for WPMAR 1.5.6: a caller that omits persist_snapshots
+	 * entirely must still get the cron_network trigger default, the same fix
+	 * applied to WPMAR_Runner::should_persist_snapshots().
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_true_for_cron_network_with_key_omitted(): void {
+		self::assertTrue( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'cron_network' ) ) );
+	}
+
+	/**
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_true_for_cli_network_with_key_omitted(): void {
+		self::assertTrue( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'cli_network' ) ) );
+	}
+
+	/**
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_defaults_to_false_for_manual_network_with_key_omitted(): void {
+		self::assertFalse( \WPMAR_Network_Runner::should_persist_snapshots( array( 'triggered_by' => 'manual_network' ) ) );
+	}
+
+	/**
+	 * An explicit false must still win over the cron_network trigger default.
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_explicit_false_overrides_cron_network_default(): void {
+		self::assertFalse(
+			\WPMAR_Network_Runner::should_persist_snapshots(
+				array(
+					'triggered_by'      => 'cron_network',
+					'persist_snapshots' => false,
+				)
+			)
+		);
+	}
+
+	/**
+	 * An explicit true is honoured regardless of trigger (the manual + checkbox
+	 * path).
+	 *
+	 * @return void
+	 */
+	public function test_should_persist_snapshots_explicit_true_is_honoured_for_manual_network(): void {
+		self::assertTrue(
+			\WPMAR_Network_Runner::should_persist_snapshots(
+				array(
+					'triggered_by'      => 'manual_network',
+					'persist_snapshots' => true,
+				)
+			)
+		);
 	}
 }

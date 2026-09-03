@@ -132,10 +132,9 @@ class WPMAR_Scheduler {
 		$args = array(
 			'dry'               => false,
 			'triggered_by'      => $is_network ? 'cron_network' : 'cron',
-			// WPMAR_Runner::should_persist_snapshots() / WPMAR_Network_Runner::should_persist_snapshots()
-			// treat an explicit `false` (their own default when the key is absent) as an opt-out that
-			// short-circuits before ever reaching the "cron/cli always save" branch. Without this key
-			// here, the scheduled monthly audit would silently never persist snapshots.
+			// should_persist_snapshots() now falls back to a trigger-derived default (cron always
+			// saves) when this key is absent, so this is no longer load-bearing - kept explicit
+			// anyway as a belt-and-suspenders safeguard and to document intent at the call site.
 			'persist_snapshots' => true,
 		);
 

@@ -218,8 +218,28 @@ class WPMAR_Network_System_Status_Page {
 		endif;
 		?>
 
+		<?php self::render_freshness_for_blog( $selected_id ); ?>
+
 		<pre style="white-space:pre-wrap;background:#fff;border:1px solid #ccd0d4;padding:12px;max-height:480px;overflow:auto;"><?php echo esc_html( self::snapshot_markdown_for_blog( $selected_id ) ); ?></pre>
 		<?php
+	}
+
+	/**
+	 * Prints the "基準の鮮度" mini-block for one already-permitted blog, switching
+	 * into it only for the duration of the closure - same pattern as
+	 * {@see self::snapshot_markdown_for_blog()}, kept separate because that method
+	 * returns a Markdown string while this one prints HTML directly.
+	 *
+	 * @param int $blog_id Already validated against WPMAR_Network::target_blog_ids().
+	 * @return void
+	 */
+	protected static function render_freshness_for_blog( $blog_id ) {
+		WPMAR_Network::on_blog(
+			$blog_id,
+			static function () {
+				WPMAR_Snapshot_Preview::render_freshness( new WPMAR_Snapshot_Repository() );
+			}
+		);
 	}
 
 	/**

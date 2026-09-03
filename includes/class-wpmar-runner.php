@@ -32,7 +32,7 @@ class WPMAR_Runner {
 	/**
 	 * Executes audits according to behavioural flags.
 	 *
-	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (manual only; cron/cli always save).
+	 * @param array<string,mixed> $options Supported keys: dry, triggered_by (manual|cron|cli), mail_override, mail_qa_extra (optional duplicate client + admin copy to one address), persist_snapshots (null = trigger-derived default; cron/cli always save, manual does not; true/false override explicitly).
 	 * @return array<string,mixed>
 	 */
 	public function run( array $options = array() ) {
@@ -42,7 +42,9 @@ class WPMAR_Runner {
 			'mail_override'     => '',
 			'mail_qa_extra'     => '',
 			'capture_cli'       => defined( 'WP_CLI' ) && WP_CLI,
-			'persist_snapshots' => false,
+			// null (not false) so should_persist_snapshots() can tell "caller didn't say" apart
+			// from "caller explicitly opted out" - see that method's docblock.
+			'persist_snapshots' => null,
 		);
 
 		$exec = wp_parse_args( $options, $defaults );
@@ -88,10 +90,16 @@ class WPMAR_Runner {
 			// current files/state in the mail/MD bodies and in the diff's "after" side.
 
 			// Pull previous JSON blobs prior to rewriting - drives diff headings in mail/MD.
+			// The envelope's captured_at is kept separately as $baseline so the report can
+			// state *when* the comparison basis was captured without changing what
+			// difference_summary() receives (still payload-only, as before).
 			$snapshot_repo = new WPMAR_Snapshot_Repository();
 			$prior_snap    = array();
+			$baseline      = array();
 			foreach ( array_keys( $pairs ) as $dimension ) {
-				$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
+				$prior_row                = $snapshot_repo->latest_row( $dimension );
+				$prior_snap[ $dimension ] = null === $prior_row ? null : $prior_row['payload'];
+				$baseline[ $dimension ]   = null === $prior_row ? null : $prior_row['captured_at'];
 			}
 
 			$display_names = self::build_display_name_maps( $dataset );
@@ -105,8 +113,9 @@ class WPMAR_Runner {
 
 			$persist_snapshots = self::should_persist_snapshots( $exec );
 
-			$report_repo = new WPMAR_Report_Repository();
-			$md_relative = '';
+			$report_repo         = new WPMAR_Report_Repository();
+			$md_relative         = '';
+			$snapshots_persisted = false;
 
 			if ( $domain_gate_ok && $persist_snapshots ) {
 				// Persist newest snapshot per dimension, prune older than two rows each.
@@ -114,13 +123,14 @@ class WPMAR_Runner {
 					$snapshot_repo->save( $type, $canonical );
 					$snapshot_repo->prune_keep( $type, 2 );
 				}
+				$snapshots_persisted = true;
 				WPMAR_Logger::step( 'persist-snapshots:done' );
 			}
 
 			$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 			$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
-			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+			$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec, $baseline, $snapshots_persisted );
 			WPMAR_Logger::step( 'render:done' );
 
 			if ( $domain_gate_ok && ! empty( $settings['output']['md_enabled'] ) ) {
@@ -154,6 +164,11 @@ class WPMAR_Runner {
 					'security_codes'         => isset( $dataset['security']['summary_codes'] ) && is_array( $dataset['security']['summary_codes'] )
 						? array_values( array_map( 'strval', $dataset['security']['summary_codes'] ) )
 						: array(),
+					// Lets an operator verify, after the fact, whether a report's diff was
+					// computed against a stale baseline and whether this run actually
+					// refreshed it - see WPMAR 1.5.6 (persist_snapshots null/false mixup).
+					'baseline'               => $baseline,
+					'snapshots_persisted'    => $snapshots_persisted,
 				),
 				JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
 			);
@@ -296,8 +311,11 @@ class WPMAR_Runner {
 
 		$snapshot_repo = new WPMAR_Snapshot_Repository();
 		$prior_snap    = array();
+		$baseline      = array();
 		foreach ( array_keys( $pairs ) as $dimension ) {
-			$prior_snap[ $dimension ] = $snapshot_repo->latest( $dimension );
+			$prior_row                = $snapshot_repo->latest_row( $dimension );
+			$prior_snap[ $dimension ] = null === $prior_row ? null : $prior_row['payload'];
+			$baseline[ $dimension ]   = null === $prior_row ? null : $prior_row['captured_at'];
 		}
 
 		$display_names = self::build_display_name_maps( $dataset );
@@ -309,18 +327,20 @@ class WPMAR_Runner {
 			$pairs = array();
 		}
 
+		$snapshots_persisted = false;
 		if ( $domain_gate_ok && ! empty( $exec['persist_snapshots'] ) ) {
 			foreach ( $pairs as $type => $canonical ) {
 				$snapshot_repo->save( $type, $canonical );
 				$snapshot_repo->prune_keep( $type, 2 );
 			}
+			$snapshots_persisted = true;
 			WPMAR_Logger::step( "site:{$blog_id}:persist-snapshots:done" );
 		}
 
 		$duration_sec = (int) max( round( microtime( true ) - $t0, 0 ), 0 );
 
 		$client_body = self::render_client_markup( $dataset, $changelog_md_client, $changelog_counts, $domain_gate_ok );
-		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec );
+		$admin_body  = self::render_operator_markup( $dataset, $changelog_md, $domain_gate_ok, $changelog_counts, $duration_sec, $baseline, $snapshots_persisted );
 		WPMAR_Logger::step( "site:{$blog_id}:render:done" );
 
 		// Only the rendered bodies below are used by the network aggregate step; the raw
@@ -329,16 +349,18 @@ class WPMAR_Runner {
 		self::release_heavy_dataset_memory( $dataset );
 
 		return array(
-			'blog_id'          => (int) $blog_id,
-			'site_name'        => $site_name,
-			'home_url'         => esc_url_raw( $home ),
-			'domain_gate_ok'   => $domain_gate_ok,
-			'dataset'          => $dataset,
-			'changelog_md'     => $changelog_md,
-			'changelog_counts' => absint( $changelog_counts ),
-			'client_body'      => $client_body,
-			'admin_body'       => $admin_body,
-			'duration_sec'     => $duration_sec,
+			'blog_id'             => (int) $blog_id,
+			'site_name'           => $site_name,
+			'home_url'            => esc_url_raw( $home ),
+			'domain_gate_ok'      => $domain_gate_ok,
+			'dataset'             => $dataset,
+			'changelog_md'        => $changelog_md,
+			'changelog_counts'    => absint( $changelog_counts ),
+			'client_body'         => $client_body,
+			'admin_body'          => $admin_body,
+			'duration_sec'        => $duration_sec,
+			'baseline'            => $baseline,
+			'snapshots_persisted' => $snapshots_persisted,
 		);
 	}
 
@@ -456,25 +478,38 @@ class WPMAR_Runner {
 	/**
 	 * Whether to write snapshot rows: WP-Cron always; CLI always; manual paths only when opted in.
 	 *
+	 * `persist_snapshots` is tri-state: `null` (absent/unspecified) falls back to the
+	 * trigger-derived default below; explicit `false` always opts out; any other explicit
+	 * value is honoured as-is. This lets a caller that forgets to pass the key still get the
+	 * correct trigger-based default instead of silently skipping persistence (see the incident
+	 * fixed in c9b345e, where `wp_parse_args()` used to backfill a `false` default that then
+	 * tripped the opt-out branch below before the cron/cli branch could ever run).
+	 *
 	 * @param array<string,mixed> $exec Normalised {@see self::run()} options.
 	 * @return bool
 	 */
 	protected static function should_persist_snapshots( array $exec ) {
+		$persist_option = array_key_exists( 'persist_snapshots', $exec ) ? $exec['persist_snapshots'] : null;
+
 		// Explicit false opt-out takes priority over any trigger default.
-		if ( isset( $exec['persist_snapshots'] ) && false === $exec['persist_snapshots'] ) {
+		if ( false === $persist_option ) {
 			return false;
 		}
 
-		$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
-		if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
-			return true;
-		}
-		// Unattended CLI runs mirror legacy “always persist” behaviour.
-		if ( 'cli' === $triggered || 'cli_network' === $triggered ) {
-			return true;
+		if ( null === $persist_option ) {
+			$triggered = isset( $exec['triggered_by'] ) ? sanitize_key( (string) $exec['triggered_by'] ) : 'manual';
+			if ( 'cron' === $triggered || 'cron_network' === $triggered ) {
+				return true;
+			}
+			// Unattended CLI runs mirror legacy “always persist” behaviour.
+			if ( 'cli' === $triggered || 'cli_network' === $triggered ) {
+				return true;
+			}
+
+			return false;
 		}
 
-		return ! empty( $exec['persist_snapshots'] );
+		return ! empty( $persist_option );
 	}
 
 	/**
@@ -1414,14 +1449,18 @@ class WPMAR_Runner {
 	/**
 	 * Operator-facing plaintext shaped like `/.maintenance/inc/mainte.sh` `ADMIN_MAIL_BODY` (not a raw JSON dump).
 	 *
-	 * @param array<string,mixed> $facts          Fresh envelope.
-	 * @param string              $changelog      Diff body.
-	 * @param bool                $gate           Domain gate acknowledgement.
-	 * @param int                 $changelog_size Counter.
-	 * @param int                 $duration_sec  Wall time spent in this run (seconds).
+	 * @param array<string,mixed> $facts               Fresh envelope.
+	 * @param string              $changelog           Diff body.
+	 * @param bool                $gate                Domain gate acknowledgement.
+	 * @param int                 $changelog_size      Counter.
+	 * @param int                 $duration_sec        Wall time spent in this run (seconds).
+	 * @param array<string,mixed> $baseline            Dimension => captured_at (UTC string) of the
+	 *                                                 snapshot the diff compared against, or null
+	 *                                                 when there was none yet.
+	 * @param bool                $snapshots_persisted Whether this run actually wrote new snapshot rows.
 	 * @return string
 	 */
-	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size, $duration_sec = 0 ) {
+	public static function render_operator_markup( array $facts, $changelog, $gate, $changelog_size, $duration_sec = 0, array $baseline = array(), $snapshots_persisted = false ) {
 		$duration_sec = max( 0, (int) $duration_sec );
 
 		$chunks             = array();
@@ -1438,7 +1477,7 @@ class WPMAR_Runner {
 		// Backup section hidden until backup status reporting is implemented.
 		// Re-enable by adding: render_operator_backup_section() to the chunks array.
 		$chunks[] = self::render_operator_users_section( $facts );
-		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ) );
+		$chunks[] = self::render_operator_changelog_section( $changelog_stripped, absint( $changelog_size ), $baseline, (bool) $snapshots_persisted );
 		$chunks[] = self::render_operator_security_section_verbose( isset( $facts['security'] ) && is_array( $facts['security'] ) ? $facts['security'] : array() );
 		$chunks[] = self::render_operator_performance_section_verbose(
 			isset( $facts['performance'] ) && is_array( $facts['performance'] ) ? $facts['performance'] : array()
@@ -2122,14 +2161,24 @@ class WPMAR_Runner {
 	/**
 	 * ## 【前回スナップショットからの差分】（プラグイン独自の差分ログ）.
 	 *
-	 * @param string $changelog_stripped Plain diff body.
-	 * @param int    $changelog_size     Count.
+	 * @param string              $changelog_stripped  Plain diff body.
+	 * @param int                 $changelog_size      Count.
+	 * @param array<string,mixed> $baseline            Dimension => captured_at (UTC string) or null.
+	 * @param bool                $snapshots_persisted Whether this run actually wrote new snapshot rows.
 	 * @return string
 	 */
-	protected static function render_operator_changelog_section( $changelog_stripped, $changelog_size ) {
+	protected static function render_operator_changelog_section( $changelog_stripped, $changelog_size, array $baseline = array(), $snapshots_persisted = false ) {
 		$changelog_stripped = trim( (string) $changelog_stripped );
 		$body               = __( '## 【前回スナップショットからの差分】', 'wp-maintenance-audit-reporter' ) . "\n";
-		$body              .= sprintf(
+		// Lets an operator tell "no changes because nothing changed" apart from "no changes
+		// because the baseline is stale" - see WPMAR 1.5.6 (persist_snapshots null/false mixup).
+		$body .= self::render_baseline_freshness_line( $baseline ) . "\n";
+		$body .= sprintf(
+			/* translators: %s: はい or いいえ */
+			__( '今回の実行でスナップショットを更新: %s', 'wp-maintenance-audit-reporter' ),
+			$snapshots_persisted ? __( 'はい', 'wp-maintenance-audit-reporter' ) : __( 'いいえ', 'wp-maintenance-audit-reporter' )
+		) . "\n";
+		$body .= sprintf(
 			/* translators: %d: number of changes detected */
 			__( '件数: %d', 'wp-maintenance-audit-reporter' ),
 			absint( $changelog_size )
@@ -2142,6 +2191,47 @@ class WPMAR_Runner {
 		}
 
 		return $body;
+	}
+
+	/**
+	 * `比較基準:` line summarising when the diff's "before" side was captured.
+	 *
+	 * Each of core/themes/plugins/users can in principle hold a different generation
+	 * (e.g. a dimension saved for the first time later than the others), so this reports
+	 * the oldest captured_at across dimensions and flags it when they disagree, rather
+	 * than silently picking one.
+	 *
+	 * @param array<string,mixed> $baseline Dimension => captured_at (UTC string) or null.
+	 * @return string
+	 */
+	protected static function render_baseline_freshness_line( array $baseline ) {
+		$captured_ats = array_values(
+			array_filter(
+				$baseline,
+				static function ( $value ) {
+					return is_string( $value ) && '' !== $value;
+				}
+			)
+		);
+
+		if ( empty( $captured_ats ) ) {
+			return __( '比較基準: なし（初回収集）', 'wp-maintenance-audit-reporter' );
+		}
+
+		sort( $captured_ats );
+		$oldest = reset( $captured_ats );
+
+		$line = sprintf(
+			/* translators: %s: UTC datetime the comparison baseline was captured at */
+			__( '比較基準: %s UTC（保存済みスナップショット）', 'wp-maintenance-audit-reporter' ),
+			$oldest
+		);
+
+		if ( count( array_unique( $captured_ats ) ) > 1 ) {
+			$line .= __( '※ dimensionにより基準日時が異なります。最も古いものを表示しています。', 'wp-maintenance-audit-reporter' );
+		}
+
+		return $line;
 	}
 
 	/**

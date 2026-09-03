@@ -67,15 +67,17 @@ final class OperatorMarkupTest extends TestCase {
 	}
 
 	/**
-	 * @param array<string,mixed> $facts          Dataset.
-	 * @param string              $changelog      Diff body.
-	 * @param bool                $gate           Domain gate result.
-	 * @param int                 $changelog_size Diff count.
-	 * @param int                 $duration_sec   Duration in seconds.
+	 * @param array<string,mixed> $facts               Dataset.
+	 * @param string              $changelog           Diff body.
+	 * @param bool                $gate                Domain gate result.
+	 * @param int                 $changelog_size      Diff count.
+	 * @param int                 $duration_sec        Duration in seconds.
+	 * @param array<string,mixed> $baseline            Dimension => captured_at (UTC string) or null.
+	 * @param bool                $snapshots_persisted Whether this run persisted new snapshots.
 	 * @return string
 	 */
-	private function render( array $facts, $changelog, $gate, $changelog_size, $duration_sec ) {
-		return \WPMAR_Runner::render_operator_markup( $facts, $changelog, $gate, $changelog_size, $duration_sec );
+	private function render( array $facts, $changelog, $gate, $changelog_size, $duration_sec, array $baseline = array(), $snapshots_persisted = false ) {
+		return \WPMAR_Runner::render_operator_markup( $facts, $changelog, $gate, $changelog_size, $duration_sec, $baseline, $snapshots_persisted );
 	}
 
 	public function test_all_expected_sections_are_present_for_a_full_dataset(): void {
@@ -97,6 +99,69 @@ final class OperatorMarkupTest extends TestCase {
 		) {
 			self::assertStringContainsString( $heading, $markup, "Missing expected section heading: {$heading}" );
 		}
+	}
+
+	public function test_baseline_freshness_line_reports_no_baseline_on_first_ever_collection(): void {
+		$markup = $this->render(
+			$this->dataset_full,
+			'',
+			true,
+			0,
+			10,
+			array(
+				'core'   => null,
+				'themes' => null,
+			)
+		);
+
+		self::assertStringContainsString( '比較基準: なし（初回収集）', $markup );
+	}
+
+	public function test_baseline_freshness_line_reports_captured_at_when_baseline_exists(): void {
+		$markup = $this->render(
+			$this->dataset_full,
+			'',
+			true,
+			0,
+			10,
+			array(
+				'core'    => '2026-07-28 00:04:06',
+				'themes'  => '2026-07-28 00:04:06',
+				'plugins' => '2026-07-28 00:04:06',
+				'users'   => '2026-07-28 00:04:06',
+			)
+		);
+
+		self::assertStringContainsString( '比較基準: 2026-07-28 00:04:06 UTC（保存済みスナップショット）', $markup );
+	}
+
+	public function test_baseline_freshness_line_flags_disagreement_across_dimensions(): void {
+		$markup = $this->render(
+			$this->dataset_full,
+			'',
+			true,
+			0,
+			10,
+			array(
+				'core'   => '2026-08-01 00:00:00',
+				'themes' => '2026-07-01 00:00:00',
+			)
+		);
+
+		// Oldest wins so the reported basis never overstates freshness.
+		self::assertStringContainsString( '比較基準: 2026-07-01 00:00:00 UTC', $markup );
+		self::assertStringContainsString( 'dimensionにより基準日時が異なります', $markup );
+	}
+
+	public function test_snapshots_persisted_line_reflects_whether_this_run_saved(): void {
+		self::assertStringContainsString(
+			'今回の実行でスナップショットを更新: はい',
+			$this->render( $this->dataset_full, '', true, 0, 10, array(), true )
+		);
+		self::assertStringContainsString(
+			'今回の実行でスナップショットを更新: いいえ',
+			$this->render( $this->dataset_full, '', true, 0, 10, array(), false )
+		);
 	}
 
 	public function test_domain_gate_failure_note_appears_when_gate_is_false(): void {
