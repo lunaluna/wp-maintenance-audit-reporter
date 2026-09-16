@@ -1,11 +1,11 @@
 <?php
 /**
- * Unit tests for WPMAR_Check_Auto_Updates::collect()'s filter-execution isolation.
+ * WPMAR_Check_Auto_Updates::collect() のフィルター実行隔離に対する単体テスト.
  *
- * Runs with process isolation because it flips the shared
- * $GLOBALS['_wpmar_test_apply_filters_functional'] switch (see wp-stubs.php) to make
- * add_filter() callbacks actually run — every other test file relies on apply_filters()
- * staying a no-op pass-through (see tests/UpdaterConfigTest.php for the same pattern).
+ * `$GLOBALS['_wpmar_test_apply_filters_functional']`（wp-stubs.php を参照）を切り替えて
+ * add_filter() のコールバックを実際に走らせるため、プロセス分離で実行する —
+ * このスイートの他のテストファイルはすべて apply_filters() が no-op のまま素通りすることに
+ * 依存している（同じパターンは tests/UpdaterConfigTest.php を参照）.
  *
  * @package WPMAR\Tests
  *
@@ -25,12 +25,13 @@ require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/includes/checks/class-wpmar-check-auto-updates.php';
 
 /**
- * Exposes log_filter_output() calls in-memory instead of routing them to the real
- * WPMAR_Logger (which needs WPMAR_Private_Storage / WPMAR_Jobs_Repository and writes to
- * disk). Other test files in this suite may load the real WPMAR_Logger as a side effect
- * of requiring class-wpmar-runner.php etc.; overriding this one protected method (rather
- * than relying on `class_exists( 'WPMAR_Logger' )` being false) keeps this test correct
- * regardless of what ran before it in the same PHPUnit process.
+ * log_filter_output() の呼び出しを、本物の WPMAR_Logger（WPMAR_Private_Storage /
+ * WPMAR_Jobs_Repository を必要とし、ディスクに書き込む）に流す代わりにインメモリで捕捉する.
+ * このスイートの他のテストファイルが class-wpmar-runner.php 等を require する副作用で本物の
+ * WPMAR_Logger を先にロードしてしまうことがあるため、
+ * `class_exists( 'WPMAR_Logger' )` が false であることに頼るのではなく、この protected
+ * メソッド1つだけをオーバーライドすることで、同一 PHPUnit プロセス内で何が先に実行されたかに
+ * 関わらずこのテストを正しく動かす.
  */
 class ExposedCheckAutoUpdatesForLogging extends \WPMAR_Check_Auto_Updates {
 
@@ -40,8 +41,8 @@ class ExposedCheckAutoUpdatesForLogging extends \WPMAR_Check_Auto_Updates {
 	public $logged = array();
 
 	/**
-	 * @param string $log_key Identifier for the log entry.
-	 * @param int    $bytes   Number of captured bytes.
+	 * @param string $log_key ログエントリの識別子.
+	 * @param int    $bytes   捕捉したバイト数.
 	 * @return void
 	 */
 	protected function log_filter_output( $log_key, $bytes ) {
@@ -50,9 +51,9 @@ class ExposedCheckAutoUpdatesForLogging extends \WPMAR_Check_Auto_Updates {
 }
 
 /**
- * Covers the "Filter execution is isolated two ways, and only two" contract from the
- * class docblock: exceptions and stray output (echo/warnings) must never escape
- * collect(), and a captured output buffer's content is logged by byte count only.
+ * クラス docblock の「フィルター実行の隔離は2種類だけであり、それ以外はない」という契約を
+ * 検証する: 例外と意図しない出力（echo/warning）は collect() の外に一切漏れてはならず、
+ * 捕捉した出力バッファの中身はバイト数のみをログに残す.
  */
 final class CheckAutoUpdatesCollectTest extends TestCase {
 
@@ -72,8 +73,9 @@ final class CheckAutoUpdatesCollectTest extends TestCase {
 	}
 
 	/**
-	 * One plugin inventory row plus a matching `update_plugins` site-transient offer in
-	 * the `response` bucket, so has_offer=true and the `auto_update_plugin` filter runs.
+	 * プラグイン inventory 1行と、それに対応する `update_plugins` site-transient の
+	 * `response` バケット内のオファーを用意する。これにより has_offer=true になり
+	 * `auto_update_plugin` フィルターが実行される.
 	 *
 	 * @return array<string,mixed>
 	 */

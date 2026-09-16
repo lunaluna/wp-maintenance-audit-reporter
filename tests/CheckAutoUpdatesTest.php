@@ -1,10 +1,10 @@
 <?php
 /**
- * Unit tests for WPMAR_Check_Auto_Updates' pure functions (no WP bootstrap needed).
+ * WPMAR_Check_Auto_Updates の純関数群に対する単体テスト（WordPress のブートストラップ不要）.
  *
- * Regression guards marked with a leading number matching the plan's test list
- * (`~/.claude/plans/wp-checksum-verifier-dazzling-meteor.md`, "テストケース" section) are
- * called out in each test's docblock.
+ * プランのテストケース一覧
+ * （`~/.claude/plans/wp-checksum-verifier-dazzling-meteor.md` の「テストケース」節）の番号と
+ * 対応する回帰ガードには、各テストの docblock 冒頭にその番号を付している.
  *
  * @package WPMAR\Tests
  */
@@ -21,10 +21,10 @@ require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/includes/checks/class-wpmar-check-auto-updates.php';
 
 /**
- * Covers evaluate_item(), evaluate_core(), resolve_site_gate(), normalize_offer(),
- * toggle_from_option(), update_source_from_id(), sanitize_version_token(), branch_of(),
- * core_branch_relation(), and core_constant_code() — every branch is exercised directly
- * without a WordPress bootstrap.
+ * evaluate_item()、evaluate_core()、resolve_site_gate()、normalize_offer()、
+ * toggle_from_option()、update_source_from_id()、sanitize_version_token()、branch_of()、
+ * core_branch_relation()、core_constant_code() を対象にする — いずれも WordPress の
+ * ブートストラップなしで各分岐を直接検証する.
  */
 final class CheckAutoUpdatesTest extends TestCase {
 
@@ -33,8 +33,8 @@ final class CheckAutoUpdatesTest extends TestCase {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Fills in the facts evaluate_item() doesn't get from a given test, so each test only
-	 * has to state what it cares about.
+	 * 各テストが指定しなかった事実を既定値で埋める。これにより各テストは自分が検証したい
+	 * 項目だけを指定すればよくなる.
 	 *
 	 * @param array<string,mixed> $overrides Facts to override.
 	 * @return array<string,mixed>
@@ -594,11 +594,22 @@ final class CheckAutoUpdatesTest extends TestCase {
 	}
 
 	// -------------------------------------------------------------------------
+	// format_core_constant_raw()
+	// -------------------------------------------------------------------------
+
+	public function test_format_core_constant_raw(): void {
+		self::assertSame( '', \WPMAR_Check_Auto_Updates::format_core_constant_raw( false, null ) );
+		self::assertSame( 'true', \WPMAR_Check_Auto_Updates::format_core_constant_raw( true, true ) );
+		self::assertSame( 'false', \WPMAR_Check_Auto_Updates::format_core_constant_raw( true, false ) );
+		self::assertSame( 'minor', \WPMAR_Check_Auto_Updates::format_core_constant_raw( true, 'minor' ) );
+	}
+
+	// -------------------------------------------------------------------------
 	// evaluate_core()
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Fills in the facts evaluate_core() doesn't get from a given test.
+	 * 各テストが指定しなかった事実を既定値で埋める.
 	 *
 	 * @param array<string,mixed> $overrides Facts to override.
 	 * @return array<string,mixed>

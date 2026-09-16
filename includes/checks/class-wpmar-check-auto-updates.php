@@ -1,6 +1,6 @@
 <?php
 /**
- * Auto-update toggle-vs-effective-state facts for core, plugins, and themes.
+ * コア・プラグイン・テーマの「トグル状態」と「実効状態」の事実レイヤーを収集する.
  *
  * @package WPMAR
  */
@@ -10,81 +10,85 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Collects the `auto_updates` envelope for {@see WPMAR_Data_Collector}.
+ * {@see WPMAR_Data_Collector} 向けに `auto_updates` エンベロープを収集する.
  *
- * This class exists to answer a question the rest of WPMAR cannot: "will this item's
- * auto-update actually run, or is the admin-screen toggle lying?" (see class docblock
- * history / plan for the `forced-auto-update-controller` real-world case this was built
- * to catch). Every design choice below traces back to the plan's numbered "facts"
- * (verified against WP core source, not memory) — see `~/.claude/plans/wp-checksum-verifier-dazzling-meteor.md`
- * for the full derivation. The headline ones, since they're easy to get wrong on a
- * later pass:
+ * このクラスは、WPMAR の他の部分では答えられない問い「このアイテムの自動更新は実際に走るのか、
+ * それとも管理画面のトグルが嘘をついているのか」に答えるために存在する（実際に
+ * `forced-auto-update-controller` が優先度9999で `auto_update_plugin` フィルターを握り、
+ * トグル OFF の全プラグインに対してフィルターが true を返す、という実例を踏まえて設計した）。
+ * 以下の設計判断はすべて、プランの番号付き「事実」（記憶ではなく WP コアのソースで検証済み）に
+ * 遡れる — 全体の導出は `~/.claude/plans/wp-checksum-verifier-dazzling-meteor.md` を参照。
+ * 特に見落としやすい点を挙げる:
  *
- * - **`effective` is a limited concept.** WP_Automatic_Updater::should_update() also
- *   gates on `request_filesystem_credentials()` before it ever reaches the toggle/filter
- *   logic. We deliberately never call that (it has side effects: WP_Filesystem init,
- *   `request_filesystem_credentials` filter, hidden output). So `effective` here means
- *   "true per settings/filters/PHP(+MySQL for core) requirements", not "will definitely
- *   auto-update". `site.filesystem_credentials_ok` stays `null` (never evaluated) as a
- *   permanent reminder of that gap.
- * - **We never call `WP_Automatic_Updater::is_disabled()` or `wp_is_auto_update_enabled_for_type()`
- *   as-is.** Both internally re-run `wp_is_file_mod_allowed()` and the
- *   `automatic_updater_disabled` filter; calling both would fire those filters twice per
- *   request (WP filters are not guaranteed pure — see `resolve_site_gate()`). Instead we
- *   evaluate the four `is_disabled()` inputs once in `resolve_site_gate()` and derive
- *   `plugins_type_enabled` / `themes_type_enabled` from that same result, running only the
- *   `{$type}s_auto_update_enabled` filter on top (see `resolve_site_slice()`).
- * - **VCS checkout is tracked per target type** (core/plugin/theme), not as one flag.
- *   `WP_Automatic_Updater::is_vcs_checkout( $context )` always also checks ABSPATH, but
- *   `$context` differs per target (ABSPATH / WP_PLUGIN_DIR / get_theme_root()), so e.g. a
- *   `.git` under wp-content/plugins blocks plugin auto-updates without touching core.
- * - **Core's decision is delegated to `Core_Upgrader::should_update_to_version( $offered_ver )`**
- *   rather than re-derived from three independent dev/minor/major axes. Reading
- *   `class-core-upgrader.php` (`should_update_to_version()`) showed the three filters are
- *   NOT all evaluated independently — which one runs depends on whether the *currently
- *   installed* version is a dev build and whether the offered version is same-branch or a
- *   new branch. Re-deriving that branching ourselves would risk calling
- *   `allow_dev_auto_core_updates` when core never would, which is exactly the kind of
- *   3rd-party-filter-side-effect risk this class exists to avoid. `axes` therefore stays a
- *   *static* (filter-free) reading of options+constant, used only when there is no pending
- *   offer to ask core about directly.
- * - **Filter execution is isolated two ways, and only two.** `try/catch (Throwable)` covers
- *   exceptions; `ob_start()`/`ob_get_clean()` (in a `finally`, mirroring
- *   `Automatic_Upgrader_Skin::request_filesystem_credentials()`) covers stray output
- *   (`echo`, warnings/notices — `WP_DEBUG_DISPLAY` environments would otherwise leak this
- *   into WP-Cron's HTTP response or WP-CLI's stdout). Neither stops a 3rd-party filter from
- *   writing options, making HTTP calls, or calling `exit`/`die` — that trust boundary is
- *   inherent to running any WordPress filter, not specific to WPMAR.
- * - **No new transient/site_transient/caching layer.** The only added cost per run is a
- *   handful of filter calls plus already-cached `get_site_option()` reads; auto-update
- *   toggles are meant to take effect immediately, so caching them would trade a real (if
- *   small) cost for a "changed a setting, report is still stale" failure mode.
+ * - **`effective` は限定的な概念である.** `WP_Automatic_Updater::should_update()` はトグル/
+ *   フィルター判定に入る前に `request_filesystem_credentials()` によるゲートも通す。
+ *   これは意図的に一切呼ばない（WP_Filesystem の初期化・`request_filesystem_credentials`
+ *   フィルター・隠れた出力という副作用があるため）。そのため `effective` はここでは
+ *   「設定・フィルター・PHP（コアは MySQL も）要件上の実効値」を意味し、
+ *   「確実に自動更新が走る」ことまでは保証しない。`site.filesystem_credentials_ok` は
+ *   （一切評価しない）`null` のままにし、この限界を恒久的に記録している.
+ * - **`WP_Automatic_Updater::is_disabled()` や `wp_is_auto_update_enabled_for_type()` を
+ *   そのまま呼ぶことはしない.** どちらも内部で `wp_is_file_mod_allowed()` と
+ *   `automatic_updater_disabled` フィルターを再実行するため、両方呼ぶとこれらのフィルターが
+ *   1 リクエストで 2 回走ってしまう（WP のフィルターは純粋であるとは限らない —
+ *   `resolve_site_gate()` を参照）。代わりに `is_disabled()` の 4 つの入力を
+ *   `resolve_site_gate()` で 1 回だけ評価し、`plugins_type_enabled` / `themes_type_enabled` は
+ *   その同じ結果から導出し、`{$type}s_auto_update_enabled` フィルターだけを追加で実行する
+ *   （`resolve_site_slice()` を参照）.
+ * - **VCS チェックアウトは対象タイプ（core/plugin/theme）ごとに追跡する**、単一フラグにはしない.
+ *   `WP_Automatic_Updater::is_vcs_checkout( $context )` は常に ABSPATH も同時にチェックするが、
+ *   `$context` は対象ごとに異なる（ABSPATH / WP_PLUGIN_DIR / get_theme_root()）ため、例えば
+ *   wp-content/plugins 配下の `.git` はコアに影響を与えずプラグインの自動更新だけをブロックする.
+ * - **コアの判定は `Core_Upgrader::should_update_to_version( $offered_ver )` に委譲する**
+ *   独立した dev/minor/major の 3 軸から再導出することはしない. `class-core-upgrader.php`
+ *   （`should_update_to_version()`）を読むと、3 つのフィルターは独立して常に評価される
+ *   わけではないと分かった — どれが評価されるかは、現在インストール中のバージョンが
+ *   開発版かどうか、およびオファーされたバージョンが同一ブランチか新しいブランチかに依存する.
+ *   この分岐を自前で再現すると、コアが本来評価しないタイミングで
+ *   `allow_dev_auto_core_updates` を呼んでしまう恐れがあり、これはまさにこのクラスが
+ *   避けようとしているサードパーティフィルターの副作用リスクそのものである. そのため `axes` は、
+ *   保留中のオファーがなく直接コアに尋ねられないときにのみ使う、*静的*（フィルターなしの）
+ *   オプション + 定数の読み取り結果のまま保持する.
+ * - **フィルター実行の隔離は 2 種類だけであり、それ以外はない.** `try/catch (Throwable)` は
+ *   例外を、`ob_start()`/`ob_get_clean()`（`finally` 内。
+ *   `Automatic_Upgrader_Skin::request_filesystem_credentials()` と同じ手法）は意図しない出力
+ *   （`echo`、warning/notice — `WP_DEBUG_DISPLAY` 環境では WP-Cron の HTTP レスポンスや
+ *   WP-CLI の stdout に漏れてしまう）を、それぞれ捕捉する. サードパーティのフィルターが
+ *   オプションを書き込む・HTTP 通信をする・`exit`/`die` を呼ぶことまでは防げない —
+ *   これは WPMAR 固有の話ではなく、WordPress のフィルターを実行すること自体に内在する
+ *   信頼境界の問題である.
+ * - **新しい transient/site_transient・キャッシュ層は追加しない.** 1 回の実行で増えるコストは
+ *   フィルター呼び出し数件と、既にキャッシュ済みの `get_site_option()` の読み取りのみ.
+ *   自動更新のトグルは即座に反映されるべきものなので、これをキャッシュすると
+ *   「設定を変えたのにレポートが古い」という実害のほうが、わずかなコスト削減より重い.
  *
- * ## Static (request-scoped) caching
+ * ## 静的（リクエストスコープの）キャッシュ
  *
- * Only filesystem/constant-derived facts are cached in {@see self::$fs_gate_cache}:
- * `wp_is_file_mod_allowed()`, `wp_installing()`, the `AUTOMATIC_UPDATER_DISABLED` constant,
- * and the three `is_vcs_checkout()` probes. These don't change across `switch_to_blog()`
- * (shared filesystem, shared constants). Everything filter-derived —
- * `automatic_updater_disabled`, `{$type}s_auto_update_enabled`, each item's
- * `auto_update_{plugin,theme}` result — is re-evaluated every `collect()` call, because a
- * 3rd-party filter is free to branch on `get_current_blog_id()`.
+ * ファイルシステム/定数由来の事実のみを {@see self::$fs_gate_cache} にキャッシュする:
+ * `wp_is_file_mod_allowed()`、`wp_installing()`、`AUTOMATIC_UPDATER_DISABLED` 定数、
+ * および 3 回の `is_vcs_checkout()` 呼び出し. これらは `switch_to_blog()` をまたいでも
+ * 変わらない（ファイルシステムと定数はネットワーク全体で共有されるため）. フィルター由来の値 —
+ * `automatic_updater_disabled`、`{$type}s_auto_update_enabled`、各アイテムの
+ * `auto_update_{plugin,theme}` の結果 — はすべて `collect()` を呼ぶたびに再評価する.
+ * サードパーティのフィルターが `get_current_blog_id()` で分岐している可能性があるため.
  */
 class WPMAR_Check_Auto_Updates {
 
 	/**
-	 * Filesystem/constant-only site-gate inputs, cached per request (see class docblock
-	 * "Static (request-scoped) caching"). Deliberately excludes anything filter-derived.
+	 * ファイルシステム/定数のみに由来する site gate の入力値。リクエスト単位でキャッシュする
+	 * （クラス docblock の「静的（リクエストスコープの）キャッシュ」を参照）。
+	 * フィルター由来の値は意図的に一切含めない.
 	 *
 	 * @var array<string,mixed>|null
 	 */
 	protected static $fs_gate_cache = null;
 
 	/**
-	 * Clears the static FS-gate cache. Needed by tests (each test should start clean) and
-	 * safe to call across a `switch_to_blog()` boundary if a future multisite config ever
-	 * makes per-site filesystem paths diverge (today wp-content, and therefore
-	 * WP_PLUGIN_DIR/get_theme_root(), is shared network-wide, so this is precautionary).
+	 * 静的な FS-gate キャッシュをクリアする. テスト用（各テストはクリーンな状態から
+	 * 始めるべき）に加え、将来マルチサイト構成でサイトごとにファイルシステムパスが分かれる
+	 * ようなケースが出てきた場合、`switch_to_blog()` の境界をまたいで呼んでも安全
+	 * （現状は wp-content、したがって WP_PLUGIN_DIR/get_theme_root() もネットワーク全体で
+	 * 共有されるため、これは予防的な措置）.
 	 *
 	 * @return void
 	 */
@@ -93,18 +97,19 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Builds the `auto_updates` envelope for the dataset.
+	 * データセット向けに `auto_updates` エンベロープを構築する.
 	 *
-	 * @param array<string,mixed> $settings Plugin settings. Unused: no opt-out setting exists
-	 *                                      for this check yet (see plan — HTTP-free and cheap,
-	 *                                      so none was added). Kept in the signature to match
-	 *                                      {@see WPMAR_Check_Security_Ops::collect()}.
-	 * @param array<string,mixed> $dataset  In-progress dataset from {@see WPMAR_Data_Collector::gather()}.
-	 *                                      Reads `plugins.inventory` / `themes.inventory`
-	 *                                      (already built by the time this runs) so this class
-	 *                                      never has to call `get_plugins()` / `wp_get_themes()`
-	 *                                      itself. Defaults to empty so a caller without those
-	 *                                      keys yields empty plugin/theme rows rather than a notice.
+	 * @param array<string,mixed> $settings 設定値。未使用: このチェック用のオプトアウト設定は
+	 *                                      まだ存在しない（プラン参照 — HTTP を伴わず軽量なため
+	 *                                      追加しなかった）。{@see WPMAR_Check_Security_Ops::collect()}
+	 *                                      とシグネチャを揃えるために引数として残している.
+	 * @param array<string,mixed> $dataset  {@see WPMAR_Data_Collector::gather()} から渡される
+	 *                                      構築途中のデータセット。`plugins.inventory` /
+	 *                                      `themes.inventory`（この時点で既に構築済み）を読むので、
+	 *                                      このクラス自身は `get_plugins()` / `wp_get_themes()` を
+	 *                                      呼ぶ必要がない。既定は空配列とし、これらのキーを
+	 *                                      持たない呼び出し元でも notice を出さず空のプラグイン/
+	 *                                      テーマ行を返す.
 	 * @return array<string,mixed>
 	 */
 	public function collect( array $settings, array $dataset = array() ) {
@@ -132,12 +137,12 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	// -------------------------------------------------------------------------------
-	// Site slice
+	// site スライス
 	// -------------------------------------------------------------------------------
 
 	/**
-	 * Returns the filesystem/constant-only inputs to the site gate, from the static cache
-	 * (see class docblock). Never touches anything filter-derived.
+	 * サイトゲートへのファイルシステム/定数のみの入力値を、静的キャッシュから返す
+	 * （クラス docblock を参照）。フィルター由来の値には一切触れない.
 	 *
 	 * @return array{file_mod_allowed: bool, installing: bool, constant_disabled: bool,
 	 *               vcs_checkout: array<string,bool>}
@@ -153,8 +158,8 @@ class WPMAR_Check_Auto_Updates {
 			'file_mod_allowed'  => function_exists( 'wp_is_file_mod_allowed' ) ? (bool) wp_is_file_mod_allowed( 'automatic_updater' ) : true,
 			'installing'        => function_exists( 'wp_installing' ) && wp_installing(),
 			'constant_disabled' => defined( 'AUTOMATIC_UPDATER_DISABLED' ) && AUTOMATIC_UPDATER_DISABLED,
-			// Per-type contexts (fact 6): a `.git` under WP_PLUGIN_DIR must not block core.
-			// is_vcs_checkout() always also walks up from ABSPATH regardless of $context.
+			// タイプ別の context（事実6）: WP_PLUGIN_DIR 配下の `.git` がコアをブロックしては
+			// いけない。is_vcs_checkout() は $context に関わらず常に ABSPATH からも遡って探す.
 			'vcs_checkout'      => array(
 				'core'   => $updater ? (bool) $updater->is_vcs_checkout( defined( 'ABSPATH' ) ? ABSPATH : '' ) : false,
 				'plugin' => $updater ? (bool) $updater->is_vcs_checkout( defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : '' ) : false,
@@ -166,17 +171,17 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Builds the `site` slice: gate facts (re-derived from `is_disabled()`'s four inputs,
-	 * never by calling `is_disabled()` itself — fact 5) plus per-type "is the admin toggle
-	 * even consulted" facts.
+	 * `site` スライスを構築する: `is_disabled()` の 4 入力から再導出したゲートの事実
+	 * （`is_disabled()` 自体は一切呼ばない — 事実5）に加え、タイプ別の
+	 * 「管理画面のトグルがそもそも参照されるか」の事実を含む.
 	 *
 	 * @return array<string,mixed>
 	 */
 	protected function resolve_site_slice() {
 		$fs = $this->fs_gate_inputs();
 
-		// automatic_updater_disabled is filter-derived (a 3rd party could branch on blog ID),
-		// so unlike everything in $fs it is re-evaluated on every call, not cached.
+		// automatic_updater_disabled はフィルター由来（サードパーティが blog ID で分岐しうる）
+		// なので、$fs の値とは違いキャッシュせず、呼び出しのたびに再評価する.
 		$filter_disabled_probe = $this->guarded_filter(
 			'automatic_updater_disabled',
 			$fs['constant_disabled'],
@@ -195,11 +200,11 @@ class WPMAR_Check_Auto_Updates {
 			)
 		);
 
-		// wp_is_auto_update_enabled_for_type() is NOT called here: it internally re-runs
-		// is_disabled() (wp-admin/includes/update.php), which would fire
-		// wp_is_file_mod_allowed() and the automatic_updater_disabled filter a second time.
-		// We already have $gate['updater_disabled'] from the single evaluation above, so we
-		// only need to run the per-type filter on top of it.
+		// wp_is_auto_update_enabled_for_type() はここでは呼ばない: この関数は内部で
+		// is_disabled()（wp-admin/includes/update.php）を再実行するため、
+		// wp_is_file_mod_allowed() と automatic_updater_disabled フィルターが二重に走る.
+		// 上ですでに評価済みの $gate['updater_disabled'] があるので、これに重ねて
+		// タイプ別フィルターだけを追加で実行すればよい.
 		$plugins_type_enabled_probe = $this->guarded_filter(
 			'plugins_auto_update_enabled',
 			! $gate['updater_disabled'],
@@ -216,9 +221,9 @@ class WPMAR_Check_Auto_Updates {
 		global $wpdb;
 		$mysql_version = ( $wpdb instanceof wpdb && method_exists( $wpdb, 'db_version' ) ) ? (string) $wpdb->db_version() : '';
 
-		// Informational only (fact 2's known limitation): has_filter() is true even when a
-		// registered callback returns the same value it was given, so this can be non-empty
-		// while `overridden` stays false everywhere. Never used for state derivation.
+		// 情報提供のみ（事実2の既知の限界）: has_filter() はコールバックが渡された値と
+		// 同じ値を返した場合でも true になるため、`overridden` が全項目で false のままでも
+		// これが非空になることがある。state の導出には一切使わない.
 		$filters_present = array();
 		if ( function_exists( 'has_filter' ) ) {
 			foreach ( array( 'automatic_updater_disabled', 'auto_update_plugin', 'auto_update_theme' ) as $hook ) {
@@ -237,7 +242,7 @@ class WPMAR_Check_Auto_Updates {
 			'vcs_checkout'              => $gate['vcs_checkout'],
 			'site_gate_blocked'         => $gate['site_gate_blocked'],
 			'disabled_reason'           => $gate['disabled_reason'],
-			// Deliberately never evaluated — see class docblock "`effective` is a limited concept".
+			// 意図的に一切評価しない — クラス docblock の「`effective` は限定的な概念」を参照.
 			'filesystem_credentials_ok' => null,
 			'filters_present'           => $filters_present,
 			'plugins_type_enabled'      => (bool) $plugins_type_enabled_probe['result'],
@@ -249,18 +254,20 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	// -------------------------------------------------------------------------------
-	// Plugins / themes
+	// プラグイン / テーマ
 	// -------------------------------------------------------------------------------
 
 	/**
-	 * Collects per-item facts for either plugins or themes; the two share every rule in
-	 * `should_update()` (fact 1), differing only in option/transient/filter names and which
-	 * inventory field is the identity key (plugin basename vs. theme stylesheet).
+	 * プラグインまたはテーマのアイテムごとの事実を収集する。両者は `should_update()`
+	 * （事実1）のルールをすべて共有し、違うのはオプション/トランジェント/フィルター名と、
+	 * どの inventory フィールドを識別キーにするか（プラグインは basename、テーマは
+	 * stylesheet）だけである.
 	 *
-	 * @param string              $type      'plugin' or 'theme'.
-	 * @param array<int,array>    $inventory `$dataset['plugins']['inventory']` or `['themes']['inventory']`.
-	 * @param array<string,mixed> $site      Output of {@see self::resolve_site_slice()}.
-	 * @return array<string,array<string,mixed>> Keyed by identity (basename/stylesheet).
+	 * @param string              $type      'plugin' または 'theme'.
+	 * @param array<int,array>    $inventory `$dataset['plugins']['inventory']` または
+	 *                                       `['themes']['inventory']`.
+	 * @param array<string,mixed> $site      {@see self::resolve_site_slice()} の戻り値.
+	 * @return array<string,array<string,mixed>> 識別子（basename/stylesheet）をキーにした配列.
 	 */
 	protected function collect_items_for_type( $type, array $inventory, array $site ) {
 		$is_plugin    = ( 'plugin' === $type );
@@ -270,9 +277,9 @@ class WPMAR_Check_Auto_Updates {
 		$type_enabled = $is_plugin ? $site['plugins_type_enabled'] : $site['themes_type_enabled'];
 		$gate_blocked = $site['site_gate_blocked'][ $type ];
 
-		// auto_update_themes can legitimately not exist as a site option (observed locally);
-		// get_site_option()'s default covers plugins too, in case a similarly bare environment
-		// never wrote auto_update_plugins either.
+		// auto_update_themes は site option として存在しないことが実際にある（この環境で
+		// 観測済み）。get_site_option() の既定値はプラグイン側にも適用しておく —
+		// 同様に何も書き込まれていない環境で auto_update_plugins が欠けている場合に備えて.
 		$toggle_list = get_site_option( $option_key, array() );
 
 		$response  = ( is_object( $transient ) && isset( $transient->response ) && is_array( $transient->response ) )
@@ -310,9 +317,9 @@ class WPMAR_Check_Auto_Updates {
 				$offer_bucket = 'no_update';
 				$raw_offer    = $no_update[ $key ];
 			}
-			// Neither bucket: this item isn't tracked by wp.org or any 3rd-party update
-			// server (fact 8 — observed for 3 plugins in this environment). has_offer stays
-			// false and no filter is invoked for it (see below).
+			// どちらのバケットにもない場合: このアイテムは wp.org にもサードパーティの
+			// 更新サーバーにも登録されていない（事実8 — この環境で実際に3件観測済み）。
+			// has_offer は false のままとし、フィルターも呼ばない（下記を参照）.
 
 			$offer     = ( null !== $raw_offer ) ? self::normalize_offer( $raw_offer, $type ) : null;
 			$has_offer = null !== $offer;
@@ -327,7 +334,7 @@ class WPMAR_Check_Auto_Updates {
 
 			$php_ok = ( '' === $requires_php ) || version_compare( PHP_VERSION, $requires_php, '>=' );
 
-			// Recorded only — fact 1: WP version requirements are not a `should_update()` gate.
+			// 記録のみ — 事実1: WP バージョン要件は `should_update()` のゲートではない.
 			$wp_ok = true;
 			if ( '' !== $requires_wp ) {
 				$wp_current = isset( $GLOBALS['wp_version'] ) ? (string) $GLOBALS['wp_version'] : '';
@@ -339,9 +346,9 @@ class WPMAR_Check_Auto_Updates {
 			$filter_result = null;
 
 			if ( $has_offer ) {
-				// Pre-filter value, mirroring should_update() up to (but not including) the
-				// filter call (fact 1: disable_autoupdate applies before the filter, which
-				// then has final say).
+				// フィルター適用前の値。should_update() のフィルター呼び出し直前まで
+				// （そこは含まない）を再現する（事実1: disable_autoupdate はフィルターより
+				// 前に適用され、フィルターが最終決定権を持つ）.
 				$pre = $offer_autoupdate;
 				if ( ! $pre && $type_enabled ) {
 					$pre = $toggle;
@@ -350,9 +357,9 @@ class WPMAR_Check_Auto_Updates {
 					$pre = false;
 				}
 
-				// $item is only ever fabricated from a real offer, never for a no-offer item
-				// (see "unknown patterns" note in the plan: a fake $item must not reach a
-				// 3rd-party filter).
+				// $item は実際のオファーからのみ組み立てる。オファーのないアイテムに対して
+				// 捏造することは絶対にしない（プランの「未知パターンへの備え」の注記:
+				// 偽の $item をサードパーティフィルターに渡してはいけない）.
 				$item_obj = (object) $offer;
 
 				$probe = $this->guarded_filter( $hook, $pre, array( $item_obj ), 'item:' . $type . ':' . $key );
@@ -391,15 +398,15 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	// -------------------------------------------------------------------------------
-	// Core
+	// コア
 	// -------------------------------------------------------------------------------
 
 	/**
-	 * Collects core facts. Unlike plugins/themes, the "is this item's auto-update on"
-	 * question is delegated to `Core_Upgrader::should_update_to_version()` when there is a
-	 * pending offer (see class docblock) rather than re-derived axis-by-axis.
+	 * コアの事実を収集する。プラグイン/テーマと違い、「このアイテムの自動更新は ON か」
+	 * という問いは、保留中のオファーがあれば（クラス docblock を参照）
+	 * `Core_Upgrader::should_update_to_version()` に委譲し、軸ごとに再導出することはしない.
 	 *
-	 * @param array<string,mixed> $site Output of {@see self::resolve_site_slice()}.
+	 * @param array<string,mixed> $site {@see self::resolve_site_slice()} の戻り値.
 	 * @return array<string,mixed>
 	 */
 	protected function collect_core( array $site ) {
@@ -410,14 +417,19 @@ class WPMAR_Check_Auto_Updates {
 		);
 
 		$constant_defined = defined( 'WP_AUTO_UPDATE_CORE' );
-		$constant_code    = self::core_constant_code( $constant_defined, $constant_defined ? WP_AUTO_UPDATE_CORE : null );
+		$constant_value   = $constant_defined ? WP_AUTO_UPDATE_CORE : null;
+		$constant_code    = self::core_constant_code( $constant_defined, $constant_value );
+		// 正規化コードとあわせて生の値も保持しておく。レポートの「constant」由来の注記で、
+		// 内部の 'undefined'|'all'|'minor'|'false' のバケットではなく、実際に設定されている値
+		// （例: 'minor'、'true'）を名指しできるようにするため.
+		$constant_raw = self::format_core_constant_raw( $constant_defined, $constant_value );
 
-		// fact 7: only the `critical` flag is honored. The real failure_data structure also
-		// has `current`/`attempted`/`retry` (a same-version-retry guard for *non*-critical
-		// failures — see class-wp-automatic-updater.php / class-core-upgrader.php), which we
-		// deliberately do not reproduce: it is a narrow, transient "don't retry this exact
-		// A-to-B jump" rule that does not fit the on/off state model this class reports, and
-		// re-deriving it would duplicate core's own bookkeeping for little report value.
+		// 事実7: `critical` フラグのみを見る。実際の failure_data 構造には
+		// `current`/`attempted`/`retry`（非 critical な失敗に対する「同じ A→B ジャンプの
+		// リトライを禁止する」ガード — class-wp-automatic-updater.php /
+		// class-core-upgrader.php を参照）もあるが、これは意図的に再現しない:
+		// このクラスが報告する on/off の state モデルに収まらない、狭く一時的なルールであり、
+		// 再現してもコア自身の記録を複製するだけでレポートとしての価値は乏しい.
 		$failure_data     = get_site_option( 'auto_core_update_failed' );
 		$critical_failure = is_array( $failure_data ) && ! empty( $failure_data['critical'] );
 
@@ -483,6 +495,7 @@ class WPMAR_Check_Auto_Updates {
 				'raw'               => array(
 					'options'          => $options,
 					'constant'         => $constant_code,
+					'constant_raw'     => $constant_raw,
 					'critical_failure' => $critical_failure,
 				),
 			)
@@ -495,15 +508,16 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Picks the first real upgrade/development offer from `get_core_updates()`, or null.
+	 * `get_core_updates()` から最初の実質的な upgrade/development オファーを選ぶ。
+	 * なければ null.
 	 *
-	 * Mirrors the response-code filtering in {@see WPMAR_Data_Collector::pending_core_upgrade_versions()}
-	 * (a `latest`/empty response is a same-version reinstall prompt, not a pending upgrade —
-	 * see wp-admin/update-core.php:list_core_update()), but returns the raw object rather
-	 * than a version string since `should_update_to_version()` and the php/mysql requirement
-	 * checks need the full offer.
+	 * {@see WPMAR_Data_Collector::pending_core_upgrade_versions()} と同じレスポンスコードの
+	 * フィルタリング基準（`latest`/空のレスポンスは同一バージョンの再インストール提案であり、
+	 * 保留中の更新ではない — wp-admin/update-core.php の list_core_update() を参照）を
+	 * ミラーするが、`should_update_to_version()` と PHP/MySQL 要件チェックがオファー全体を
+	 * 必要とするため、バージョン文字列ではなく生のオブジェクトを返す.
 	 *
-	 * @param array<int,object>|false $raw_updates Return value of {@see get_core_updates()}.
+	 * @param array<int,object>|false $raw_updates {@see get_core_updates()} の戻り値.
 	 * @return object|null
 	 */
 	protected function pick_core_offer( $raw_updates ) {
@@ -531,18 +545,18 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	// -------------------------------------------------------------------------------
-	// Filter execution isolation
+	// フィルター実行の隔離
 	// -------------------------------------------------------------------------------
 
 	/**
-	 * Runs `apply_filters()` isolated from exceptions and stray output (see class docblock
-	 * "Filter execution is isolated two ways, and only two"). Output is logged by byte
-	 * count only — the content itself is never surfaced (it is arbitrary 3rd-party output).
+	 * `apply_filters()` を例外と意図しない出力の両方から隔離して実行する（クラス docblock の
+	 * 「フィルター実行の隔離は2種類だけであり、それ以外はない」を参照）。出力はバイト数のみを
+	 * ログに残す — 中身そのものは一切表に出さない（任意のサードパーティ由来の出力のため）.
 	 *
-	 * @param string       $hook_name Hook name.
-	 * @param mixed        $pre       Initial (pre-filter) value.
-	 * @param array<mixed> $args      Extra args passed to apply_filters() after $pre.
-	 * @param string       $log_key   Identifier for the WPMAR_Logger::step() entry.
+	 * @param string       $hook_name フック名.
+	 * @param mixed        $pre       フィルター適用前の初期値.
+	 * @param array<mixed> $args      apply_filters() に $pre の後に渡す追加引数.
+	 * @param string       $log_key   WPMAR_Logger::step() 用の識別子.
 	 * @return array{result: mixed, ran: bool, error: bool}
 	 */
 	protected function guarded_filter( $hook_name, $pre, array $args, $log_key ) {
@@ -559,9 +573,9 @@ class WPMAR_Check_Auto_Updates {
 			$error  = true;
 			$result = $pre;
 		} finally {
-			// finally (not just after the try) so a stray warning/echo is still captured
-			// even when the callback throws — an unclosed buffer here would silently
-			// swallow every subsequent output for the rest of the request.
+			// try の直後ではなく finally に置くのは、コールバックが例外を投げた場合でも
+			// 意図しない warning/echo を確実に捕捉するため — ここでバッファを閉じ忘れると、
+			// 以降のリクエスト全体の出力が黙って飲み込まれてしまう.
 			if ( ob_get_level() > 0 ) {
 				$buffered = (string) ob_get_clean();
 			}
@@ -579,13 +593,14 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Logs a captured-output byte count (never the content — see class docblock). Split
-	 * out from {@see self::guarded_filter()} / {@see self::guarded_core_decision()} purely
-	 * so tests can override this one line without needing a real `WPMAR_Logger` (which
-	 * pulls in `WPMAR_Private_Storage` / `WPMAR_Jobs_Repository` and writes to disk).
+	 * 捕捉した出力のバイト数だけをログに残す（中身は絶対に残さない — クラス docblock を参照）。
+	 * {@see self::guarded_filter()} / {@see self::guarded_core_decision()} からこの1行だけを
+	 * 切り出しているのは、テストが本物の `WPMAR_Logger`（`WPMAR_Private_Storage` /
+	 * `WPMAR_Jobs_Repository` を引き込みディスクに書き込む）を必要とせず、この関数だけを
+	 * オーバーライドできるようにするため.
 	 *
-	 * @param string $log_key Identifier for the log entry.
-	 * @param int    $bytes   Number of captured bytes.
+	 * @param string $log_key ログエントリの識別子.
+	 * @param int    $bytes   捕捉したバイト数.
 	 * @return void
 	 */
 	protected function log_filter_output( $log_key, $bytes ) {
@@ -601,11 +616,11 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Runs `Core_Upgrader::should_update_to_version()` under the same isolation as
-	 * {@see self::guarded_filter()} — it internally calls `apply_filters()` for the
-	 * dev/minor/major gates, so the same 3rd-party trust boundary applies.
+	 * {@see self::guarded_filter()} と同じ隔離のもとで `Core_Upgrader::should_update_to_version()`
+	 * を実行する — 内部で dev/minor/major ゲート用の `apply_filters()` を呼ぶため、
+	 * 同じサードパーティの信頼境界が当てはまる.
 	 *
-	 * @param string $offered_ver Offered core version.
+	 * @param string $offered_ver オファーされたコアバージョン.
 	 * @return array{result: bool, error: bool}
 	 */
 	protected function guarded_core_decision( $offered_ver ) {
@@ -638,23 +653,23 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	// =================================================================================
-	// Pure functions (no WP API calls; every branch below is independently unit-testable
-	// without a WordPress bootstrap — see tests/CheckAutoUpdatesTest.php).
+	// 純関数（WP API を一切呼ばない。以下の各分岐はいずれも WordPress のブートストラップなしで
+	// 単体テスト可能 — tests/CheckAutoUpdatesTest.php を参照）.
 	// =================================================================================
 
 	/**
-	 * Normalizes a plugin/theme update-transient entry to a plain array.
+	 * プラグイン/テーマの更新トランジェントの1エントリを、プレーンな配列に正規化する.
 	 *
-	 * `update_plugins`' `response`/`no_update` entries are stdClass; `update_themes`' are
-	 * plain arrays (WP casts them differently — see wp-includes/update.php). Both shapes
-	 * are normalized to the same associative-array structure so the rest of this class
-	 * never has to branch on the type.
+	 * `update_plugins` の `response`/`no_update` エントリは stdClass だが、`update_themes` の
+	 * それはプレーン配列（WP 側でキャストの仕方が異なる — wp-includes/update.php を参照）。
+	 * どちらの形も同じ連想配列構造に正規化することで、このクラスの他の部分が型で分岐する
+	 * 必要をなくしている.
 	 *
-	 * @param mixed  $entry Raw transient entry.
-	 * @param string $type  'plugin' or 'theme'. Unused today (both shapes normalize
-	 *                      identically) but kept in the signature in case a future WP
-	 *                      version needs type-specific field handling.
-	 * @return array<string,mixed>|null Null for anything that isn't a non-empty object/array.
+	 * @param mixed  $entry 生のトランジェントエントリ.
+	 * @param string $type  'plugin' または 'theme'。現状は未使用（どちらの形も同じに正規化
+	 *                      される）だが、将来の WP バージョンでタイプ別のフィールド処理が
+	 *                      必要になった場合に備えてシグネチャに残している.
+	 * @return array<string,mixed>|null 空でないオブジェクト/配列以外はすべて null.
 	 */
 	public static function normalize_offer( $entry, $type ) {
 		unset( $type );
@@ -671,16 +686,16 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Whether `$key` is present in a `get_site_option( 'auto_update_{plugins,themes}', ... )`
-	 * list.
+	 * `$key` が `get_site_option( 'auto_update_{plugins,themes}', ... )` のリストに
+	 * 含まれているか.
 	 *
-	 * `auto_update_themes` has been observed absent as a site option entirely (returns
-	 * `false`, not an empty array) in this environment, so the non-array case must be
-	 * treated as "nothing toggled on" rather than triggering a PHP warning from
-	 * `in_array()`.
+	 * この環境では `auto_update_themes` が site option として一切存在しない
+	 * （空配列ではなく `false` が返る）ことが実際に観測されているため、非配列のケースは
+	 * `in_array()` から PHP warning を出させるのではなく「何もトグルされていない」として
+	 * 扱う必要がある.
 	 *
-	 * @param mixed  $raw_option Return value of `get_site_option()` for the toggle list.
-	 * @param string $key        Plugin basename or theme stylesheet.
+	 * @param mixed  $raw_option トグルリスト用 `get_site_option()` の戻り値.
+	 * @param string $key        プラグインの basename またはテーマの stylesheet.
 	 * @return bool
 	 */
 	public static function toggle_from_option( $raw_option, $key ) {
@@ -690,18 +705,18 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Extracts and sanitizes the update-source host from an update-offer `id` (e.g.
-	 * `w.org/plugins/akismet`, `github.com/owner/repo`, or a 3rd-party update server URL).
+	 * 更新オファーの `id`（例: `w.org/plugins/akismet`、`github.com/owner/repo`、または
+	 * サードパーティの更新サーバー URL）から更新元のホストを抽出しサニタイズする.
 	 *
-	 * This is untrusted external input (any update server can set it) that flows into
-	 * Markdown report bodies and snapshot diff lines. `sanitize_text_field()` alone is not
-	 * enough here: it collapses newlines but does not remove `|` (which breaks GFM table
-	 * rows in snapshot previews) and has no length limit. Order matters: the scheme must be
-	 * stripped *before* splitting on '/', otherwise `https://evil.example/x` would yield
-	 * `https` as the "host" once non-host characters are filtered out of `https:`.
+	 * これは信頼できない外部入力（どの更新サーバーでも設定できる）であり、Markdown の
+	 * レポート本文やスナップショット差分の行に流れ込む。`sanitize_text_field()` だけでは
+	 * 不十分: 改行は潰すが `|`（スナップショットプレビューの GFM テーブル行を壊しうる）は
+	 * 除去せず、長さ制限もない。順序が重要: スキームは '/' で分割する*前*に剥がす必要がある。
+	 * そうしないと `https://evil.example/x` は、`https:` から非ホスト文字を除去した結果
+	 * 「host」として `https` を返してしまう.
 	 *
-	 * @param mixed $id Raw `id` field from an update offer.
-	 * @return string Host-only, `[A-Za-z0-9.-]`, max 64 chars.
+	 * @param mixed $id 更新オファーの生の `id` フィールド.
+	 * @return string ホストのみ、`[A-Za-z0-9.-]`、最大64文字.
 	 */
 	public static function update_source_from_id( $id ) {
 		$id = (string) $id;
@@ -714,12 +729,12 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Sanitizes a version-like token (`new_version`, `requires_php`, `requires`) from an
-	 * update offer before it reaches a report or snapshot. Same untrusted-input rationale
-	 * as {@see self::update_source_from_id()}, restricted to characters valid in a version
-	 * string.
+	 * 更新オファーのバージョン様トークン（`new_version`、`requires_php`、`requires`）を
+	 * レポートやスナップショットに届く前にサニタイズする。信頼できない入力である理由は
+	 * {@see self::update_source_from_id()} と同様で、バージョン文字列として妥当な文字種に
+	 * 制限する.
 	 *
-	 * @param mixed $value Raw value.
+	 * @param mixed $value 生の値.
 	 * @return string
 	 */
 	public static function sanitize_version_token( $value ) {
@@ -729,43 +744,44 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Derives the full fact layer + display `state` for one plugin or theme item.
+	 * プラグインまたはテーマ1件分の事実レイヤー全体 + 表示用 `state` を導出する.
 	 *
-	 * Reproduces `WP_Automatic_Updater::should_update()` (fact 1) up to the filter call,
-	 * then applies the filter result exactly as core's `if ( ! $update )` does (a `null`
-	 * filter return is `false`, not "no opinion" — fact 3), then layers the `state` label
-	 * on top per the priority order below. `state` is a display label only; every input
-	 * fact is preserved in the returned array for anything that needs the raw values
-	 * (snapshot diff, extensibility filters, etc.).
+	 * `WP_Automatic_Updater::should_update()`（事実1）をフィルター呼び出しの直前まで再現し、
+	 * フィルターの結果をコアの `if ( ! $update )` と全く同じように適用し（`null` の戻り値は
+	 * 「介入なし」ではなく `false` — 事実3）、その上に優先順位に従って `state` ラベルを
+	 * 重ねる。`state` はあくまで表示用ラベルであり、入力事実はすべて（スナップショット差分や
+	 * 拡張フィルターなど何かに使う場合に備えて）戻り値にそのまま保持する.
 	 *
-	 * State priority (first match wins):
+	 * state の優先順位（最初に一致したものが勝つ）:
 	 *   1. site_gate_blocked            -> disabled_site
 	 *   2. ! has_offer                  -> no_update_source
-	 *   3. decision && ! php_ok         -> blocked_php   (decision, not effective: effective
-	 *                                      is already decision && php_ok, so gating on
-	 *                                      effective here would make this branch unreachable)
+	 *   3. decision && ! php_ok         -> blocked_php（effective ではなく decision である点に
+	 *                                      注意: effective は既に decision && php_ok なので、
+	 *                                      effective で判定するとこの分岐に到達できなくなる）
 	 *   4. overridden && decision       -> filter_forced_on
 	 *   5. overridden && ! decision     -> filter_forced_off
 	 *   6. decision                     -> on
 	 *   7. ! type_enabled && ! offer_autoupdate && toggle -> type_disabled
-	 *      (requires toggle=true: without it there is no admin-screen setting being
-	 *      overridden by the site-wide type gate, so it is plain `off`)
-	 *   8. else                         -> off
+	 *      （toggle=true が必須: これがなければサイト全体の type ゲートが上書きしている
+	 *      「管理画面の設定」自体が存在しないので、単なる `off` になる）
+	 *   8. それ以外                     -> off
 	 *
-	 * Input facts read from `$raw` (all other keys are passed through untouched):
-	 *   - key/slug/label            Identity (basename/stylesheet) and display label.
-	 *   - toggle                    In the `auto_update_{plugins,themes}` list.
-	 *   - offer_autoupdate          `$item->autoupdate` on the update offer.
-	 *   - type_enabled              Site-wide "is the toggle even consulted" gate.
-	 *   - disable_autoupdate        `$item->disable_autoupdate` on the update offer.
-	 *   - filter_ran / filter_error Whether `auto_update_{plugin,theme}` was invoked / threw.
-	 *   - filter_result             Raw filter return value (may be null).
-	 *   - php_ok                    PHP requirement met (or no requirement).
-	 *   - has_offer                 Present in either the `response` or `no_update` bucket.
-	 *   - site_gate_blocked         This type's site-wide gate (fact 6, per-type).
+	 * `$raw` から読む入力事実（それ以外のキーはそのまま素通りする）:
+	 *   - key/slug/label            識別子（basename/stylesheet）と表示ラベル.
+	 *   - toggle                    `auto_update_{plugins,themes}` リストに含まれているか.
+	 *   - offer_autoupdate          更新オファーの `$item->autoupdate`.
+	 *   - type_enabled              サイト全体の「トグルがそもそも参照されるか」のゲート.
+	 *   - disable_autoupdate        更新オファーの `$item->disable_autoupdate`.
+	 *   - filter_ran / filter_error `auto_update_{plugin,theme}` が実行されたか / 例外を
+	 *                               投げたか.
+	 *   - filter_result             フィルターの生の戻り値（null もありうる）.
+	 *   - php_ok                    PHP 要件を満たしているか（要件がない場合も含む）.
+	 *   - has_offer                 `response` または `no_update` のいずれかのバケットに
+	 *                               存在するか.
+	 *   - site_gate_blocked         このタイプのサイト全体ゲート（事実6、タイプ別）.
 	 *
-	 * @param array<string,mixed> $raw Input facts (see list above).
-	 * @return array<string,mixed> $raw merged with the derived fact layer and `state`.
+	 * @param array<string,mixed> $raw 入力事実（上記一覧を参照）.
+	 * @return array<string,mixed> `$raw` に導出済みの事実レイヤーと `state` をマージしたもの.
 	 */
 	public static function evaluate_item( array $raw ) {
 		$toggle             = ! empty( $raw['toggle'] );
@@ -779,7 +795,8 @@ class WPMAR_Check_Auto_Updates {
 		$filter_error       = ! empty( $raw['filter_error'] );
 		$filter_result      = array_key_exists( 'filter_result', $raw ) ? $raw['filter_result'] : null;
 
-		// Pre-filter value, mirroring should_update() through disable_autoupdate (fact 1).
+		// フィルター適用前の値。should_update() を disable_autoupdate の適用までは再現する
+		// （事実1）.
 		$pre_filter = $offer_autoupdate;
 		if ( ! $pre_filter && $type_enabled ) {
 			$pre_filter = $toggle;
@@ -789,23 +806,24 @@ class WPMAR_Check_Auto_Updates {
 		}
 
 		if ( $filter_error ) {
-			// Only on a thrown exception do we fall back to the pre-filter value (see
-			// "Filter execution is isolated" in the class docblock).
+			// フィルターが例外を投げた場合のみ、フィルター適用前の値にフォールバックする
+			// （クラス docblock の「フィルター実行の隔離」を参照）.
 			$decision = $pre_filter;
 		} else {
-			// (bool) cast: a null filter return is false, same as core's `if ( ! $update )`
-			// (fact 3) — do NOT fall back to $pre_filter here, that would invert the result.
+			// (bool) キャスト: フィルターの戻り値が null なら false になる。コアの
+			// `if ( ! $update )` と同じ（事実3）— ここで $pre_filter にフォールバックすると
+			// 結果が逆転してしまうので絶対にしない.
 			$decision = (bool) $filter_result;
 		}
 
-		// Known limitation (fact 2): if the filter returns the same value it was given,
-		// this reads as "not overridden" even though a callback did run. site.filters_present
-		// (has_filter()) carries that separately, for information only.
+		// 既知の限界（事実2）: フィルターが渡された値と同じ値を返した場合、実際には
+		// コールバックが実行されていても「上書きなし」と読めてしまう。
+		// site.filters_present（has_filter()）がこれを情報として別途保持する.
 		$overridden = $filter_ran && ! $filter_error && ( $decision !== $pre_filter );
 
-		// WP-version requirements are not a gate (fact 1); filesystem-credentials checks are
-		// never evaluated (class docblock) — so this is deliberately narrower than "will
-		// definitely auto-update".
+		// WP バージョン要件はゲートではない（事実1）。ファイルシステム資格情報のチェックも
+		// 一切評価しない（クラス docblock を参照）— そのため意図的に「確実に自動更新が走る」
+		// よりも狭い意味になっている.
 		$effective = $decision && $php_ok;
 
 		if ( $site_gate_blocked ) {
@@ -849,40 +867,45 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Derives the full fact layer + display `state` for core.
+	 * コアの事実レイヤー全体 + 表示用 `state` を導出する.
 	 *
-	 * Unlike {@see self::evaluate_item()}, the actual on/off decision for a pending offer is
-	 * not re-derived here — it arrives pre-computed as `$raw['decision']`
-	 * (`Core_Upgrader::should_update_to_version()`'s return value; see class docblock for
-	 * why). This function's job is to turn that decision plus the offer's branch
-	 * relationship into a display `state`, and — when there is no pending offer — fall back
-	 * to a purely static (filter-free) reading of the dev/minor/major options and the
-	 * `WP_AUTO_UPDATE_CORE` constant.
+	 * {@see self::evaluate_item()} と違い、保留中のオファーに対する実際の on/off の判定は
+	 * ここでは再導出しない — `$raw['decision']` として計算済みの値
+	 * （`Core_Upgrader::should_update_to_version()` の戻り値。理由はクラス docblock を参照）
+	 * がそのまま渡ってくる。この関数の役目は、その判定結果とオファーのブランチ関係から
+	 * 表示用の `state` を組み立てること、そして保留中のオファーがない場合は
+	 * dev/minor/major オプションと `WP_AUTO_UPDATE_CORE` 定数を純粋に静的（フィルターなし）
+	 * に読んだ結果へフォールバックすることである.
 	 *
-	 * State priority (first match wins):
+	 * state の優先順位（最初に一致したものが勝つ）:
 	 *   1. site_gate_blocked                                  -> disabled_site
 	 *   2. critical_failure                                   -> blocked_failure
 	 *   3. has_offer && (! php_ok || ! mysql_ok)               -> blocked_requirements
-	 *   4. has_offer && decision && branch_relation === major -> major   (overridden vs. axes.major)
-	 *   5. has_offer && decision && branch_relation === same  -> minor   (overridden vs. axes.minor)
-	 *   6. has_offer (decision false, or branch_relation none) -> disabled
+	 *   4. has_offer && decision && branch_relation === major -> major（axes.major との差分を
+	 *      overridden とする）
+	 *   5. has_offer && decision && branch_relation === same  -> minor（axes.minor との差分を
+	 *      overridden とする）
+	 *   6. has_offer（decision が false、または branch_relation が none） -> disabled
 	 *   7. ! has_offer && axes.major                           -> major
 	 *   8. ! has_offer && axes.minor                            -> minor
 	 *   9. ! has_offer && axes.dev                              -> dev_only
-	 *  10. else                                                -> disabled
+	 *  10. それ以外                                            -> disabled
 	 *
-	 * Input facts read from `$raw`:
-	 *   - site_gate_blocked      Core's site-wide gate (fact 6, per-type).
-	 *   - has_offer              Whether `get_core_updates()` returned a pending upgrade.
-	 *   - decision               `should_update_to_version()`'s result (only meaningful when has_offer).
-	 *   - branch_relation        'major'|'same'|'none' — see {@see self::core_branch_relation()}.
-	 *   - php_ok / mysql_ok      Requirement met (only meaningful when has_offer).
+	 * `$raw` から読む入力事実:
+	 *   - site_gate_blocked      コアのサイト全体ゲート（事実6、タイプ別）.
+	 *   - has_offer              `get_core_updates()` が保留中の更新を返したか.
+	 *   - decision               `should_update_to_version()` の結果（has_offer のときのみ
+	 *                            意味を持つ）.
+	 *   - branch_relation        'major'|'same'|'none' — {@see self::core_branch_relation()}
+	 *                            を参照.
+	 *   - php_ok / mysql_ok      要件を満たしているか（has_offer のときのみ意味を持つ）.
 	 *   - raw.options            ['dev'=>'enabled'|'disabled', 'minor'=>..., 'major'=>'enabled'|'unset'].
-	 *   - raw.constant           {@see self::core_constant_code()} output.
-	 *   - raw.critical_failure   Whether the last auto-update attempt failed critically.
+	 *   - raw.constant           {@see self::core_constant_code()} の出力.
+	 *   - raw.critical_failure   直近の自動更新の試行が致命的に失敗したか.
 	 *
-	 * @param array<string,mixed> $raw Input facts (see list above).
-	 * @return array<string,mixed> $raw merged with `state`, `axes`, `overridden`, `source`.
+	 * @param array<string,mixed> $raw 入力事実（上記一覧を参照）.
+	 * @return array<string,mixed> `$raw` に `state`、`axes`、`overridden`、`source` を
+	 *                              マージしたもの.
 	 */
 	public static function evaluate_core( array $raw ) {
 		$raw_slice         = isset( $raw['raw'] ) && is_array( $raw['raw'] ) ? $raw['raw'] : array();
@@ -896,9 +919,10 @@ class WPMAR_Check_Auto_Updates {
 		$php_ok            = array_key_exists( 'php_ok', $raw ) ? (bool) $raw['php_ok'] : true;
 		$mysql_ok          = array_key_exists( 'mysql_ok', $raw ) ? (bool) $raw['mysql_ok'] : true;
 
-		// Static (filter-free) axis reading: options, then the WP_AUTO_UPDATE_CORE constant
-		// on top (constant wins — Core_Upgrader::should_update_to_version() @288-312). This
-		// is what gets shown when there is no pending offer to ask core about directly.
+		// 静的な（フィルターを一切通さない）軸の読み取り: オプション、その上に
+		// WP_AUTO_UPDATE_CORE 定数を重ねる（定数が優先 —
+		// Core_Upgrader::should_update_to_version() の該当箇所を参照）。これは保留中の
+		// オファーがなく、コアに直接尋ねられないときに表示される値である.
 		$option_axes = array(
 			'dev'   => 'enabled' === ( isset( $options['dev'] ) ? $options['dev'] : 'enabled' ),
 			'minor' => 'enabled' === ( isset( $options['minor'] ) ? $options['minor'] : 'enabled' ),
@@ -947,8 +971,9 @@ class WPMAR_Check_Auto_Updates {
 			$state      = 'minor';
 			$overridden = ( $decision !== $axes['minor'] );
 		} elseif ( $has_offer ) {
-			// Offer exists but should_update_to_version() said no (filter rejected it, or
-			// branch_relation is 'none' — e.g. re-offering the currently installed version).
+			// オファーはあるが should_update_to_version() が NO と判定した
+			// （フィルターが却下した、または branch_relation が 'none' — 例えば現在
+			// インストール済みのバージョンを再度オファーしている場合など）.
 			$state = 'disabled';
 		} elseif ( $axes['major'] ) {
 			$state = 'major';
@@ -976,24 +1001,24 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Resolves the site-wide auto-update gate from `is_disabled()`'s four inputs
-	 * (fact 5), evaluated exactly once — this function is never fed a second `is_disabled()`
-	 * call, only its already-computed inputs — plus the per-type VCS-checkout gate (fact 6),
-	 * which sits alongside `is_disabled()` in `should_update()` rather than inside it.
+	 * `is_disabled()` の4つの入力（事実5、ここでは1回だけ評価する — この関数に
+	 * `is_disabled()` の呼び出し結果自体が渡されることはなく、その計算済みの入力だけが
+	 * 渡される）と、タイプ別の VCS チェックアウトゲート（事実6。`should_update()` の中で
+	 * `is_disabled()` とは別に並んで評価される）から、サイト全体の自動更新ゲートを解決する.
 	 *
-	 * Reason priority per type (first match wins): file_mod > installing > constant > filter > vcs > ''.
-	 * When the `automatic_updater_disabled` filter is blocking and simply passed the
-	 * constant's value through unchanged, the reason is reported as 'constant' (not 'filter')
-	 * since the filter did not actually do anything.
+	 * タイプ別の理由の優先順位（最初に一致したものが勝つ）:
+	 * file_mod > installing > constant > filter > vcs > ''。`automatic_updater_disabled`
+	 * フィルターがブロックしていて、単に定数の値をそのまま通しただけの場合は、フィルターが
+	 * 実質何もしていないので理由を 'filter' ではなく 'constant' として報告する.
 	 *
-	 * Input facts read from `$raw`:
+	 * `$raw` から読む入力事実:
 	 *   - file_mod_allowed  wp_is_file_mod_allowed( 'automatic_updater' ).
 	 *   - installing        wp_installing().
 	 *   - constant_disabled AUTOMATIC_UPDATER_DISABLED.
 	 *   - filter_disabled   apply_filters( 'automatic_updater_disabled', $constant_disabled ).
 	 *   - vcs_checkout      ['core'=>bool,'plugin'=>bool,'theme'=>bool].
 	 *
-	 * @param array<string,mixed> $raw Input facts (see list above).
+	 * @param array<string,mixed> $raw 入力事実（上記一覧を参照）.
 	 * @return array<string,mixed>
 	 */
 	public static function resolve_site_gate( array $raw ) {
@@ -1044,12 +1069,13 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Normalizes a WordPress version string to its `major.minor` branch, exactly as
-	 * `Core_Upgrader::should_update_to_version()` does (`preg_split( '/[.-]/', $version )`
-	 * then the first two segments) so branch comparisons here agree with core's.
+	 * WordPress のバージョン文字列を `major.minor` のブランチに正規化する。
+	 * `Core_Upgrader::should_update_to_version()` と全く同じ方法
+	 * （`preg_split( '/[.-]/', $version )` の後、最初の2セグメントを取る）で行うので、
+	 * ここでのブランチ比較はコアの判定と一致する.
 	 *
-	 * @param string $version E.g. '6.5.2', '7.2-alpha-12345', '7.2-RC1'.
-	 * @return string E.g. '6.5', '7.2'. Empty string in, empty string out.
+	 * @param string $version 例: '6.5.2'、'7.2-alpha-12345'、'7.2-RC1'.
+	 * @return string 例: '6.5'、'7.2'。空文字列を渡せば空文字列を返す.
 	 */
 	public static function branch_of( $version ) {
 		$version = (string) $version;
@@ -1063,18 +1089,18 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Classifies a pending core offer's relationship to the currently installed version,
-	 * mirroring the branch logic in `Core_Upgrader::should_update_to_version()` (fact —
-	 * see class docblock on why the decision itself is delegated to that method rather than
-	 * re-derived: this classification is only used to label *which* axis core's decision
-	 * corresponds to, never to compute the decision).
+	 * 保留中のコアオファーと現在インストール中のバージョンとの関係を分類する。
+	 * `Core_Upgrader::should_update_to_version()` のブランチ判定ロジックをミラーする
+	 * （判定そのものをこのメソッドに再導出させずコアのメソッドへ委譲した理由はクラス
+	 * docblock を参照 — この分類はコアの判定結果が*どの軸*に対応するかのラベル付けのみに
+	 * 使い、判定自体の計算には使わない）.
 	 *
-	 * @param string $current_version Installed `$wp_version`.
-	 * @param string $offered_version Offered version (`$update->current`).
-	 * @param string $current_branch  {@see self::branch_of()} of `$current_version`.
-	 * @param string $new_branch      {@see self::branch_of()} of `$offered_version`.
-	 * @return string 'major' (new branch), 'same' (in-branch/minor), or 'none' (identical
-	 *                version, or offered is not actually newer).
+	 * @param string $current_version インストール済みの `$wp_version`.
+	 * @param string $offered_version オファーされたバージョン（`$update->current`）.
+	 * @param string $current_branch  `$current_version` の {@see self::branch_of()}.
+	 * @param string $new_branch      `$offered_version` の {@see self::branch_of()}.
+	 * @return string 'major'（新しいブランチ）、'same'（同一ブランチ内/マイナー）、
+	 *                または 'none'（同一バージョン、またはオファーが実際には新しくない）.
 	 */
 	public static function core_branch_relation( $current_version, $offered_version, $current_branch, $new_branch ) {
 		$current_version = (string) $current_version;
@@ -1097,11 +1123,11 @@ class WPMAR_Check_Auto_Updates {
 	}
 
 	/**
-	 * Normalizes the `WP_AUTO_UPDATE_CORE` constant (fact 7) to one of four codes.
+	 * `WP_AUTO_UPDATE_CORE` 定数（事実7）を4つのコードのいずれかに正規化する.
 	 *
-	 * @param bool  $defined Whether the constant is defined.
-	 * @param mixed $value   The constant's value when defined (true|'beta'|'rc'|'development'|
-	 *                       'branch-development'|'minor'|false).
+	 * @param bool  $defined 定数が定義されているか.
+	 * @param mixed $value   定義されている場合の値（true|'beta'|'rc'|'development'|
+	 *                       'branch-development'|'minor'|false）.
 	 * @return string 'undefined'|'all'|'minor'|'false'.
 	 */
 	public static function core_constant_code( $defined, $value ) {
@@ -1122,5 +1148,32 @@ class WPMAR_Check_Auto_Updates {
 		}
 
 		return 'undefined';
+	}
+
+	/**
+	 * 表示用に `WP_AUTO_UPDATE_CORE` の生の値をレンダリングする（レポートの
+	 * 「この定数が制御している」という注記などに使う）。{@see self::core_constant_code()}
+	 * の正規化されたバケットとは別物。`(string) true`/`(string) false` は PHP では
+	 * '1'/'' を出力してしまい、運用者に見せるには分かりにくいため、真偽値は明示的に
+	 * 綴りで表す.
+	 *
+	 * @param bool  $defined 定数が定義されているか.
+	 * @param mixed $value   定義されている場合の値.
+	 * @return string 未定義なら ''、それ以外は 'true'|'false'|生の文字列値.
+	 */
+	public static function format_core_constant_raw( $defined, $value ) {
+		if ( ! $defined ) {
+			return '';
+		}
+
+		if ( true === $value ) {
+			return 'true';
+		}
+
+		if ( false === $value ) {
+			return 'false';
+		}
+
+		return (string) $value;
 	}
 }

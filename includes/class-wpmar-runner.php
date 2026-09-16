@@ -1573,6 +1573,17 @@ class WPMAR_Runner {
 
 		$checksum_block = self::render_operator_core_checksum_paragraph( $core_cs );
 
+		$auto_updates     = isset( $facts['auto_updates'] ) && is_array( $facts['auto_updates'] ) ? $facts['auto_updates'] : array();
+		$core_auto        = isset( $auto_updates['core'] ) && is_array( $auto_updates['core'] ) ? $auto_updates['core'] : array();
+		$site_auto        = isset( $auto_updates['site'] ) && is_array( $auto_updates['site'] ) ? $auto_updates['site'] : array();
+		$auto_update_line = self::render_operator_core_auto_update_prose( $core_auto, $site_auto );
+		// BC ガード: auto_updates キーを持たない旧 dataset（1.6.0 以前）では
+		// render_operator_core_auto_update_prose() が '' を返すため、この行自体が
+		// 出力から消え、1.6.0 と完全に同一の出力になる.
+		$auto_update_block = '' !== $auto_update_line
+			? __( '自動更新：', 'wp-maintenance-audit-reporter' ) . $auto_update_line . "\n"
+			: '';
+
 		return '# 【WordPress 本体】' . "\n"
 			. __( '※ WordPress のコアファイルが最新版か・改ざんされていないかのチェック', 'wp-maintenance-audit-reporter' ) . "\n\n"
 			. sprintf(
@@ -1581,6 +1592,7 @@ class WPMAR_Runner {
 				'' !== $version ? $version : __( '不明', 'wp-maintenance-audit-reporter' )
 			) . "\n"
 			. __( 'アップデート：', 'wp-maintenance-audit-reporter' ) . $update_line . "\n"
+			. $auto_update_block
 			. $checksum_block;
 	}
 
@@ -1710,9 +1722,10 @@ class WPMAR_Runner {
 	 * @return string
 	 */
 	protected static function render_operator_themes_section( array $facts ) {
-		$bundle = isset( $facts['themes'] ) && is_array( $facts['themes'] ) ? $facts['themes'] : array();
-		$rows   = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
-		$org    = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
+		$bundle     = isset( $facts['themes'] ) && is_array( $facts['themes'] ) ? $facts['themes'] : array();
+		$rows       = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
+		$org        = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
+		$auto_theme = isset( $facts['auto_updates']['themes'] ) && is_array( $facts['auto_updates']['themes'] ) ? $facts['auto_updates']['themes'] : array();
 
 		usort(
 			$rows,
@@ -1814,7 +1827,12 @@ class WPMAR_Runner {
 				$slug,
 				$ver
 			) . "\n";
-			$block .= '　' . $version_line . "\n";
+			$block         .= '　' . $version_line . "\n";
+			$auto_row       = isset( $auto_theme[ $slug ] ) && is_array( $auto_theme[ $slug ] ) ? $auto_theme[ $slug ] : array();
+			$auto_line_text = self::render_operator_theme_auto_update_prose( $auto_row );
+			if ( '' !== $auto_line_text ) {
+				$block .= '　' . $auto_line_text . "\n";
+			}
 			$block .= '　　' . $msg;
 
 			if ( $is_act ) {
@@ -1846,11 +1864,12 @@ class WPMAR_Runner {
 	 * @return string
 	 */
 	protected static function render_operator_plugins_section( array $facts ) {
-		$bundle    = isset( $facts['plugins'] ) && is_array( $facts['plugins'] ) ? $facts['plugins'] : array();
-		$rows      = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
-		$org       = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
-		$checksums = isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array();
-		$plugs_cs  = isset( $checksums['plugins'] ) && is_array( $checksums['plugins'] ) ? $checksums['plugins'] : array();
+		$bundle      = isset( $facts['plugins'] ) && is_array( $facts['plugins'] ) ? $facts['plugins'] : array();
+		$rows        = isset( $bundle['inventory'] ) && is_array( $bundle['inventory'] ) ? $bundle['inventory'] : array();
+		$org         = isset( $bundle['org'] ) && is_array( $bundle['org'] ) ? $bundle['org'] : array();
+		$checksums   = isset( $facts['checksums'] ) && is_array( $facts['checksums'] ) ? $facts['checksums'] : array();
+		$plugs_cs    = isset( $checksums['plugins'] ) && is_array( $checksums['plugins'] ) ? $checksums['plugins'] : array();
+		$auto_plugin = isset( $facts['auto_updates']['plugins'] ) && is_array( $facts['auto_updates']['plugins'] ) ? $facts['auto_updates']['plugins'] : array();
 
 		usort(
 			$rows,
@@ -1963,7 +1982,12 @@ class WPMAR_Runner {
 				$slug,
 				$ver
 			) . "\n";
-			$block .= '　' . $version_line . "\n";
+			$block         .= '　' . $version_line . "\n";
+			$auto_row       = isset( $auto_plugin[ $base ] ) && is_array( $auto_plugin[ $base ] ) ? $auto_plugin[ $base ] : array();
+			$auto_line_text = self::render_operator_plugin_auto_update_prose( $auto_row );
+			if ( '' !== $auto_line_text ) {
+				$block .= '　' . $auto_line_text . "\n";
+			}
 			if ( '' !== $cs_text ) {
 				$block .= '　　' . $cs_text . "\n";
 			}
@@ -2066,6 +2090,340 @@ class WPMAR_Runner {
 			__( '%s — チェックサム情報が取得できませんでした。', 'wp-maintenance-audit-reporter' ),
 			$title
 		);
+	}
+
+	/**
+	 * トグル値の ON/OFF ラベル（管理画面のトグル実値と、pre_filter の実値の両方に使う）.
+	 *
+	 * @param bool $toggle Bool value.
+	 * @return string
+	 */
+	protected static function auto_update_toggle_label( $toggle ) {
+		return $toggle
+			? __( 'ON', 'wp-maintenance-audit-reporter' )
+			: __( 'OFF', 'wp-maintenance-audit-reporter' );
+	}
+
+	/**
+	 * `（更新元: %s）` の補足. `update_source` は既に
+	 * {@see WPMAR_Check_Auto_Updates::update_source_from_id()} でホスト名のみに正規化済み
+	 * （生の外部入力はここに届かない）。w.org（既定の更新元）は自明なので付記しない.
+	 *
+	 * @param string $update_source Normalized host, or ''.
+	 * @return string
+	 */
+	protected static function auto_update_source_suffix( $update_source ) {
+		$update_source = sanitize_text_field( (string) $update_source );
+		if ( '' === $update_source || 'w.org' === $update_source ) {
+			return '';
+		}
+
+		return sprintf(
+			/* translators: %s: update source host (e.g. github.com) */
+			__( '（更新元: %s）', 'wp-maintenance-audit-reporter' ),
+			$update_source
+		);
+	}
+
+	/**
+	 * サイト全体ゲートの理由注記（`disabled_site` state 専用）.
+	 *
+	 * @param string $reason            'file_mod'|'installing'|'constant'|'filter'|'vcs'|''
+	 *                                  （{@see WPMAR_Check_Auto_Updates::resolve_site_gate()}
+	 *                                  由来）.
+	 * @param string $vcs_context_label 'vcs' のときだけ使う対象ラベル（例: "WordPress 本体"）.
+	 * @return string 該当理由がなければ ''.
+	 */
+	protected static function auto_update_disabled_reason_note( $reason, $vcs_context_label ) {
+		switch ( $reason ) {
+			case 'file_mod':
+				return __( '（DISALLOW_FILE_MODS 定数によりファイル変更が禁止されています）', 'wp-maintenance-audit-reporter' );
+
+			case 'installing':
+				return __( '（WordPress のインストール・更新処理中と判定されました）', 'wp-maintenance-audit-reporter' );
+
+			case 'constant':
+				return __( '（AUTOMATIC_UPDATER_DISABLED 定数で無効化されています）', 'wp-maintenance-audit-reporter' );
+
+			case 'filter':
+				return __( '（automatic_updater_disabled フィルターで無効化されています）', 'wp-maintenance-audit-reporter' );
+
+			case 'vcs':
+				return sprintf(
+					/* translators: %s: context label (WordPress 本体 / プラグインディレクトリ / テーマディレクトリ) */
+					__( '（%s がバージョン管理（.git / .svn 等）配下にあるため WordPress が自動更新を行いません）', 'wp-maintenance-audit-reporter' ),
+					$vcs_context_label
+				);
+
+			default:
+				return '';
+		}
+	}
+
+	/**
+	 * 【WordPress 本体】自動更新プローズ。1.7.0 で追加.
+	 *
+	 * `auto_updates` キーを持たない旧 dataset（1.6.0 以前）との後方互換のため、
+	 * `$core_auto` が空 / `state` 未設定なら '' を返す — 呼び出し側はこの行自体を省略し、
+	 * セクションは 1.6.0 とバイト単位で同一の出力になる.
+	 *
+	 * @param array<string,mixed> $core_auto `facts.auto_updates.core`.
+	 * @param array<string,mixed> $site_auto `facts.auto_updates.site`.
+	 * @return string
+	 */
+	protected static function render_operator_core_auto_update_prose( array $core_auto, array $site_auto ) {
+		if ( empty( $core_auto ) || ! isset( $core_auto['state'] ) ) {
+			return '';
+		}
+
+		$state = sanitize_key( (string) $core_auto['state'] );
+		$offer = isset( $core_auto['offer'] ) && is_array( $core_auto['offer'] ) ? $core_auto['offer'] : array();
+
+		switch ( $state ) {
+			case 'major':
+				$line = __( 'WordPress 本体は自動でメジャーアップデートに設定されています。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'minor':
+				$line = __( 'WordPress 本体は自動でマイナーアップデート（セキュリティ・保守リリース）のみ行う設定です。メジャーアップデートは手動での適用が必要です。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'dev_only':
+				$line = __( 'WordPress 本体の自動更新は開発版のみ有効で、リリース版は手動での適用が必要です。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'blocked_failure':
+				$line = __( '過去に自動更新が致命的に失敗した記録が残っているため、自動更新は行われません。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'blocked_requirements':
+				$line = sprintf(
+					/* translators: 1: offered version, 2: required PHP version, 3: required MySQL version, 4: current PHP version, 5: current MySQL version */
+					__( '自動更新の設定は有効ですが、配信中の %1$s は PHP %2$s 以上 / MySQL %3$s 以上を必要とし、現在の環境（PHP %4$s / MySQL %5$s）では自動更新の対象になりません。', 'wp-maintenance-audit-reporter' ),
+					isset( $offer['version'] ) ? sanitize_text_field( (string) $offer['version'] ) : '',
+					isset( $offer['php_version'] ) ? sanitize_text_field( (string) $offer['php_version'] ) : '',
+					isset( $offer['mysql_version'] ) ? sanitize_text_field( (string) $offer['mysql_version'] ) : '',
+					isset( $site_auto['php_version'] ) ? sanitize_text_field( (string) $site_auto['php_version'] ) : '',
+					isset( $site_auto['mysql_version'] ) ? sanitize_text_field( (string) $site_auto['mysql_version'] ) : ''
+				);
+				break;
+
+			case 'disabled_site':
+				// disabled_site のみ理由を付記して即 return する（他の state のような
+				// 定数/フィルター上書きの補足は、サイト全体ゲートの前では意味を持たないため）.
+				$line   = __( 'このサイトでは自動更新機能そのものが無効化されているため、WordPress 本体は自動更新されません。', 'wp-maintenance-audit-reporter' );
+				$reason = isset( $site_auto['disabled_reason']['core'] ) ? sanitize_key( (string) $site_auto['disabled_reason']['core'] ) : '';
+				$note   = self::auto_update_disabled_reason_note( $reason, __( 'WordPress 本体', 'wp-maintenance-audit-reporter' ) );
+				if ( '' !== $note ) {
+					$line .= "\n　　" . $note;
+				}
+				return $line;
+
+			case 'disabled':
+			default:
+				$line = __( 'WordPress 本体の自動更新は無効です。すべてのアップデートを手動で適用する必要があります。', 'wp-maintenance-audit-reporter' );
+				break;
+		}
+
+		$notes  = array();
+		$source = isset( $core_auto['source'] ) ? sanitize_key( (string) $core_auto['source'] ) : '';
+
+		if ( 'constant' === $source ) {
+			$const_raw = isset( $core_auto['raw']['constant_raw'] ) ? sanitize_text_field( (string) $core_auto['raw']['constant_raw'] ) : '';
+			$notes[]   = sprintf(
+				/* translators: %s: WP_AUTO_UPDATE_CORE constant's configured value */
+				__( '（wp-config.php の WP_AUTO_UPDATE_CORE 定数（%s）により制御されています。管理画面の設定より優先されます。）', 'wp-maintenance-audit-reporter' ),
+				$const_raw
+			);
+		} elseif ( 'filter' === $source ) {
+			$branch_relation = isset( $core_auto['branch_relation'] ) ? sanitize_key( (string) $core_auto['branch_relation'] ) : '';
+			$hook            = 'major' === $branch_relation
+				? 'allow_major_auto_core_updates'
+				: ( 'same' === $branch_relation ? 'allow_minor_auto_core_updates' : 'allow_dev_auto_core_updates' );
+			$notes[]         = sprintf(
+				/* translators: %s: filter hook name */
+				__( '（他のプラグインまたはテーマが %s フィルターでこの設定を上書きしています。管理画面の表示とは挙動が異なる可能性があります。）', 'wp-maintenance-audit-reporter' ),
+				$hook
+			);
+		}
+
+		if ( ! empty( $site_auto['is_multisite'] ) ) {
+			$notes[] = __( '（ネットワーク全体の設定です。）', 'wp-maintenance-audit-reporter' );
+		}
+
+		foreach ( $notes as $note ) {
+			$line .= "\n　　" . $note;
+		}
+
+		return $line;
+	}
+
+	/**
+	 * プラグイン1件分の自動更新プローズ。1.7.0 で追加.
+	 *
+	 * `auto_updates` キーを持たない旧 dataset（1.6.0 以前）との後方互換のため、
+	 * `$row` が空 / `state` 未設定なら '' を返す — 呼び出し側はこの行自体を省略する.
+	 *
+	 * @param array<string,mixed> $row `facts.auto_updates.plugins[basename]`.
+	 * @return string
+	 */
+	protected static function render_operator_plugin_auto_update_prose( array $row ) {
+		if ( empty( $row ) || ! isset( $row['state'] ) ) {
+			return '';
+		}
+
+		$update_source = isset( $row['update_source'] ) ? (string) $row['update_source'] : '';
+		$toggle_label  = self::auto_update_toggle_label( ! empty( $row['toggle'] ) );
+
+		// filter_ran && filter_error は state のラベル付けとは別軸の判定（フィルターが
+		// 例外を投げたため判定不能）なので、通常の state 分岐より先に評価する.
+		if ( ! empty( $row['filter_ran'] ) && ! empty( $row['filter_error'] ) ) {
+			$line = sprintf(
+				/* translators: 1: admin-screen toggle (ON/OFF), 2: pre-filter value (ON/OFF), 3: update source host */
+				__( '自動アップデートの状態を判定できませんでした（トグル: %1$s / フィルター適用前: %2$s / 更新元: %3$s）。', 'wp-maintenance-audit-reporter' ),
+				$toggle_label,
+				self::auto_update_toggle_label( ! empty( $row['pre_filter'] ) ),
+				'' !== $update_source ? sanitize_text_field( $update_source ) : __( '不明', 'wp-maintenance-audit-reporter' )
+			);
+
+			return $line . self::auto_update_source_suffix( $update_source );
+		}
+
+		$state = sanitize_key( (string) $row['state'] );
+
+		switch ( $state ) {
+			case 'on':
+				$line = __( 'このプラグインは自動アップデートが有効化されています。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'filter_forced_on':
+				$line = sprintf(
+					/* translators: %s: admin-screen toggle value (ON/OFF) */
+					__( 'auto_update_plugin フィルターにより、WordPress の通常判定では無効だった自動アップデートが有効化されています。（管理画面のトグル: %s）', 'wp-maintenance-audit-reporter' ),
+					$toggle_label
+				);
+				break;
+
+			case 'filter_forced_off':
+				$line = sprintf(
+					/* translators: %s: admin-screen toggle value (ON/OFF) */
+					__( 'auto_update_plugin フィルターにより、WordPress の通常判定では有効だった自動アップデートが無効化されています。（管理画面のトグル: %s）', 'wp-maintenance-audit-reporter' ),
+					$toggle_label
+				);
+				break;
+
+			case 'blocked_php':
+				$line = sprintf(
+					/* translators: 1: required PHP version, 2: current PHP version */
+					__( '自動アップデートの設定は有効ですが、このプラグインは PHP %1$s 以上を必要とし、現在の PHP %2$s では自動アップデートの対象になりません。', 'wp-maintenance-audit-reporter' ),
+					isset( $row['requires_php'] ) ? sanitize_text_field( (string) $row['requires_php'] ) : '',
+					PHP_VERSION
+				);
+				break;
+
+			case 'type_disabled':
+				$line = __( 'サイト全体でプラグインの自動アップデートが無効化されているため、この設定は適用されません。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'disabled_site':
+				$line = __( 'このサイトでは自動更新機能そのものが無効化されているため、自動アップデートは行われません。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'no_update_source':
+				$line = __( '更新元が登録されていないため、自動アップデートの対象外です。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'off':
+			default:
+				$line = __( 'このプラグインは自動アップデートが無効です。アップデートは手動で適用する必要があります。', 'wp-maintenance-audit-reporter' );
+				break;
+		}
+
+		return $line . self::auto_update_source_suffix( $update_source );
+	}
+
+	/**
+	 * テーマ1件分の自動更新プローズ。1.7.0 で追加。プラグイン版
+	 * （{@see self::render_operator_plugin_auto_update_prose()}）と文言辞書は独立して持つ
+	 * （既存コードが両セクションで文言を重複させている慣習に合わせる）.
+	 *
+	 * `auto_updates` キーを持たない旧 dataset（1.6.0 以前）との後方互換のため、
+	 * `$row` が空 / `state` 未設定なら '' を返す — 呼び出し側はこの行自体を省略する.
+	 *
+	 * @param array<string,mixed> $row `facts.auto_updates.themes[slug]`.
+	 * @return string
+	 */
+	protected static function render_operator_theme_auto_update_prose( array $row ) {
+		if ( empty( $row ) || ! isset( $row['state'] ) ) {
+			return '';
+		}
+
+		$update_source = isset( $row['update_source'] ) ? (string) $row['update_source'] : '';
+		$toggle_label  = self::auto_update_toggle_label( ! empty( $row['toggle'] ) );
+
+		if ( ! empty( $row['filter_ran'] ) && ! empty( $row['filter_error'] ) ) {
+			$line = sprintf(
+				/* translators: 1: admin-screen toggle (ON/OFF), 2: pre-filter value (ON/OFF), 3: update source host */
+				__( '自動アップデートの状態を判定できませんでした（トグル: %1$s / フィルター適用前: %2$s / 更新元: %3$s）。', 'wp-maintenance-audit-reporter' ),
+				$toggle_label,
+				self::auto_update_toggle_label( ! empty( $row['pre_filter'] ) ),
+				'' !== $update_source ? sanitize_text_field( $update_source ) : __( '不明', 'wp-maintenance-audit-reporter' )
+			);
+
+			return $line . self::auto_update_source_suffix( $update_source );
+		}
+
+		$state = sanitize_key( (string) $row['state'] );
+
+		switch ( $state ) {
+			case 'on':
+				$line = __( 'このテーマは自動アップデートが有効化されています。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'filter_forced_on':
+				$line = sprintf(
+					/* translators: %s: admin-screen toggle value (ON/OFF) */
+					__( 'auto_update_theme フィルターにより、WordPress の通常判定では無効だった自動アップデートが有効化されています。（管理画面のトグル: %s）', 'wp-maintenance-audit-reporter' ),
+					$toggle_label
+				);
+				break;
+
+			case 'filter_forced_off':
+				$line = sprintf(
+					/* translators: %s: admin-screen toggle value (ON/OFF) */
+					__( 'auto_update_theme フィルターにより、WordPress の通常判定では有効だった自動アップデートが無効化されています。（管理画面のトグル: %s）', 'wp-maintenance-audit-reporter' ),
+					$toggle_label
+				);
+				break;
+
+			case 'blocked_php':
+				$line = sprintf(
+					/* translators: 1: required PHP version, 2: current PHP version */
+					__( '自動アップデートの設定は有効ですが、このテーマは PHP %1$s 以上を必要とし、現在の PHP %2$s では自動アップデートの対象になりません。', 'wp-maintenance-audit-reporter' ),
+					isset( $row['requires_php'] ) ? sanitize_text_field( (string) $row['requires_php'] ) : '',
+					PHP_VERSION
+				);
+				break;
+
+			case 'type_disabled':
+				$line = __( 'サイト全体でテーマの自動アップデートが無効化されているため、この設定は適用されません。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'disabled_site':
+				$line = __( 'このサイトでは自動更新機能そのものが無効化されているため、自動アップデートは行われません。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'no_update_source':
+				$line = __( '更新元が登録されていないため、自動アップデートの対象外です。', 'wp-maintenance-audit-reporter' );
+				break;
+
+			case 'off':
+			default:
+				$line = __( 'このテーマは自動アップデートが無効です。アップデートは手動で適用する必要があります。', 'wp-maintenance-audit-reporter' );
+				break;
+		}
+
+		return $line . self::auto_update_source_suffix( $update_source );
 	}
 
 	/**
