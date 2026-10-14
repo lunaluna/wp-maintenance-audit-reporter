@@ -400,7 +400,7 @@ composer run phpunit
 
 ### Distribution ZIP (GitHub releases)
 
-Since v1.6.0, **`.github/workflows/release.yml`** is a ~25-line call into the shared `l2d-wp-github-update-lib` (vendored into `lib/l2d-updater/`) reusable workflow, `plugin-release.yml`. Trigger: push of a `v*` tag (or manual `workflow_dispatch`). The referenced tag (`@1.2.0`) must always match the vendored copy under `lib/l2d-updater/` — bumping one without the other leaves the library and this plugin out of sync.
+Since v1.6.0, **`.github/workflows/release.yml`** is a ~25-line call into the shared `l2d-wp-github-update-lib` (vendored into `lib/l2d-updater/`) reusable workflow, `plugin-release.yml`. Trigger: push of a `v*` tag (or manual `workflow_dispatch`). The referenced tag (`@1.3.0`) must always match the vendored copy under `lib/l2d-updater/` — bumping one without the other leaves the library and this plugin out of sync.
 
 1. The tag is parsed and asserted to match five version-bearing locations (`version_files` in `release.yml`): the `Version:` header and `WPMAR_VERSION` constant in `wp-maintenance-audit-reporter.php`, `Stable tag:` in `readme.txt` and `readme-ja.txt`, and `"version"` in `composer.json`. Any mismatch fails the job.
 2. **`bin/release.pre.sh`** runs before the zip is built: installs production dependencies (`composer install --no-dev --optimize-autoloader`), builds the static Noto Sans JP fonts used by mPDF, zips `vendor/` + `fonts/` into `vendor-pdf.zip`, and writes its SHA-256 to both `vendor-pdf.zip.sha256` (a release asset) and `vendor-pdf.sha256` (bundled into the plugin zip, enabling checksum verification by default).

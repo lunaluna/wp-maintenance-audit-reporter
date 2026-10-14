@@ -402,7 +402,7 @@ composer run phpunit
 
 ### 配布用 ZIP（GitHub リリース）
 
-v1.6.0 以降、**`.github/workflows/release.yml`** は共有ライブラリ `l2d-wp-github-update-lib`(`lib/l2d-updater/` に同梱)の reusable workflow `plugin-release.yml` を呼び出す約25行の構成。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。参照タグ(`@1.2.0`)は `lib/l2d-updater/` のベンダーコピーと必ず揃えること — 片方だけ更新すると版が食い違う。
+v1.6.0 以降、**`.github/workflows/release.yml`** は共有ライブラリ `l2d-wp-github-update-lib`(`lib/l2d-updater/` に同梱)の reusable workflow `plugin-release.yml` を呼び出す約25行の構成。トリガーは `v*` タグの push（または手動 `workflow_dispatch`）。参照タグ(`@1.3.0`)は `lib/l2d-updater/` のベンダーコピーと必ず揃えること — 片方だけ更新すると版が食い違う。
 
 1. タグを解析し、バージョンを記載している5箇所(`release.yml` の `version_files`)と一致するか検証: `wp-maintenance-audit-reporter.php` の `Version:` ヘッダと `WPMAR_VERSION` 定数、`readme.txt` / `readme-ja.txt` の `Stable tag:`、`composer.json` の `"version"`。1つでも不一致ならジョブが失敗。
 2. **`bin/release.pre.sh`** が ZIP 組み立て前に実行される: プロダクション依存のインストール(`composer install --no-dev --optimize-autoloader`)、mPDF 用の Noto Sans JP 静的フォント生成、`vendor/` + `fonts/` を `vendor-pdf.zip` に圧縮、その SHA-256 を `vendor-pdf.zip.sha256`(Release アセット)と `vendor-pdf.sha256`(配布ZIPに同梱し既定でチェックサム検証を有効にする)の両方に書き出す。
