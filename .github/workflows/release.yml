@@ -27,10 +27,10 @@ permissions:
 
 jobs:
   release:
-    uses: lunaluna/l2d-wp-github-update-lib/.github/workflows/plugin-release.yml@1.2.0
+    uses: lunaluna/l2d-wp-github-update-lib/.github/workflows/plugin-release.yml@1.3.1
     with:
       slug: wp-maintenance-audit-reporter
-      # "path:pattern" 形式。参照タグ(@1.2.0)は lib/l2d-updater/ のベンダーコピーと
+      # "path:pattern" 形式。参照タグ(@1.3.1)は lib/l2d-updater/ のベンダーコピーと
       # 必ず揃えること。片方だけ更新すると版が食い違う.
       version_files: |
         wp-maintenance-audit-reporter.php:^[[:space:]]*\*[[:space:]]*Version:
