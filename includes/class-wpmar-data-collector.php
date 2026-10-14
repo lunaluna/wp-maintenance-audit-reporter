@@ -96,6 +96,11 @@ class WPMAR_Data_Collector {
 		$dataset['security'] = $security->collect( $settings, $dataset );
 		WPMAR_Logger::step( 'gather:security-ops:done' );
 
+		$auto_updates = new WPMAR_Check_Auto_Updates();
+		WPMAR_Logger::step( 'gather:auto-updates:start' );
+		$dataset['auto_updates'] = $auto_updates->collect( $settings, $dataset );
+		WPMAR_Logger::step( 'gather:auto-updates:done' );
+
 		$dataset['backup'] = $this->gather_backup_providers( $settings );
 
 		$perf_defaults = WPMAR_Settings::defaults()['performance'];

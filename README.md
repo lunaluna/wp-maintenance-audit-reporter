@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.6.1**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.7.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -12,6 +12,7 @@ Generates monthly maintenance reports automatically and delivers them by mail, M
 - **Inventory and change history (deltas)** — snapshots core/theme/plugin state and reports additions, updates, and removals since the previous run
 - **Checksum verification** — core and plugin file-integrity checks against the WordPress.org API (exclude lists supported; falls back to the en_US manifest when the site locale has none)
 - **Security ops** — TLS certificate expiry, PHP EOL, stale administrator sessions, `wp-config.php` permissions, `WP_DEBUG` warnings in production, and more
+- **Auto-update status** (v1.7.0+) — the administrator-facing report shows, for core and every plugin and theme, whether auto-updates are on, and tells apart the Plugins-screen toggle, `auto_update_*` filters from other plugins, site-wide blocks, and PHP/MySQL requirements
 - **Stale plugin detection** — flags plugins whose WordPress.org `last_updated` is 180+ / 365+ days old
 - **Two mail streams** — client-facing (HTML with plaintext alternative) and administrator-facing (structured plaintext)
 - **Markdown / PDF output** — administrator-facing Markdown and client-facing PDF (mPDF + Noto Sans JP; library installed on demand from the settings page)
@@ -118,10 +119,10 @@ View/clear the wp.org cache, manually recover a stuck run lock, and read the run
 
 #### Snapshot preview
 
-The "スナップショットをプレビュー" (Preview snapshot) button under 実行履歴 (run history) expands the stored diff-baseline snapshots — the latest 2 generations for each of core/themes/plugins/users — as formatted Markdown.
+The "スナップショットをプレビュー" (Preview snapshot) button under 実行履歴 (run history) expands the stored diff-baseline snapshots — the latest 2 generations for each of core/themes/plugins/users/auto_updates — as formatted Markdown.
 
 - **This is not a copy of the audit report body.** What's stored is a slug → version map used purely for diffing (e.g. `akismet` → `5.7.2`); it carries no active/inactive flag, display name, or update-available status.
-- Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users); anything older is pruned automatically on the next audit run.
+- Only the **latest 2 generations** are kept per dimension (core/themes/plugins/users/auto_updates); anything older is pruned automatically on the next audit run.
 - **On multisite, the site-level screen is restricted to super admins.** A subsite administrator holding `manage_options` will not see this section at all: plugin/theme files are shared network-wide, so showing them here would leak information a subsite admin cannot normally access, and the users snapshot also carries plain-text email addresses.
 - The network admin "システム機能" screen offers a site picker to view any one site's snapshots across the network (super admin only, `manage_network_options`).
 
@@ -134,6 +135,17 @@ Above the preview toggle, a "基準の鮮度（最終保存日時）" (baseline 
 Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
 
 A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time) with a tail preview and a download link — useful when a run stalls or fails and you need to see exactly where it stopped (see "診断ログ（動作ログ）" / Diagnostics below).
+
+### Auto-update status (v1.7.0+)
+
+The administrator-facing report adds one **自動更新** line for WordPress core and for every plugin and theme. It reports what WordPress will decide, not only the toggle on the Plugins screen.
+
+- **Toggle vs. effective behaviour** — the Plugins-screen toggle and the result of the `auto_update_plugin` / `auto_update_theme` filters are collected separately. When another plugin forces auto-updates on or off, the line says so and shows the actual toggle value (for example "管理画面のトグル: OFF"), so a toggle that looks OFF but is overridden is not reported as OFF.
+- **Other reasons an update will not run** — auto-updates disabled for the whole site (`DISALLOW_FILE_MODS`, `AUTOMATIC_UPDATER_DISABLED`, the `automatic_updater_disabled` filter, or a version-control directory such as `.git` above WordPress), a plugin's `requires_php` that the server does not meet, and plugins that have no update source.
+- **What "effective" means** — the value reflects WordPress's settings, filters and PHP requirements only. WPMAR does not evaluate filesystem credentials, so it never claims that an update will actually run.
+- **Administrator-facing only** — the client mail and PDF are unchanged.
+- **Change history** — changes to these settings appear in the administrator-facing diff as `自動更新 …` lines. The first run after upgrading only records a baseline (no lines).
+- **For extensions** — the collected data is under `auto_updates` (`site`, `core`, `plugins`, `themes`) in the `facts` passed to the `wpmar_report_sections` filter. That filter also runs for the client audience, so do not print this data in a client-facing section.
 
 ### 診断ログ (Diagnostics)
 
@@ -336,6 +348,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.7.0** (2026-10-14) — Adds auto-update status to the administrator-facing report: for core and every plugin and theme, whether auto-updates are on, distinguishing the Plugins-screen toggle from `auto_update_*` filter overrides, site-wide blocks (including a version-control directory above WordPress), PHP/MySQL requirements, and plugins with no update source. Changes to these settings appear in the administrator-facing diff. Client mail and PDF are unchanged. Fixes the "a new version has been announced" notice never appearing for plugins (it only worked for themes). Also bundles the update mechanism `l2d-wp-github-update-lib` 1.3.1 (download hardening) and the CI changes of 1.6.1; 1.6.1 itself was not published and is included in this release.
 - **v1.6.1** (2026-10-14) — No user-facing behaviour change. The bundled update mechanism (`l2d-wp-github-update-lib`) is updated from 1.2.0 to 1.3.1, which hardens the update download: the token is only sent to the GitHub API, redirects are followed manually without forwarding the Authorization header, the extracted package must contain the plugin's main file, release assets are matched by exact name, API responses are type-checked, and temporary files are cleaned up on failure. No WPMAR PHP code changed. When several plugins on a site use this library, the newest bundled copy handles update checks for all of them, so their update checks also follow the 1.3.0-and-later rules while this version is active.
 - **v1.6.0** (2026-09-03) — No user-facing behaviour change. The release pipeline (how the distribution zip and GitHub Release are built) now uses the shared `l2d-wp-github-update-lib` (1.2.0) reusable workflow instead of a bespoke implementation; no PHP code changed, and the distribution zip is byte-for-byte identical to 1.5.6 aside from `vendor-pdf.sha256` (can shift because the bundled font is fetched from `google/fonts` at build time).
 - **v1.5.5** (2026-09-03) — The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`; an existing in-plugin install is migrated there automatically on first load after updating. Fixes the library disappearing entirely when the plugin was updated while deactivated (the previous `vendor/`-backup safeguard only ran while the plugin was active). Filterable via `wpmar_pdf_lib_dir`; falls back to the plugin directory when `wp-content` isn't writable. Uninstalling deletes the external directory too, unless `wpmar_pdf_lib_delete_on_uninstall` returns `false`.

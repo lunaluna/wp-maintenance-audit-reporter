@@ -238,7 +238,28 @@ final class RunnerFullRunTest extends TestCase {
 		);
 
 		self::assertArrayHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
-		// core / themes / plugins / users — one row per canonical diff dimension.
+		// core / themes / plugins / users / auto_updates — one row per canonical diff dimension
+		// (the dataset fixture carries `auto_updates`, so the 1.7.0 bucket is persisted too).
+		self::assertCount( 5, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
+	}
+
+	/**
+	 * 1.7.0 の後方互換ガード: データセットに `auto_updates` キーがない回(収集に失敗した回など)は、
+	 * 空のバケットを保存せず、従来どおり 4 次元だけを保存する。空のバケットを保存すると、前回分が
+	 * 消えて、次回の差分の基準がなくなる.
+	 */
+	public function test_persist_snapshots_skips_the_auto_updates_bucket_when_the_dataset_has_no_such_key(): void {
+		$dataset = $this->dataset_full;
+		unset( $dataset['auto_updates'] );
+
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $dataset ) );
+		$runner->run(
+			array(
+				'triggered_by'      => 'manual',
+				'persist_snapshots' => true,
+			)
+		);
+
 		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
 	}
 
@@ -254,7 +275,7 @@ final class RunnerFullRunTest extends TestCase {
 		$runner->run( array( 'triggered_by' => 'cron' ) );
 
 		self::assertArrayHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
-		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
+		self::assertCount( 5, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
 	}
 
 	/**
@@ -267,7 +288,7 @@ final class RunnerFullRunTest extends TestCase {
 		$runner->run( array( 'triggered_by' => 'cli' ) );
 
 		self::assertArrayHasKey( 'wp_wpmar_snapshots', $GLOBALS['wpdb']->tables );
-		self::assertCount( 4, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
+		self::assertCount( 5, $GLOBALS['wpdb']->tables['wp_wpmar_snapshots'] );
 	}
 
 	/**

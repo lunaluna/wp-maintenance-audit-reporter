@@ -2119,3 +2119,76 @@ if ( ! class_exists( 'WP_CLI' ) ) {
 		}
 	}
 }
+
+if ( ! function_exists( 'wp_is_file_mod_allowed' ) ) {
+	/**
+	 * Stub wp_is_file_mod_allowed — mirrors wp-includes/load.php: DISALLOW_FILE_MODS
+	 * gates the default, then the (test-functional) `file_mod_allowed` filter runs on top.
+	 *
+	 * @param string $context Usage context.
+	 * @return bool
+	 */
+	function wp_is_file_mod_allowed( $context ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		$default = ! defined( 'DISALLOW_FILE_MODS' ) || ! DISALLOW_FILE_MODS;
+
+		return (bool) apply_filters( 'file_mod_allowed', $default, $context );
+	}
+}
+
+if ( ! function_exists( 'wp_installing' ) ) {
+	/**
+	 * Stub wp_installing — tests toggle $GLOBALS['_wpmar_test_installing'] directly
+	 * rather than exercising the real setter/getter pair, since no test needs that.
+	 *
+	 * @param bool|null $is_installing Unused; real wp_installing() accepts this to set state.
+	 * @return bool
+	 */
+	function wp_installing( $is_installing = null ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound
+		unset( $is_installing );
+
+		return ! empty( $GLOBALS['_wpmar_test_installing'] );
+	}
+}
+
+if ( ! class_exists( 'WP_Automatic_Updater' ) ) {
+	/**
+	 * Minimal WP_Automatic_Updater stub — only is_vcs_checkout() is ever called by
+	 * WPMAR_Check_Auto_Updates (fact 5/6: is_disabled() itself is deliberately never
+	 * invoked). Tests toggle $GLOBALS['_wpmar_test_vcs_checkout'] (a context => bool map)
+	 * to simulate a VCS checkout at a given path.
+	 */
+	class WP_Automatic_Updater { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+		/**
+		 * @param string $context Filesystem path to check.
+		 * @return bool
+		 */
+		public function is_vcs_checkout( $context ) {
+			if ( ! isset( $GLOBALS['_wpmar_test_vcs_checkout'] ) || ! is_array( $GLOBALS['_wpmar_test_vcs_checkout'] ) ) {
+				return false;
+			}
+
+			return ! empty( $GLOBALS['_wpmar_test_vcs_checkout'][ $context ] );
+		}
+	}
+}
+
+if ( ! class_exists( 'Core_Upgrader' ) ) {
+	/**
+	 * Minimal Core_Upgrader stub. Tests set $GLOBALS['_wpmar_test_core_should_update']
+	 * (bool, or a callable for tests that need to observe/throw from inside the call)
+	 * to control should_update_to_version()'s result.
+	 */
+	class Core_Upgrader { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound, Generic.Files.OneObjectStructurePerFile.MultipleFound
+		/**
+		 * @param string $offered_ver Offered core version.
+		 * @return bool
+		 */
+		public static function should_update_to_version( $offered_ver ) {
+			if ( isset( $GLOBALS['_wpmar_test_core_should_update'] ) && is_callable( $GLOBALS['_wpmar_test_core_should_update'] ) ) {
+				return (bool) call_user_func( $GLOBALS['_wpmar_test_core_should_update'], $offered_ver );
+			}
+
+			return ! empty( $GLOBALS['_wpmar_test_core_should_update'] );
+		}
+	}
+}
