@@ -1688,12 +1688,8 @@ class WPMAR_Runner {
 		if ( '' === $basename ) {
 			return '';
 		}
-		$transient = get_site_transient( 'update_plugins' );
-		if ( ! is_object( $transient ) || empty( $transient->response[ $basename ] ) || ! is_array( $transient->response[ $basename ] ) ) {
-			return '';
-		}
-		$data = $transient->response[ $basename ];
-		return ! empty( $data['new_version'] ) ? sanitize_text_field( (string) $data['new_version'] ) : '';
+
+		return self::pending_new_version_from_transient( 'update_plugins', $basename, 'plugin' );
 	}
 
 	/**
@@ -1707,12 +1703,35 @@ class WPMAR_Runner {
 		if ( '' === $stylesheet ) {
 			return '';
 		}
-		$transient = get_site_transient( 'update_themes' );
-		if ( ! is_object( $transient ) || empty( $transient->response[ $stylesheet ] ) || ! is_array( $transient->response[ $stylesheet ] ) ) {
+
+		return self::pending_new_version_from_transient( 'update_themes', $stylesheet, 'theme' );
+	}
+
+	/**
+	 * 更新トランジェントの response から、指定した項目の更新後バージョンを読む.
+	 *
+	 * WordPress は、update_plugins の response の要素を stdClass、update_themes の要素を配列と、
+	 * 異なる型で作る(wp-includes/update.php).そのため型で分岐せず、正規化関数を通して同じ構造にそろえる.
+	 * 1.6.0 以前のプラグイン側は「配列であること」を条件にしていたため、要素が必ず stdClass になる
+	 * 実環境では常に空文字を返していた(「新しいバージョンが通知されています」の分岐が発火しなかった).
+	 *
+	 * @param string $transient_name 'update_plugins' または 'update_themes'.
+	 * @param string $key            プラグインの basename またはテーマの stylesheet.
+	 * @param string $type           'plugin' または 'theme'.
+	 * @return string 更新後バージョン。更新待ちがない場合は空文字.
+	 */
+	private static function pending_new_version_from_transient( $transient_name, $key, $type ) {
+		$transient = get_site_transient( $transient_name );
+		if ( ! is_object( $transient ) || ! isset( $transient->response ) || ! is_array( $transient->response ) || ! isset( $transient->response[ $key ] ) ) {
 			return '';
 		}
-		$data = $transient->response[ $stylesheet ];
-		return ! empty( $data['new_version'] ) ? sanitize_text_field( (string) $data['new_version'] ) : '';
+
+		$data = WPMAR_Check_Auto_Updates::normalize_offer( $transient->response[ $key ], $type );
+		if ( null === $data || empty( $data['new_version'] ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( (string) $data['new_version'] );
 	}
 
 	/**
