@@ -306,7 +306,7 @@ If you manage this plugin in a project under Git version control, it is recommen
 == Changelog ==
 
 = 1.6.1 =
-* No user-facing behaviour change. The bundled update mechanism (`l2d-wp-github-update-lib`) is updated from 1.2.0 to 1.3.0, which hardens the update download: the token is only sent to the GitHub API, redirects are followed manually without forwarding the Authorization header, the extracted package must contain the plugin's main file, release assets are matched by exact name, API responses are type-checked, and temporary files are cleaned up on failure. No WPMAR PHP code changed. When several plugins on a site use this library, the newest bundled copy handles update checks for all of them, so their update checks also follow the 1.3.0 rules while this version is active.
+* No user-facing behaviour change. The bundled update mechanism (`l2d-wp-github-update-lib`) is updated from 1.2.0 to 1.3.1, which hardens the update download: the token is only sent to the GitHub API, redirects are followed manually without forwarding the Authorization header, the extracted package must contain the plugin's main file, release assets are matched by exact name, API responses are type-checked, and temporary files are cleaned up on failure. No WPMAR PHP code changed. When several plugins on a site use this library, the newest bundled copy handles update checks for all of them, so their update checks also follow the 1.3.0-and-later rules while this version is active.
 * See CHANGELOG.md for full details.
 
 = 1.6.0 =
