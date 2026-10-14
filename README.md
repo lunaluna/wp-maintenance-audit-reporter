@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.6.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.6.1**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -336,6 +336,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.6.1** (2026-10-14) — No user-facing behaviour change. The bundled update mechanism (`l2d-wp-github-update-lib`) is updated from 1.2.0 to 1.3.0, which hardens the update download: the token is only sent to the GitHub API, redirects are followed manually without forwarding the Authorization header, the extracted package must contain the plugin's main file, release assets are matched by exact name, API responses are type-checked, and temporary files are cleaned up on failure. No WPMAR PHP code changed. When several plugins on a site use this library, the newest bundled copy handles update checks for all of them, so their update checks also follow the 1.3.0 rules while this version is active.
 - **v1.6.0** (2026-09-03) — No user-facing behaviour change. The release pipeline (how the distribution zip and GitHub Release are built) now uses the shared `l2d-wp-github-update-lib` (1.2.0) reusable workflow instead of a bespoke implementation; no PHP code changed, and the distribution zip is byte-for-byte identical to 1.5.6 aside from `vendor-pdf.sha256` (can shift because the bundled font is fetched from `google/fonts` at build time).
 - **v1.5.5** (2026-09-03) — The PDF library (mPDF + fonts, ~94 MB) now installs to `wp-content/wpmar-pdf-lib/`, outside the plugin directory, instead of the plugin's own `vendor/`/`fonts/`; an existing in-plugin install is migrated there automatically on first load after updating. Fixes the library disappearing entirely when the plugin was updated while deactivated (the previous `vendor/`-backup safeguard only ran while the plugin was active). Filterable via `wpmar_pdf_lib_dir`; falls back to the plugin directory when `wp-content` isn't writable. Uninstalling deletes the external directory too, unless `wpmar_pdf_lib_delete_on_uninstall` returns `false`.
 - **v1.5.4** (2026-09-03) — Network rollup reports can now narrow which sites' data appears in the merged report via a new "Report output scope" setting (all sites / main site only / main site + selected sites) on the network admin screen; every target site is still audited and its snapshot baseline still updates regardless of scope, so only what's shown in the report changes. "Run now" on the network admin screen now always audits every target site — the existing run-scope selector is dry-run-only, since narrowing "Run now" previously left skipped sites with a stale snapshot baseline; use a dry run or WP-CLI's `--same-setting`/`--id=<blog_id>` for a scoped manual run.
@@ -400,7 +401,7 @@ composer run phpunit
 
 ### Distribution ZIP (GitHub releases)
 
-Since v1.6.0, **`.github/workflows/release.yml`** is a ~25-line call into the shared `l2d-wp-github-update-lib` (vendored into `lib/l2d-updater/`) reusable workflow, `plugin-release.yml`. Trigger: push of a `v*` tag (or manual `workflow_dispatch`). The referenced tag (`@1.2.0`) must always match the vendored copy under `lib/l2d-updater/` — bumping one without the other leaves the library and this plugin out of sync.
+Since v1.6.0, **`.github/workflows/release.yml`** is a ~25-line call into the shared `l2d-wp-github-update-lib` (vendored into `lib/l2d-updater/`) reusable workflow, `plugin-release.yml`. Trigger: push of a `v*` tag (or manual `workflow_dispatch`). The referenced tag (`@1.3.0`) must always match the vendored copy under `lib/l2d-updater/` — bumping one without the other leaves the library and this plugin out of sync.
 
 1. The tag is parsed and asserted to match five version-bearing locations (`version_files` in `release.yml`): the `Version:` header and `WPMAR_VERSION` constant in `wp-maintenance-audit-reporter.php`, `Stable tag:` in `readme.txt` and `readme-ja.txt`, and `"version"` in `composer.json`. Any mismatch fails the job.
 2. **`bin/release.pre.sh`** runs before the zip is built: installs production dependencies (`composer install --no-dev --optimize-autoloader`), builds the static Noto Sans JP fonts used by mPDF, zips `vendor/` + `fonts/` into `vendor-pdf.zip`, and writes its SHA-256 to both `vendor-pdf.zip.sha256` (a release asset) and `vendor-pdf.sha256` (bundled into the plugin zip, enabling checksum verification by default).

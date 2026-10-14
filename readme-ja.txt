@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -304,6 +304,10 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `wp-content/wpmar-pdf-lib/` は v1.5.5 以降の PDF ライブラリのインストール先です（前述の「PDF ライブラリ（mPDF）」参照）。その `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場、`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。プラグインディレクトリ配下の2つは、v1.5.5 より前から移行途中のサイトや、`wp-content` に書き込めずプラグインディレクトリへフォールバックしたサイトで引き続き使われるため残しています。
 
 == 変更履歴 ==
+
+= 1.6.1 =
+* 利用者から見た機能変更はありません。同梱の更新機構(`l2d-wp-github-update-lib`)を 1.2.0 から 1.3.0 に更新しました。更新パッケージのダウンロード時の検証を強化しています(トークンの送信先を GitHub API に限定、リダイレクトを手動で追い Authorization ヘッダーを転送しない、展開後にプラグインのメインファイルがなければ更新を中止、アセット名の完全一致、API レスポンスの型検証、失敗時の一時ファイル削除)。WPMAR 自身の PHP コードは変わっていません。同じサイトでこのライブラリを使う他のプラグインがある場合、同梱された最新のコピーが全プラグインの更新判定を担うため、この版が有効な間は他のプラグインの更新判定も 1.3.0 の規則で行われます。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.6.0 =
 * 利用者から見た機能変更はありません。リリース基盤(配布ZIP・GitHub Releaseの作り方)を、共有ライブラリ `l2d-wp-github-update-lib`(1.2.0)の reusable workflow を使う方式に変更しました。PHPコードは1行も変わっておらず、配布ZIPの中身は1.5.6と同一です(`vendor-pdf.sha256` を除く。同梱フォントの取得元 `google/fonts` の更新によりビルド時点でハッシュが変わり得るため)。
