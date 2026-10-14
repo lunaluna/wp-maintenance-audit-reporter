@@ -1176,4 +1176,91 @@ class WPMAR_Check_Auto_Updates {
 
 		return (string) $value;
 	}
+
+	/**
+	 * 収集した `auto_updates` を、スナップショット用の「キー => 文字列」マップに畳み込む.
+	 *
+	 * スナップショットには、導出ラベルの `state` だけを記録する。トグルだけではフィルターの
+	 * 導入を検出できず、`effective` だけでは理由が残らないため（プラン「スナップショット差分」）.
+	 * 形式は次のとおり.
+	 *
+	 * - `_site`: `core:{state}|gate:{ok|blocked(種別,...)}|plugins:{on|off}|themes:{on|off}|overrides:{種別,...|none}`
+	 * - `plugin:{basename}` / `theme:{stylesheet}`: その項目の `state`
+	 *
+	 * `overrides:` には、そのタイプで 1 件以上の項目に実際の上書き（`overridden === true`）が
+	 * 起きた種別だけを、core・plugin・theme の固定の順で記録する。`has_filter()` が真なだけ
+	 * （`site.filters_present`）では記録しない。無害なフィルターの追加でスナップショットの
+	 * 差分が出るのを避けるため.
+	 *
+	 * WP API を呼ばない純関数（WordPress をロードしないテストで検証できる）.
+	 *
+	 * @param array<string,mixed> $auto_updates {@see self::collect()} の戻り値.
+	 * @return array<string,string>
+	 */
+	public static function snapshot_map( array $auto_updates ) {
+		$site = isset( $auto_updates['site'] ) && is_array( $auto_updates['site'] ) ? $auto_updates['site'] : array();
+		$core = isset( $auto_updates['core'] ) && is_array( $auto_updates['core'] ) ? $auto_updates['core'] : array();
+
+		$blocked = array();
+		foreach ( array( 'core', 'plugin', 'theme' ) as $type ) {
+			if ( ! empty( $site['site_gate_blocked'][ $type ] ) ) {
+				$blocked[] = $type;
+			}
+		}
+		$gate = empty( $blocked ) ? 'ok' : 'blocked(' . implode( ',', $blocked ) . ')';
+
+		$overridden = array();
+		if ( isset( $core['overridden'] ) && is_array( $core['overridden'] ) && in_array( true, $core['overridden'], true ) ) {
+			$overridden[] = 'core';
+		}
+
+		$map = array();
+		foreach ( array(
+			'plugin' => 'plugins',
+			'theme'  => 'themes',
+		) as $type => $bucket ) {
+			$rows = isset( $auto_updates[ $bucket ] ) && is_array( $auto_updates[ $bucket ] ) ? $auto_updates[ $bucket ] : array();
+
+			foreach ( $rows as $key => $row ) {
+				if ( ! is_array( $row ) ) {
+					continue;
+				}
+
+				if ( ! empty( $row['overridden'] ) && ! in_array( $type, $overridden, true ) ) {
+					$overridden[] = $type;
+				}
+
+				// キーは、プレビューの表を壊す `|` と制御文字を取り除く. 状態は小文字と `_` だけに絞る.
+				$safe_key = preg_replace( '/[\x00-\x1f\x7f|]/', '', (string) $key );
+				$state    = preg_replace( '/[^a-z_]/', '', strtolower( isset( $row['state'] ) ? (string) $row['state'] : '' ) );
+
+				$map[ $type . ':' . $safe_key ] = (string) $state;
+			}
+		}
+
+		ksort( $map );
+
+		$core_state = preg_replace( '/[^a-z_]/', '', strtolower( isset( $core['state'] ) ? (string) $core['state'] : '' ) );
+
+		$site_line = sprintf(
+			'core:%1$s|gate:%2$s|plugins:%3$s|themes:%4$s|overrides:%5$s',
+			(string) $core_state,
+			$gate,
+			! empty( $site['plugins_type_enabled'] ) ? 'on' : 'off',
+			! empty( $site['themes_type_enabled'] ) ? 'on' : 'off',
+			empty( $overridden ) ? 'none' : implode( ',', self::sort_override_types( $overridden ) )
+		);
+
+		return array_merge( array( '_site' => $site_line ), $map );
+	}
+
+	/**
+	 * `overrides:` に並べる種別を、core・plugin・theme の固定の順にそろえる.
+	 *
+	 * @param array<int,string> $types 上書きが起きた種別.
+	 * @return array<int,string>
+	 */
+	private static function sort_override_types( array $types ) {
+		return array_values( array_intersect( array( 'core', 'plugin', 'theme' ), $types ) );
+	}
 }

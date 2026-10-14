@@ -601,12 +601,21 @@ class WPMAR_Runner {
 			}
 		}
 
-		return array(
+		$snapshots = array(
 			'core'    => $core_snap,
 			'themes'  => $t_map,
 			'plugins' => $p_map,
 			'users'   => $u_map,
 		);
+
+		// 自動更新の状態は、データセットにキーがあるときだけバケットを作る。キーがない回(収集に失敗した
+		// 回や旧形式のデータセット)に空のバケットを作ると、そのまま保存されて前回分を消してしまい、
+		// 次回の差分の基準がなくなる.
+		if ( isset( $facts['auto_updates'] ) && is_array( $facts['auto_updates'] ) && ! empty( $facts['auto_updates'] ) ) {
+			$snapshots['auto_updates'] = WPMAR_Check_Auto_Updates::snapshot_map( $facts['auto_updates'] );
+		}
+
+		return $snapshots;
 	}
 
 	/**
@@ -641,6 +650,101 @@ class WPMAR_Runner {
 			'themes'  => $themes,
 			'plugins' => $plugins,
 		);
+	}
+
+	/**
+	 * 自動更新のスナップショット(前回 → 今回)の差分を、管理者向けの行にする.
+	 *
+	 * 前回分がない(null・空配列)ときは、この次元の差分を出さない。`auto_updates` は 1.7.0 で
+	 * 加わった新しいバケットで、既存サイトの初回の実行では前回分がなく、そのまま比較すると
+	 * 全項目が「新規」として差分に出てしまうため(difference_summary() の `$has_prior` には
+	 * 追加しない。追加すると、旧形式の前回分しかないサイトで「初めての収集です」の扱いが変わる).
+	 *
+	 * 項目の追加・削除は、プラグイン/テーマの在庫の差分(「新規」「削除済み」)ですでに出るので、
+	 * ここでは前回・今回の両方にある項目の状態の変化だけを扱う.
+	 *
+	 * @param mixed $historic 前回の auto_updates バケット(キー => 文字列).
+	 * @param mixed $current  今回の auto_updates バケット.
+	 * @return array<int,string> `* ...\n` 形式の行.
+	 */
+	protected static function auto_update_diff_lines( $historic, $current ) {
+		if ( ! is_array( $historic ) || empty( $historic ) || ! is_array( $current ) ) {
+			return array();
+		}
+
+		$lines = array();
+		$keys  = array_keys( $current );
+		sort( $keys );
+
+		foreach ( $keys as $key ) {
+			if ( ! isset( $historic[ $key ] ) ) {
+				continue;
+			}
+
+			$old = (string) $historic[ $key ];
+			$new = (string) $current[ $key ];
+			if ( $old === $new ) {
+				continue;
+			}
+
+			$key = (string) $key;
+
+			if ( '_site' === $key ) {
+				$lines[] = '* ' . sprintf(
+					/* translators: 1 before site-level summary, 2 after site-level summary */
+					__( '自動更新（サイト全体）: %1$s → %2$s', 'wp-maintenance-audit-reporter' ),
+					sanitize_text_field( $old ),
+					sanitize_text_field( $new )
+				) . "\n";
+				continue;
+			}
+
+			if ( 0 === strpos( $key, 'plugin:' ) ) {
+				$item_label = __( 'プラグイン', 'wp-maintenance-audit-reporter' );
+				$item_key   = substr( $key, strlen( 'plugin:' ) );
+			} elseif ( 0 === strpos( $key, 'theme:' ) ) {
+				$item_label = __( 'テーマ', 'wp-maintenance-audit-reporter' );
+				$item_key   = substr( $key, strlen( 'theme:' ) );
+			} else {
+				continue;
+			}
+
+			$lines[] = '* ' . sprintf(
+				/* translators: 1 item type (plugin/theme), 2 plugin basename or theme stylesheet, 3 old state label, 4 new state label */
+				__( '自動更新 %1$s %2$s: %3$s → %4$s', 'wp-maintenance-audit-reporter' ),
+				$item_label,
+				sanitize_text_field( $item_key ),
+				self::auto_update_state_label( $old ),
+				self::auto_update_state_label( $new )
+			) . "\n";
+		}
+
+		return $lines;
+	}
+
+	/**
+	 * 自動更新の状態ラベル(evaluate_item() の state)を、変更履歴用の短い日本語にする.
+	 *
+	 * 知らない値(将来加わる state)は、そのまま返して情報を落とさない.
+	 *
+	 * @param string $state 状態ラベル.
+	 * @return string
+	 */
+	protected static function auto_update_state_label( $state ) {
+		$labels = array(
+			'on'                => __( '有効', 'wp-maintenance-audit-reporter' ),
+			'off'               => __( '無効', 'wp-maintenance-audit-reporter' ),
+			'filter_forced_on'  => __( 'フィルターで強制的に有効', 'wp-maintenance-audit-reporter' ),
+			'filter_forced_off' => __( 'フィルターで強制的に無効', 'wp-maintenance-audit-reporter' ),
+			'blocked_php'       => __( 'PHP 要件のため対象外', 'wp-maintenance-audit-reporter' ),
+			'type_disabled'     => __( 'サイト全体で無効', 'wp-maintenance-audit-reporter' ),
+			'disabled_site'     => __( '自動更新機能が無効', 'wp-maintenance-audit-reporter' ),
+			'no_update_source'  => __( '更新元なし', 'wp-maintenance-audit-reporter' ),
+		);
+
+		$state = (string) $state;
+
+		return isset( $labels[ $state ] ) ? $labels[ $state ] : sanitize_text_field( $state );
 	}
 
 	/**
@@ -791,10 +895,25 @@ class WPMAR_Runner {
 			}
 		}
 
+		// 自動更新の設定の変化は、管理者向けにだけ出す(クライアント向けの出力は変えない).
+		// 件数($tally)には含める: 運用者が「今回は何かが変わった」と分かるようにするため.
+		foreach ( self::auto_update_diff_lines(
+			isset( $before['auto_updates'] ) ? $before['auto_updates'] : null,
+			isset( $fresh['auto_updates'] ) ? $fresh['auto_updates'] : null
+		) as $auto_update_line ) {
+			++$tally;
+			$fragments[] = $auto_update_line;
+		}
+
+		$delta_none      = __( '差分は検出されませんでした。', 'wp-maintenance-audit-reporter' );
+		$delta_none_line = sprintf( "* %s\n", $delta_none );
+
 		if ( empty( $fragments ) ) {
-			$delta_none         = __( '差分は検出されませんでした。', 'wp-maintenance-audit-reporter' );
-			$delta_none_line    = sprintf( "* %s\n", $delta_none );
 			$fragments[]        = $delta_none_line;
+			$client_fragments[] = $delta_none_line;
+		} elseif ( empty( $client_fragments ) ) {
+			// 管理者向けには自動更新の差分だけがある場合。クライアント向けの本文を空にすると、
+			// 変更履歴の節が崩れるので、既存と同じ「差分なし」の行を入れる.
 			$client_fragments[] = $delta_none_line;
 		}
 

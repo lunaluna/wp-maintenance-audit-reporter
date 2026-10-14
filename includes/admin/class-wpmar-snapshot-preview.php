@@ -25,12 +25,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WPMAR_Snapshot_Preview {
 
 	/**
-	 * Canonical display order for the four dimensions every audit run writes
-	 * together (see WPMAR_Runner::canonical_snapshots_from_report()). Shown first
-	 * and always, even with zero rows, so the section list never looks incomplete;
+	 * Canonical display order for the dimensions every audit run writes together
+	 * (see WPMAR_Runner::canonical_snapshots_from_report()). Shown first and
+	 * always, even with zero rows, so the section list never looks incomplete;
 	 * see display_types().
+	 *
+	 * `auto_updates` was added in 1.7.0 (auto-update state per plugin/theme/site).
+	 * It is listed last so the original four keep their order.
 	 */
-	const KNOWN_TYPES = array( 'core', 'themes', 'plugins', 'users' );
+	const KNOWN_TYPES = array( 'core', 'themes', 'plugins', 'users', 'auto_updates' );
 
 	/**
 	 * How old the oldest dimension's baseline can be before render_freshness() adds
@@ -165,7 +168,7 @@ class WPMAR_Snapshot_Preview {
 	/**
 	 * Column heading + labels for one snapshot_type.
 	 *
-	 * The four known types map to fixed Japanese headings; anything else (a future
+	 * The known types map to fixed Japanese headings; anything else (a future
 	 * dimension WPMAR_Snapshot_Repository::types() picks up) falls back to a
 	 * generic key/value heading using the raw type string, so new types show up
 	 * without a code change here.
@@ -175,25 +178,30 @@ class WPMAR_Snapshot_Preview {
 	 */
 	protected static function column_headings( $type ) {
 		$known = array(
-			'core'    => array(
+			'core'         => array(
 				'heading' => __( 'WordPress コア（core）', 'wp-maintenance-audit-reporter' ),
 				'col1'    => __( '項目', 'wp-maintenance-audit-reporter' ),
 				'col2'    => __( '値', 'wp-maintenance-audit-reporter' ),
 			),
-			'themes'  => array(
+			'themes'       => array(
 				'heading' => __( 'テーマ（themes）', 'wp-maintenance-audit-reporter' ),
 				'col1'    => __( 'スラッグ', 'wp-maintenance-audit-reporter' ),
 				'col2'    => __( 'バージョン', 'wp-maintenance-audit-reporter' ),
 			),
-			'plugins' => array(
+			'plugins'      => array(
 				'heading' => __( 'プラグイン（plugins）', 'wp-maintenance-audit-reporter' ),
 				'col1'    => __( 'スラッグ', 'wp-maintenance-audit-reporter' ),
 				'col2'    => __( 'バージョン', 'wp-maintenance-audit-reporter' ),
 			),
-			'users'   => array(
+			'users'        => array(
 				'heading' => __( 'ユーザー（users）', 'wp-maintenance-audit-reporter' ),
 				'col1'    => __( 'ユーザー ID', 'wp-maintenance-audit-reporter' ),
 				'col2'    => __( 'シグネチャ（メールアドレス｜権限）', 'wp-maintenance-audit-reporter' ),
+			),
+			'auto_updates' => array(
+				'heading' => __( '自動更新（auto_updates）', 'wp-maintenance-audit-reporter' ),
+				'col1'    => __( '項目', 'wp-maintenance-audit-reporter' ),
+				'col2'    => __( '状態', 'wp-maintenance-audit-reporter' ),
 			),
 		);
 
@@ -229,7 +237,7 @@ class WPMAR_Snapshot_Preview {
 	}
 
 	/**
-	 * Resolves the full, ordered list of snapshot types to render: the four known
+	 * Resolves the full, ordered list of snapshot types to render: the known
 	 * dimensions first (so a dimension with zero rows still gets its own "記録が
 	 * ありません" section instead of silently disappearing), then any other type
 	 * WPMAR_Snapshot_Repository::types() finds — a future dimension — alphabetically.
@@ -286,7 +294,7 @@ class WPMAR_Snapshot_Preview {
 		?>
 		<h2><?php esc_html_e( 'スナップショット（差分比較の基準データ）', 'wp-maintenance-audit-reporter' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( '差分比較の基準として保存されている、コア・テーマ・プラグイン・ユーザーの直近2世代のスナップショットです。監査レポート本文の控えではありません。', 'wp-maintenance-audit-reporter' ); ?>
+			<?php esc_html_e( '差分比較の基準として保存されている、コア・テーマ・プラグイン・ユーザー・自動更新の直近2世代のスナップショットです。監査レポート本文の控えではありません。', 'wp-maintenance-audit-reporter' ); ?>
 		</p>
 		<?php if ( WPMAR_Network::per_site_runs_disabled() ) : ?>
 			<p class="description"><?php esc_html_e( 'このサイトからは監査を実行できませんが、ネットワーク実行の結果がここに蓄積されます。', 'wp-maintenance-audit-reporter' ); ?></p>

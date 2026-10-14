@@ -264,24 +264,24 @@ final class SnapshotPreviewMarkdownTest extends TestCase {
 
 	public function test_display_types_puts_known_dimensions_first_in_fixed_order(): void {
 		self::assertSame(
-			array( 'core', 'themes', 'plugins', 'users' ),
+			array( 'core', 'themes', 'plugins', 'users', 'auto_updates' ),
 			\WPMAR_Snapshot_Preview::display_types( array( 'users', 'core' ) )
 		);
 	}
 
 	public function test_display_types_always_includes_known_dimensions_even_when_absent(): void {
 		// A brand-new blog with zero snapshot rows: types() returns [], but the
-		// four known dimensions must still be listed so each gets its own
+		// known dimensions must still be listed so each gets its own
 		// "記録がありません" section rather than disappearing entirely.
 		self::assertSame(
-			array( 'core', 'themes', 'plugins', 'users' ),
+			array( 'core', 'themes', 'plugins', 'users', 'auto_updates' ),
 			\WPMAR_Snapshot_Preview::display_types( array() )
 		);
 	}
 
 	public function test_display_types_appends_unknown_types_alphabetically_after_known_ones(): void {
 		self::assertSame(
-			array( 'core', 'themes', 'plugins', 'users', 'alpha_dim', 'zeta_dim' ),
+			array( 'core', 'themes', 'plugins', 'users', 'auto_updates', 'alpha_dim', 'zeta_dim' ),
 			\WPMAR_Snapshot_Preview::display_types( array( 'zeta_dim', 'core', 'alpha_dim' ) )
 		);
 	}
