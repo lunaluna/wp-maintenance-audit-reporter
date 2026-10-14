@@ -9,17 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.1] - 2026-10-14
 
-利用者から見た機能変更はありません。同梱の更新機構(`l2d-wp-github-update-lib`)を 1.2.0 から 1.3.0 に更新しました。ダウンロード時の検証の強化など、セキュリティの改善です。WPMAR 自身の PHP コードは変わっていません。
+利用者から見た機能変更はありません。同梱の更新機構(`l2d-wp-github-update-lib`)を 1.2.0 から 1.3.1 に更新しました。ダウンロード時の検証の強化など、セキュリティの改善です。WPMAR 自身の PHP コードは変わっていません。
 
 ### Security
 
-- `lib/l2d-updater/` を dist-1.3.0 に更新した。トークン付きダウンロードの送信先を `https://api.github.com/repos/{repo}/releases/assets/{ID}` に限定し、リダイレクトは手動で追ってリダイレクト先へ Authorization を送らない。展開後のディレクトリにメインファイルがなければ更新を中止する。失敗時は一時ファイルを削除し、API レスポンスの型を検証する。
+- `lib/l2d-updater/` を dist-1.3.1 に更新した(1.3.0 のセキュリティ強化を含む。1.3.1 は CI の警告対応で、PHP の差分は自己申告バージョンの 1 行だけ)。トークン付きダウンロードの送信先を `https://api.github.com/repos/{repo}/releases/assets/{ID}` に限定し、リダイレクトは手動で追ってリダイレクト先へ Authorization を送らない。展開後のディレクトリにメインファイルがなければ更新を中止する。失敗時は一時ファイルを削除し、API レスポンスの型を検証する。
 - リリースアセットの選択を `{asset_pattern}.{タグの版}.zip` の完全一致にした(以前は前方一致)。候補が 1 件のときだけ採用する。WPMAR の配布 ZIP の名前(`wp-maintenance-audit-reporter.<版>.zip`)とは一致する。
 
 ### Changed
 
-- `.github/workflows/release.yml` の参照を `plugin-release.yml@1.2.0` から `@1.3.0` に更新した。配布 ZIP の作成時に、`.git` / `.github` / `tests` / `node_modules` / `*.env` が含まれていないかの内容検査が加わる。
-- 同じサイトで `l2d-wp-github-update-lib` を使う他のプラグインがある場合、同梱された最新のコピー 1 つが全プラグインの更新判定を担う。この版が有効な間は、他のプラグインの更新判定も 1.3.0 の規則で行われる。
+- `.github/workflows/release.yml` の参照を `plugin-release.yml@1.2.0` から `@1.3.1` に更新した。配布 ZIP の作成時に、`.git` / `.github` / `tests` / `node_modules` / `*.env` が含まれていないかの内容検査が加わる。
+- 同じサイトで `l2d-wp-github-update-lib` を使う他のプラグインがある場合、同梱された最新のコピー 1 つが全プラグインの更新判定を担う。この版が有効な間は、他のプラグインの更新判定も 1.3.0 以降の規則で行われる。
+- `.github/workflows/ci.yml` の `actions/checkout` を v5.1.0(Node 24)、`shivammathur/setup-php` を 2.40.0 に更新し、ランナーを `ubuntu-latest` から `ubuntu-24.04` に固定した。リリース実行に出ていた「Node.js 20 is deprecated」の警告への対応と、`ubuntu-latest` が 2026-10-19 から Ubuntu 26.04 へ移行されることへの備え(26.04 への移行は、CI で確認してから別途行う)。
 
 ## [1.6.0] - 2026-09-03
 
