@@ -225,6 +225,12 @@ class WPMAR_Report_Repository {
 			WPMAR_MD_Writer::delete_if_upload_relative( $row['pdf_file_path'] );
 		}
 
+		// クライアント向け Markdown のファイル (1.8.0). find() は SELECT * なので、
+		// 列がまだ無い表 (スキーマ未更新のブログ) ではキーが無く、isset() で飛ばされる.
+		if ( isset( $row['client_md_file_path'] ) && is_string( $row['client_md_file_path'] ) ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( $row['client_md_file_path'] );
+		}
+
 		$deleted = $this->db->delete(
 			$this->table,
 			array(

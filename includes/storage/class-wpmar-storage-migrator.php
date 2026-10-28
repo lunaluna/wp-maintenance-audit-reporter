@@ -382,6 +382,14 @@ class WPMAR_Storage_Migrator {
 	/**
 	 * Migrates one batch of `{$wpdb->prefix}wpmar_reports` rows (`md_file_path` / `pdf_file_path`).
 	 *
+	 * 1.8.0 で追加した `client_md_file_path` は、このクラスのどの処理でも扱わない (意図的).
+	 * - 移行: 対象は 1.3.0 以前の旧形式のパスだけ. 新しい列には最初から `private:` 付きのパスしか入らない.
+	 * - 戻す (--revert): 戻した先の 1.3.0 以前はこの列を知らないので、ファイルを移しても使われない.
+	 * - 移行後の掃除: 消す対象は uploads/wpmar/ 直下の `wpmar-report-*.md` など. 予備の保存先に
+	 *   書いたクライアント向け Markdown は uploads/wpmar/reports/ に入るので、対象にならない.
+	 * 逆に SELECT に列を足すと、マルチサイトで列がまだ無いブログの表では SELECT ごと失敗して、
+	 * 移行が止まってしまう.
+	 *
 	 * @param array<string,mixed> $state      Current progress.
 	 * @param string              $direction  'migrate' or 'revert'.
 	 * @param int                 $batch_size Rows to process.
