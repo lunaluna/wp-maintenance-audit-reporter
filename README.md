@@ -1,6 +1,6 @@
 # WP Maintenance Audit Reporter
 
-WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.7.0**.
+WordPress plugin: scheduled maintenance audits for core, themes, and plugins — **v1.8.0**.
 
 See [readme.txt](readme.txt) for WordPress.org–style metadata and changelog. **日本語:** [README-ja.md](README-ja.md), [readme-ja.txt](readme-ja.txt).
 
@@ -15,7 +15,7 @@ Generates monthly maintenance reports automatically and delivers them by mail, M
 - **Auto-update status** (v1.7.0+) — the administrator-facing report shows, for core and every plugin and theme, whether auto-updates are on, and tells apart the Plugins-screen toggle, `auto_update_*` filters from other plugins, site-wide blocks, and PHP/MySQL requirements
 - **Stale plugin detection** — flags plugins whose WordPress.org `last_updated` is 180+ / 365+ days old
 - **Two mail streams** — client-facing (HTML with plaintext alternative) and administrator-facing (structured plaintext)
-- **Markdown / PDF output** — administrator-facing Markdown and client-facing PDF (mPDF + Noto Sans JP; library installed on demand from the settings page)
+- **Markdown / PDF output** — administrator-facing Markdown, plus client-facing PDF and Markdown (the PDF uses mPDF + Noto Sans JP; library installed on demand from the settings page). Since v1.8.0 the client-facing Markdown stays available after the PDF library is installed
 - **Reports admin** — list, detail preview, downloads, ZIP bulk export, retention-based cleanup
 - **Diagnostics logging** — per-job step log for audit runs, a Reports-screen log viewer with download, and automatic recovery of jobs stuck by a killed process, so a stalled run can be traced to its last completed step
 - **Multisite** — network rollup audits (visits all target sites, stores merged reports on the main site)
@@ -90,6 +90,7 @@ Entries containing `*` (any string, crosses `/`) or `?` (any single character) a
 #### レポートをファイルとして自動保存 (Auto-save report files)
 
 - **Markdown を書き出して保存（管理者向け）** — writes the administrator-facing `.md` to the protected private storage directory's `reports/` on each run (see "Storage directory (private storage)" below).
+- **Markdown を書き出して保存（クライアント向け）** (since v1.8.0) — writes the client-facing `.md` to the same `reports/` directory as the administrator-facing one on each run. Works without the PDF library. Off by default, including on sites upgrading from an earlier version.
 - **PDF を書き出して保存（クライアント向け）** — writes the client-facing PDF to the private storage directory's `pdf/`. A warning appears (and the setting has no effect) while the PDF library is not installed.
 
 #### PDF ライブラリ（mPDF） (PDF library)
@@ -132,7 +133,7 @@ Above the preview toggle, a "基準の鮮度（最終保存日時）" (baseline 
 
 ### レポート (Reports) screen
 
-Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing) and PDF or Markdown (client-facing). The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
+Lists generated reports (20 per page) with a detail view that previews the administrator-facing Markdown. Downloads: Markdown (administrator-facing), Markdown (client-facing), and — when the PDF library is installed — PDF (client-facing). The ZIP bulk download also includes the client-facing Markdown. The bulk action **ZIP 一括ダウンロード** fetches multiple reports at once. Row delete and bulk delete run immediately — there is **no** confirmation dialog.
 
 A **診断ログ (Diagnostics)** section below the report list shows recent audit jobs that have a log file (status, last completed step, updated time) with a tail preview and a download link — useful when a run stalls or fails and you need to see exactly where it stopped (see "診断ログ（動作ログ）" / Diagnostics below).
 
@@ -161,7 +162,7 @@ Each line looks like this (a real example):
 
 Timestamp (UTC) · level (`INFO`/`ERROR`) · job id · what happened. A normal run walks through these steps in order:
 
-`lock:acquired` → `gather:start` → `gather:core-updates` → `gather:inventory-done` → `gather:checksums:start` → `gather:checksums:done` → `gather:security-ops:start` → `gather:security-ops:done` → `gather:done` → `diff:done` → `persist-snapshots:done` → `render:done` → `md-write:done` → (if mail enabled) `mail:start` → `mail:done` → `report-insert:done` → `notify:done` → (if PDF enabled) `pdf:start` → `pdf:done` → `retention:done` → `reschedule:done` → `job ended`
+`lock:acquired` → `gather:start` → `gather:core-updates` → `gather:inventory-done` → `gather:checksums:start` → `gather:checksums:done` → `gather:security-ops:start` → `gather:security-ops:done` → `gather:done` → `diff:done` → `persist-snapshots:done` → `render:done` → `md-write:done` → (if mail enabled) `mail:start` → `mail:done` → `report-insert:done` → `notify:done` → (if client Markdown saving enabled) `client-md-write:done` → (if PDF enabled) `pdf:start` → `pdf:done` → `retention:done` → `reschedule:done` → `job ended`
 
 **If a run stalls, the last line in the log is the last thing it completed.** For example, if the log ends at `gather:checksums:start`, the run stopped during checksum verification. A fatal error additionally logs an `[ERROR] FATAL: ...` line. Even if the process was killed hard enough (`SIGKILL`, OOM killer) that nothing could be written at all, a job with no update for ~25 minutes is automatically flipped to "failed" with "ハートビート途絶" (heartbeat lost) as the error.
 
@@ -348,6 +349,7 @@ On multisite, target each site with `--url`:
 
 Detailed per-version changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
+- **v1.8.0** (2026-10-28) — The client-facing Markdown is now offered alongside the PDF after the PDF library is installed (previously the client download switched to PDF only). Adds an opt-in setting, on both the site and network settings screens, to also save the client-facing Markdown file on each run (off by default). The ZIP bulk download now includes the client-facing Markdown. The settings screens' storage-path descriptions now match the actual default location (`wp-content/wpmar-private/`). Mail is unchanged.
 - **v1.7.0** (2026-10-14) — Adds auto-update status to the administrator-facing report: for core and every plugin and theme, whether auto-updates are on, distinguishing the Plugins-screen toggle from `auto_update_*` filter overrides, site-wide blocks (including a version-control directory above WordPress), PHP/MySQL requirements, and plugins with no update source. Changes to these settings appear in the administrator-facing diff. Client mail and PDF are unchanged. Fixes the "a new version has been announced" notice never appearing for plugins (it only worked for themes). Also bundles the update mechanism `l2d-wp-github-update-lib` 1.3.1 (download hardening) and the CI changes of 1.6.1; 1.6.1 itself was not published and is included in this release.
 - **v1.6.1** (2026-10-14) — No user-facing behaviour change. The bundled update mechanism (`l2d-wp-github-update-lib`) is updated from 1.2.0 to 1.3.1, which hardens the update download: the token is only sent to the GitHub API, redirects are followed manually without forwarding the Authorization header, the extracted package must contain the plugin's main file, release assets are matched by exact name, API responses are type-checked, and temporary files are cleaned up on failure. No WPMAR PHP code changed. When several plugins on a site use this library, the newest bundled copy handles update checks for all of them, so their update checks also follow the 1.3.0-and-later rules while this version is active.
 - **v1.6.0** (2026-09-03) — No user-facing behaviour change. The release pipeline (how the distribution zip and GitHub Release are built) now uses the shared `l2d-wp-github-update-lib` (1.2.0) reusable workflow instead of a bespoke implementation; no PHP code changed, and the distribution zip is byte-for-byte identical to 1.5.6 aside from `vendor-pdf.sha256` (can shift because the bundled font is fetched from `google/fonts` at build time).
