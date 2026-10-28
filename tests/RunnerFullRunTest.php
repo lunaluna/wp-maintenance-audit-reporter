@@ -41,6 +41,10 @@ require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-private-storage
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-logger.php';
 require_once dirname( __DIR__ ) . '/includes/api/class-wpmar-wporg-client.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-data-collector.php';
+// run() のスナップショット作成 (canonical_snapshots_from_report()) が、1.7.0 から
+// WPMAR_Check_Auto_Updates::snapshot_map() を使う. テスト全体では他のテストが先に読み込むので
+// 気づかれなかったが、このファイルだけを実行すると見つからずに失敗していた.
+require_once dirname( __DIR__ ) . '/includes/checks/class-wpmar-check-auto-updates.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-domain-gate.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-settings.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
