@@ -279,22 +279,43 @@ class WPMAR_Network_Settings_Page {
 
 				<div class="wpmar-section-panel">
 					<h2><?php esc_html_e( 'レポートをファイルとして自動保存', 'wp-maintenance-audit-reporter' ); ?></h2>
+					<?php
+					// 保存先の説明. 実際の場所は WPMAR_Private_Storage::base_dir() で決まる.
+					// 1.8.0 より前は各行に `wp-content/uploads/wpmar/` と書いていたが、これは書き込めないときの
+					// 予備の保存先で、既定の保存先 (wp-content/wpmar-private/) とは違っていた.
+					// ここで base_dir() を呼ぶとフォルダを作ってしまうので、パスは固定の文言で書く.
+					?>
+					<p class="description">
+						<?php esc_html_e( '保存先は `wp-content/wpmar-private/` です（定数 `WPMAR_PRIVATE_STORAGE_DIR` で変更できます）。md ファイルは `reports/`、PDF ファイルは `pdf/` に保存されます。マルチサイトでは、サイトごとに `site-{サイト ID}/` のフォルダに分かれます。ネットワークのレポートは、メインサイトのフォルダに保存されます。`wp-content` に書き込めない環境では、uploads 内の `wpmar/` に保存され、管理画面に通知が出ます。', 'wp-maintenance-audit-reporter' ); ?>
+					</p>
 					<table class="form-table" role="presentation">
 						<tr>
-							<th scope="row"><?php esc_html_e( 'Markdown を uploads に書き出して保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'Markdown を書き出して保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></th>
 							<td>
 								<label>
 									<input name="wpmar_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['md_enabled'] ) ); ?> />
-									<?php esc_html_e( '実行時に自動で `wp-content/uploads/wpmar/` に md ファイルを保存（管理者向け）', 'wp-maintenance-audit-reporter' ); ?>
+									<?php esc_html_e( '実行時に自動で、管理者向けの md ファイルを保存', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
+						<?php
+						// クライアント向け Markdown のファイル保存 (1.8.0). PDF ライブラリが無くても使える.
+						?>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Markdown を書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_client_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['client_md_enabled'] ) ); ?> />
+									<?php esc_html_e( '実行時に自動で、クライアント向けの md ファイルを保存（PDF ライブラリが無くても保存できます）', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
 							</td>
 						</tr>
 						<tr>
-							<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'PDF を書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
 							<td>
 								<label>
 									<input name="wpmar_pdf_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['pdf_enabled'] ) ); ?> />
-									<?php esc_html_e( '実行時に自動で `wp-content/uploads/wpmar/pdf/` に PDF レポートを保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?>
+									<?php esc_html_e( '実行時に自動で、クライアント向けの PDF ファイルを保存', 'wp-maintenance-audit-reporter' ); ?>
 								</label>
 								<?php if ( ! WPMAR_PDF_Installer::is_installed() ) : ?>
 									<p class="description" style="color:#996800;margin-top:4px;">

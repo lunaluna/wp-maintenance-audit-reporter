@@ -146,6 +146,7 @@ class WPMAR_Activator {
 	body_client_md longtext NULL,
 	md_file_path varchar(255) NULL,
 	pdf_file_path varchar(255) NULL,
+	client_md_file_path varchar(255) NULL,
 	PRIMARY KEY (id),
 	KEY idx_created_at (created_at),
 	KEY idx_status (status)
@@ -241,8 +242,9 @@ class WPMAR_Activator {
 				'from_name'    => '',
 			),
 			'output'   => array(
-				'md_enabled'  => true,
-				'pdf_enabled' => true,
+				'md_enabled'        => true,
+				'pdf_enabled'       => true,
+				'client_md_enabled' => false, // WPMAR_Settings::defaults() と同じ (1.8.0).
 			),
 		);
 

@@ -175,36 +175,40 @@ class WPMAR_Reports_List_Table extends WP_List_Table {
 			'wpmar_dl_client_md_' . $id
 		);
 
-		$pdf_available = WPMAR_PDF_Writer::is_available();
-
 		$actions = array(
-			'view'   => sprintf(
+			'view' => sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $view_url ),
 				esc_html__( '表示', 'wp-maintenance-audit-reporter' )
 			),
-			'md'     => sprintf(
+			'md'   => sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $md_dl_url ),
 				esc_html__( 'Markdown（管理者向け）', 'wp-maintenance-audit-reporter' )
 			),
-			'pdf'    => $pdf_available
-				? sprintf(
-					'<a href="%s">%s</a>',
-					esc_url( $pdf_dl_url ),
-					esc_html__( 'PDF（クライアント向け）', 'wp-maintenance-audit-reporter' )
-				)
-				: sprintf(
-					'<a href="%s">%s</a>',
-					esc_url( $client_md_dl_url ),
-					esc_html__( 'Markdown（クライアント向け）', 'wp-maintenance-audit-reporter' )
-				),
-			'delete' => sprintf(
-				'<a href="%1$s" class="wpmar-report-delete-trigger" data-wpmar-delete-message="%2$s">%3$s</a>',
-				esc_url( $delete_url ),
-				esc_attr( $delete_confirm_text ),
-				esc_html__( '削除', 'wp-maintenance-audit-reporter' )
-			),
+		);
+
+		// PDF はライブラリがあるときだけ出す. クライアント向け Markdown は DB の
+		// body_client_md から常に出せるので、ライブラリの有無に関係なく出す (1.8.0).
+		if ( WPMAR_PDF_Writer::is_available() ) {
+			$actions['pdf'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_dl_url ),
+				esc_html__( 'PDF（クライアント向け）', 'wp-maintenance-audit-reporter' )
+			);
+		}
+
+		$actions['client_md'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $client_md_dl_url ),
+			esc_html__( 'Markdown（クライアント向け）', 'wp-maintenance-audit-reporter' )
+		);
+
+		$actions['delete'] = sprintf(
+			'<a href="%1$s" class="wpmar-report-delete-trigger" data-wpmar-delete-message="%2$s">%3$s</a>',
+			esc_url( $delete_url ),
+			esc_attr( $delete_confirm_text ),
+			esc_html__( '削除', 'wp-maintenance-audit-reporter' )
 		);
 
 		$title = sprintf(

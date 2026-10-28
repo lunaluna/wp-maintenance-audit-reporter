@@ -4,7 +4,7 @@ Tags: maintenance, report, security, backup, audit
 Requires at least: 6.0
 Tested up to: 7.1.2
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 * **自動更新の状態**（v1.7.0 以降） — 管理者向けレポートに、コア・各プラグイン・各テーマの自動更新が有効かどうかを表示します。プラグイン画面のトグルと、他のプラグインの `auto_update_*` フィルターによる上書き、サイト全体での無効化、PHP / MySQL 要件による対象外を区別して報告します。
 * **更新停滞プラグイン検出** — WordPress.org の最終更新から 180 日 / 365 日以上経過したプラグインを報告。
 * **メール通知（2 系統）** — クライアント向け（HTML、プレーンテキスト代替付き）と管理者向け（整形プレーンテキスト）。
-* **Markdown / PDF 出力** — 管理者向け Markdown とクライアント向け PDF（mPDF + Noto Sans JP。ライブラリは設定画面からオンデマンドインストール）。
+* **Markdown / PDF 出力** — 管理者向け Markdown と、クライアント向けの PDF・Markdown（PDF は mPDF + Noto Sans JP。ライブラリは設定画面からオンデマンドインストール）。v1.8.0 以降は、PDF ライブラリを入れた後もクライアント向け Markdown を出力できます。
 * **レポート管理画面** — 一覧・詳細プレビュー・ダウンロード・ZIP 一括取得・保持期間による自動削除。
 * **動作ログ（診断）** — 監査実行のステップごとのログ、レポート画面のログビューアとダウンロード、強制終了されたジョブの自動復旧により、途中で止まった実行を最後のステップまで追跡できます。
 * **マルチサイト対応** — ネットワーク集約監査（全対象サイトを巡回し、集約レポートをメインサイトに保存）。
@@ -92,6 +92,7 @@ WordPress の保守向けレポート（コア・テーマ・プラグイン、�
 **レポートをファイルとして自動保存:**
 
 * **Markdown を書き出して保存（管理者向け）** — 実行時に保護されたプライベート保存先の `reports/` へ `.md` ファイルを保存します（詳しくは後述の「保存先ディレクトリ（プライベートストレージ）」を参照）。
+* **Markdown を書き出して保存（クライアント向け）**（v1.8.0 以降） — 実行時に、クライアント向けの `.md` ファイルを管理者向けと同じ `reports/` へ保存します。PDF ライブラリがなくても使えます。既定はオフです（以前のバージョンから更新したサイトでもオフ）。
 * **PDF を書き出して保存（クライアント向け）** — 実行時にプライベート保存先の `pdf/` へ PDF を保存します。PDF ライブラリが未インストールの場合は警告が表示され、この設定は機能しません。
 
 **PDF ライブラリ（mPDF）** — PDF 生成に使う mPDF のインストール状況を表示するパネルです。未インストールの場合はボタン 1 つで GitHub Releases から `vendor-pdf.zip` をダウンロードして展開します（サーバーでの `composer install` は不要）。自動ダウンロードが失敗する環境では、手動でダウンロードした ZIP をブラウザからアップロードするフォールバックが表示されます。
@@ -128,7 +129,7 @@ wp.org キャッシュの確認・クリア、スタックした実行ロック�
 
 = レポート 画面 =
 
-生成済みレポートの一覧（20 件/ページ）と詳細を表示します。詳細画面では管理者向け Markdown をプレビューでき、Markdown（管理者向け）・PDF またはMarkdown（クライアント向け）を個別ダウンロードできます。一覧では一括操作「ZIP 一括ダウンロード」で複数レポートをまとめて取得できます。行削除・一括削除は**確認ダイアログなし**で即時実行されるため注意してください。
+生成済みレポートの一覧（20 件/ページ）と詳細を表示します。詳細画面では管理者向け Markdown をプレビューでき、Markdown（管理者向け）・Markdown（クライアント向け）を、PDF ライブラリがあれば PDF（クライアント向け）も、個別ダウンロードできます。ZIP 一括ダウンロードにもクライアント向け Markdown が入ります。一覧では一括操作「ZIP 一括ダウンロード」で複数レポートをまとめて取得できます。行削除・一括削除は**確認ダイアログなし**で即時実行されるため注意してください。
 
 レポート一覧の下には**診断ログ**セクションがあり、ログファイルを持つ直近の監査ジョブ（状態・最終ステップ・更新日時）と末尾プレビュー、ダウンロードリンクを表示します。実行が途中で止まった、または失敗した際に、どこで止まったかを確認できます（詳しくは次の「診断ログ（動作ログ）」を参照）。
 
@@ -151,7 +152,7 @@ wp.org キャッシュの確認・クリア、スタックした実行ロック�
 
 `[2026-07-09T00:51:19+00:00] [INFO] [job:cli-6a4ef05f3baf2] step: gather:checksums:start`
 
-日時（UTC）・レベル（`INFO`/`ERROR`）・ジョブ ID・処理内容の順です。通常の1回の実行は次のステップを順にたどります： `lock:acquired` → `gather:start` → `gather:core-updates` → `gather:inventory-done` → `gather:checksums:start` → `gather:checksums:done` → `gather:security-ops:start` → `gather:security-ops:done` → `gather:done` → `diff:done` → `persist-snapshots:done` → `render:done` → `md-write:done` → （メール有効時）`mail:start` → `mail:done` → `report-insert:done` → `notify:done` → （PDF有効時）`pdf:start` → `pdf:done` → `retention:done` → `reschedule:done` → `job ended`。
+日時（UTC）・レベル（`INFO`/`ERROR`）・ジョブ ID・処理内容の順です。通常の1回の実行は次のステップを順にたどります： `lock:acquired` → `gather:start` → `gather:core-updates` → `gather:inventory-done` → `gather:checksums:start` → `gather:checksums:done` → `gather:security-ops:start` → `gather:security-ops:done` → `gather:done` → `diff:done` → `persist-snapshots:done` → `render:done` → `md-write:done` → （メール有効時）`mail:start` → `mail:done` → `report-insert:done` → `notify:done` → （クライアント向け Markdown の保存が有効時）`client-md-write:done` → （PDF有効時）`pdf:start` → `pdf:done` → `retention:done` → `reschedule:done` → `job ended`。
 
 **実行が途中で止まった場合、ログの最後の行が「最後に完了した処理」です** — 例えば最後の行が `gather:checksums:start` であれば、チェックサム検証の最中に停止したと分かります。致命的なエラーが起きた場合は `[ERROR] FATAL: ...` という行が追加で記録されます。プロセスが強制終了（`SIGKILL` や OOM キラーなど）されてこの記録すら書き込めなかった場合でも、約25分間更新のないジョブは自動的に「失敗」に切り替わり、エラー内容に「ハートビート途絶」と表示されます。
 
@@ -316,6 +317,13 @@ Composer の開発ツールおよびランタイム依存（mPDF / Parsedown／P
 `wp-content/wpmar-pdf-lib/` は v1.5.5 以降の PDF ライブラリのインストール先です（前述の「PDF ライブラリ（mPDF）」参照）。その `fonts/` は同梱の PDF フォント（Noto Sans JP Regular/Bold、`vendor-pdf.zip` から展開）と mPDF が生成時に書き込むフォントメトリクスキャッシュの置き場、`vendor/` は PDF ライブラリ（mPDF）のオンデマンドインストール先です。プラグインディレクトリ配下の2つは、v1.5.5 より前から移行途中のサイトや、`wp-content` に書き込めずプラグインディレクトリへフォールバックしたサイトで引き続き使われるため残しています。
 
 == 変更履歴 ==
+
+= 1.8.0 =
+* 変更：PDF ライブラリを入れた後も、クライアント向け Markdown のダウンロードを PDF と一緒に出すようにしました（レポート一覧・レポート詳細・実行完了時のリンク）。従来はライブラリを入れると、クライアント向けは PDF だけになっていました。
+* 追加：サイト・ネットワークの設定画面に「Markdown を書き出して保存（クライアント向け）」を追加しました。実行時に、クライアント向け Markdown を管理者向けと同じ `reports/` へ保存します。既定はオフです。保存したファイルはレポートの削除で一緒に消え、ZIP 一括ダウンロードにも入ります（ファイルがなければ DB に保存した本文から入れます）。
+* 修正：設定画面の説明が Markdown / PDF の保存先を `wp-content/uploads/wpmar/`（書き込めないときの予備の保存先）と表記しており、実際の既定の保存先 `wp-content/wpmar-private/` と違っていました（表記のみの修正で、実際の保存先は変わりません）。
+* メールは変わりません（PDF の添付はなく、クライアント向けの本文も従来どおり）。レポートの表には、更新時に列 `client_md_file_path` が自動で追加されます。
+* 詳細は CHANGELOG.md を参照してください。
 
 = 1.7.0 =
 * 管理者向けレポートに自動更新の状態を追加しました。コア・全プラグイン・全テーマについて、自動更新が有効かどうかを表示し、プラグイン画面のトグルと、`auto_update_*` フィルターによる上書き、サイト全体での無効化（WordPress の上位のバージョン管理ディレクトリを含む）、PHP / MySQL 要件、更新元なしを区別します。これらの設定の変化は管理者向けの差分に出ます。クライアント向けのメール・PDF は変わりません。プラグインに対して「新しいバージョンが通知されています」が一度も出ていなかった不具合（テーマでは動いていた）も修正しました。あわせて、同梱の更新機構 `l2d-wp-github-update-lib` を 1.3.1（ダウンロード時の検証の強化）に更新し、1.6.1 の CI の変更も含みます。1.6.1 は公開せず、この版に含めて配布します。

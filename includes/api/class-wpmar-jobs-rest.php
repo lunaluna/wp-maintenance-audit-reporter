@@ -291,13 +291,12 @@ class WPMAR_Jobs_REST {
 			'md' => self::download_url( $base, 'md', $report_id ),
 		);
 
-		// Mirror the detail screen: prefer client PDF when the library is present,
-		// otherwise offer the client Markdown.
+		// 詳細画面と同じ出し方にする. PDF はライブラリがあるときだけ出す.
+		// クライアント向け Markdown は body_client_md から出すので、ライブラリの有無に関係なく常に出す (1.8.0).
 		if ( class_exists( 'WPMAR_PDF_Writer' ) && WPMAR_PDF_Writer::is_available() ) {
 			$downloads['pdf'] = self::download_url( $base, 'pdf', $report_id );
-		} else {
-			$downloads['client_md'] = self::download_url( $base, 'client_md', $report_id );
 		}
+		$downloads['client_md'] = self::download_url( $base, 'client_md', $report_id );
 
 		$result['downloads'] = $downloads;
 

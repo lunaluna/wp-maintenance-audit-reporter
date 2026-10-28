@@ -86,6 +86,19 @@ class WPMAR_Report_Zip_Export {
 			if ( '' !== $pdf_abs && is_readable( $pdf_abs ) ) {
 				$zip->addFile( $pdf_abs, $base . '.pdf' );
 			}
+
+			// クライアント向け Markdown (1.8.0). 管理者向けと同じく、保存したファイルがあればそれを、
+			// 無ければ (設定がオフ、または 1.8.0 より前のレポート) DB の body_client_md から入れる.
+			$client_md_path = isset( $row['client_md_file_path'] ) ? (string) $row['client_md_file_path'] : '';
+			$client_md_abs  = '' !== $client_md_path
+				? WPMAR_MD_Writer::absolute_path_from_upload_relative( $client_md_path )
+				: '';
+
+			if ( '' !== $client_md_abs && is_readable( $client_md_abs ) ) {
+				$zip->addFile( $client_md_abs, $base . '-client.md' );
+			} elseif ( ! empty( $row['body_client_md'] ) ) {
+				$zip->addFromString( $base . '-client.md', (string) $row['body_client_md'] );
+			}
 		}
 
 		$zip->close();

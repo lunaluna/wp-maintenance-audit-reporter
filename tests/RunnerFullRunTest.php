@@ -9,6 +9,8 @@
  * here (output.md_enabled / output.pdf_enabled stay false in every test) —
  * that belongs to the dedicated rendering/PDF test steps; this file only
  * verifies what gets written to `wpmar_reports` and what side effects fire.
+ * 例外として、クライアント向け Markdown の書き出し (output.client_md_enabled, 1.8.0) は、
+ * INSERT の後に UPDATE でパスを書く順番を確かめるため、ここで 2 件だけ実際に書き出す.
  *
  * @package WPMAR\Tests
  *
@@ -39,12 +41,17 @@ require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-private-storage
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-logger.php';
 require_once dirname( __DIR__ ) . '/includes/api/class-wpmar-wporg-client.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-data-collector.php';
+// run() のスナップショット作成 (canonical_snapshots_from_report()) が、1.7.0 から
+// WPMAR_Check_Auto_Updates::snapshot_map() を使う. テスト全体では他のテストが先に読み込むので
+// 気づかれなかったが、このファイルだけを実行すると見つからずに失敗していた.
+require_once dirname( __DIR__ ) . '/includes/checks/class-wpmar-check-auto-updates.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-domain-gate.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-settings.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-network-settings.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-network.php';
 require_once dirname( __DIR__ ) . '/includes/class-wpmar-scheduler.php';
 require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-snapshot-repository.php';
+require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-md-writer.php';
 require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-report-repository.php';
 require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-pdf-writer.php';
 require_once dirname( __DIR__ ) . '/includes/notify/class-wpmar-notifier-mail.php';
@@ -132,8 +139,9 @@ final class RunnerFullRunTest extends TestCase {
 	private function base_settings() {
 		return array(
 			'output'    => array(
-				'md_enabled'  => false,
-				'pdf_enabled' => false,
+				'md_enabled'        => false,
+				'pdf_enabled'       => false,
+				'client_md_enabled' => false,
 			),
 			'retention' => array(
 				'months' => 0,
@@ -417,6 +425,56 @@ final class RunnerFullRunTest extends TestCase {
 		$runner->run( array( 'triggered_by' => 'manual' ) );
 
 		self::assertSame( '', $GLOBALS['wpdb']->insert_calls[0]['pdf_file_path'] );
+	}
+
+	/**
+	 * client_md_enabled がオンなら、INSERT の後にクライアント向け Markdown を書き出し、
+	 * そのパスを UPDATE で保存すること (1.8.0). INSERT には列を含めないこと.
+	 *
+	 * @return void
+	 */
+	public function test_client_md_enabled_writes_the_client_body_and_updates_the_row_after_insert(): void {
+		$this->configure_settings( array( 'output' => array( 'client_md_enabled' => true ) ) );
+
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$result = $runner->run( array( 'triggered_by' => 'manual' ) );
+
+		$insert = $GLOBALS['wpdb']->insert_calls[0];
+		self::assertArrayNotHasKey( 'client_md_file_path', $insert, 'INSERT に新しい列を含めると、列がまだ無いテーブルで INSERT ごと失敗する.' );
+
+		$client_updates = array_values(
+			array_filter(
+				$GLOBALS['wpdb']->update_calls,
+				static function ( $call ) {
+					return isset( $call[0]['client_md_file_path'] );
+				}
+			)
+		);
+		self::assertCount( 1, $client_updates );
+		self::assertSame( (int) $result['report_id'], (int) $client_updates[0][1]['id'] );
+
+		$abs = \WPMAR_MD_Writer::absolute_path_from_upload_relative( $client_updates[0][0]['client_md_file_path'] );
+		self::assertFileExists( $abs );
+		self::assertSame( $insert['body_client_md'], file_get_contents( $abs ) );
+		self::assertStringContainsString( '-client-', basename( $abs ) );
+	}
+
+	/**
+	 * client_md_enabled がオフ (既定) なら、クライアント向け Markdown のファイルは作らないこと.
+	 *
+	 * @return void
+	 */
+	public function test_client_md_disabled_never_writes_the_client_markdown_file(): void {
+		$runner = new ExposedFullRunRunner( new \WPMAR_Test_Fake_Data_Collector( $this->dataset_full ) );
+		$runner->run( array( 'triggered_by' => 'manual' ) );
+
+		$client_updates = array_filter(
+			$GLOBALS['wpdb']->update_calls,
+			static function ( $call ) {
+				return isset( $call[0]['client_md_file_path'] );
+			}
+		);
+		self::assertSame( array(), $client_updates );
 	}
 
 	public function test_completion_updates_last_audit_timestamp_and_reschedules_cron(): void {
