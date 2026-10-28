@@ -38,8 +38,11 @@ class WPMAR_Network_Settings {
 				'from_name'    => '',
 			),
 			'output'                => array(
-				'md_enabled'  => true,
-				'pdf_enabled' => true,
+				'md_enabled'        => true,
+				'pdf_enabled'       => true,
+				// クライアント向け Markdown のファイル保存 (1.8.0). 既定はオフ.
+				// 単一サイトの WPMAR_Settings::defaults() と同じ理由でオフにしている.
+				'client_md_enabled' => false,
 			),
 			'retention'             => array(
 				'months' => 12,
@@ -223,6 +226,8 @@ class WPMAR_Network_Settings {
 
 		$merged['output']['md_enabled']  = ! empty( $merged['output']['md_enabled'] );
 		$merged['output']['pdf_enabled'] = ! empty( $merged['output']['pdf_enabled'] );
+		// 1.8.0 より前に保存した output にはこのキーが無いので、ここで false を入れて補う.
+		$merged['output']['client_md_enabled'] = ! empty( $merged['output']['client_md_enabled'] );
 
 		$allowed_months = array( 0, 12, 24 );
 		$months         = absint( $merged['retention']['months'] );
@@ -285,8 +290,9 @@ class WPMAR_Network_Settings {
 			$curr['mail']['from_name'] = sanitize_text_field( wp_unslash( $post['wpmar_from_name'] ) );
 		}
 
-		$curr['output']['md_enabled']  = ! empty( $post['wpmar_md_enabled'] );
-		$curr['output']['pdf_enabled'] = ! empty( $post['wpmar_pdf_enabled'] );
+		$curr['output']['md_enabled']        = ! empty( $post['wpmar_md_enabled'] );
+		$curr['output']['pdf_enabled']       = ! empty( $post['wpmar_pdf_enabled'] );
+		$curr['output']['client_md_enabled'] = ! empty( $post['wpmar_client_md_enabled'] );
 
 		if ( isset( $post['wpmar_retention_months'] ) ) {
 			$allowed = array( 0, 12, 24 );

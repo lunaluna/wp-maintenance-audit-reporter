@@ -241,8 +241,9 @@ class WPMAR_Activator {
 				'from_name'    => '',
 			),
 			'output'   => array(
-				'md_enabled'  => true,
-				'pdf_enabled' => true,
+				'md_enabled'        => true,
+				'pdf_enabled'       => true,
+				'client_md_enabled' => false, // WPMAR_Settings::defaults() と同じ (1.8.0).
 			),
 		);
 

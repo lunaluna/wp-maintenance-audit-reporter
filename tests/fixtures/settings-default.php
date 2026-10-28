@@ -24,8 +24,9 @@ return array(
 		'from_name'    => '',
 	),
 	'output'      => array(
-		'md_enabled'  => true,
-		'pdf_enabled' => true,
+		'md_enabled'        => true,
+		'pdf_enabled'       => true,
+		'client_md_enabled' => false,
 	),
 	'checksums'   => array(
 		'core_exclude_paths'   => array(),

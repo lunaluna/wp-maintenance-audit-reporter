@@ -289,6 +289,19 @@ class WPMAR_Network_Settings_Page {
 								</label>
 							</td>
 						</tr>
+						<?php
+						// クライアント向け Markdown のファイル保存 (1.8.0). PDF ライブラリが無くても使える.
+						// 保存先は管理者向け Markdown と同じ (WPMAR_Private_Storage::reports_dir()).
+						?>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Markdown を書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
+							<td>
+								<label>
+									<input name="wpmar_client_md_enabled" type="checkbox" <?php checked( ! empty( $settings['output']['client_md_enabled'] ) ); ?> />
+									<?php esc_html_e( '実行時に自動で、クライアント向けの md ファイルを管理者向けの md ファイルと同じ場所に保存（PDF ライブラリが無くても保存できます）', 'wp-maintenance-audit-reporter' ); ?>
+								</label>
+							</td>
+						</tr>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'PDF を uploads に書き出して保存（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></th>
 							<td>

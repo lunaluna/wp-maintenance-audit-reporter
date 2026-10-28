@@ -40,8 +40,12 @@ class WPMAR_Settings {
 				'from_name'    => '',
 			),
 			'output'      => array(
-				'md_enabled'  => true,
-				'pdf_enabled' => true,
+				'md_enabled'        => true,
+				'pdf_enabled'       => true,
+				// クライアント向け Markdown のファイル保存 (1.8.0). 既定はオフ.
+				// get_all() の wp_parse_args() は 1 段目しかマージしないので、既存サイトの保存済み
+				// output にはこのキーが無く、空 = オフとして扱われる. 新規もオフにして挙動を揃える.
+				'client_md_enabled' => false,
 			),
 			'checksums'   => array(
 				'core_exclude_paths'   => array(),
@@ -190,8 +194,9 @@ class WPMAR_Settings {
 			$curr['output'] = self::defaults()['output'];
 		}
 		// Unchecked HTML checkboxes are omitted from POST — absent means false (same pattern as mail.enabled).
-		$curr['output']['md_enabled']  = ! empty( $post['wpmar_md_enabled'] );
-		$curr['output']['pdf_enabled'] = ! empty( $post['wpmar_pdf_enabled'] );
+		$curr['output']['md_enabled']        = ! empty( $post['wpmar_md_enabled'] );
+		$curr['output']['pdf_enabled']       = ! empty( $post['wpmar_pdf_enabled'] );
+		$curr['output']['client_md_enabled'] = ! empty( $post['wpmar_client_md_enabled'] );
 
 		if ( isset( $post['wpmar_retention_months'] ) ) {
 			$allowed = array( 0, 12, 24 );
