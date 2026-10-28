@@ -527,11 +527,14 @@ class WPMAR_Reports_Page {
 			<p>
 				<a class="button" href="<?php echo esc_url( $list_url ); ?>"><?php esc_html_e( '一覧へ戻る', 'wp-maintenance-audit-reporter' ); ?></a>
 				<a class="button" href="<?php echo esc_url( $md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（管理者向け）', 'wp-maintenance-audit-reporter' ); ?></a>
-				<?php if ( $pdf_available ) : ?>
+				<?php
+				// PDF はライブラリがあるときだけ出す. クライアント向け Markdown は
+				// ライブラリの有無に関係なく常に出す (1.8.0).
+				if ( $pdf_available ) :
+					?>
 					<a class="button" href="<?php echo esc_url( $pdf_dl_url ); ?>"><?php esc_html_e( 'PDF をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
-				<?php else : ?>
-					<a class="button" href="<?php echo esc_url( $client_md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
 				<?php endif; ?>
+				<a class="button" href="<?php echo esc_url( $client_md_dl_url ); ?>"><?php esc_html_e( 'Markdown をダウンロード（クライアント向け）', 'wp-maintenance-audit-reporter' ); ?></a>
 			</p>
 			<table class="form-table" role="presentation">
 				<tr>

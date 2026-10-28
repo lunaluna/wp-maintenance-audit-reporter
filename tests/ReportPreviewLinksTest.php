@@ -5,8 +5,9 @@
  * Covers the augmentation the jobs-status REST endpoint applies to a finished
  * runner result before it reaches the admin polling UI: stripping the bulky
  * `dry_preview` blob from dry-run payloads, attaching `report_url` +
- * nonce-signed download links for real runs, choosing between a PDF and a
- * client-Markdown download depending on whether the PDF library is present,
+ * nonce-signed download links for real runs, always offering the client-Markdown
+ * download and adding the PDF download only when the PDF library is present
+ * (1.8.0 以降. それまでは PDF とクライアント向け Markdown のどちらか片方だけだった),
  * and leaving network-rollup results (no single report id) untouched.
  *
  * The "PDF library unavailable" case can't be reproduced in-process: mpdf/mpdf
@@ -95,14 +96,24 @@ final class ReportPreviewLinksTest extends TestCase {
 		self::assertStringContainsString( '_wpnonce=' . $expected_nonce, $result['downloads']['md'] );
 	}
 
-	public function test_pdf_library_available_offers_a_pdf_download(): void {
+	/**
+	 * ライブラリがあるときは PDF とクライアント向け Markdown の両方を出す (1.8.0).
+	 * 1.7.0 までは PDF だけで、クライアント向け Markdown は出していなかった.
+	 */
+	public function test_pdf_library_available_offers_both_pdf_and_client_markdown_downloads(): void {
 		require_once dirname( __DIR__ ) . '/includes/storage/class-wpmar-pdf-writer.php';
 		self::assertTrue( \WPMAR_PDF_Writer::is_available(), 'Precondition: mpdf/mpdf + Parsedown must be installed for this test to be meaningful.' );
 
 		$result = ExposedJobsRestLinks::callBuildResultLinks( array( 'report_id' => 1 ) );
 
 		self::assertArrayHasKey( 'pdf', $result['downloads'] );
-		self::assertArrayNotHasKey( 'client_md', $result['downloads'] );
+		self::assertArrayHasKey( 'client_md', $result['downloads'] );
+
+		// 画面のリンクと同じ順番 (管理者向け MD → PDF → クライアント向け MD) で並ぶこと.
+		self::assertSame( array( 'md', 'pdf', 'client_md' ), array_keys( $result['downloads'] ) );
+
+		// client_md の nonce の action も、詳細画面の検証側と一致すること.
+		self::assertStringContainsString( '_wpnonce=' . wp_create_nonce( 'wpmar_dl_client_md_1' ), $result['downloads']['client_md'] );
 	}
 
 	/**
