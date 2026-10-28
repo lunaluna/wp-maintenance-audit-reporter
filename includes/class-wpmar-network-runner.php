@@ -407,6 +407,22 @@ class WPMAR_Network_Runner {
 			);
 		}
 
+		// クライアント向け Markdown のファイル保存 (1.8.0). 単一サイトの WPMAR_Runner::run() と同じく、
+		// INSERT の後・PDF の生成の前に置く. この関数は on_main_site() の中で呼ばれるので、
+		// ファイルはメインサイトの保存先に書かれる.
+		if ( null !== $row_id && $any_domain_ok && ! empty( $delivery['output']['client_md_enabled'] ) ) {
+			$domain_slug_client = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
+			if ( '' === $domain_slug_client ) {
+				$domain_slug_client = 'site';
+			}
+			WPMAR_Runner::persist_client_markdown_file(
+				$report_repo,
+				(int) $row_id,
+				$client_body,
+				sprintf( 'wpmar-network-report-%s-client-%s-%d', $domain_slug_client, gmdate( 'Ymd' ), (int) $row_id )
+			);
+		}
+
 		if ( null !== $row_id && $any_domain_ok && ! empty( $delivery['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
 			$domain_slug_pdf = (string) wp_parse_url( network_home_url(), PHP_URL_HOST );
 			if ( '' === $domain_slug_pdf ) {

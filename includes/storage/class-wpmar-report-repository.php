@@ -168,6 +168,44 @@ class WPMAR_Report_Repository {
 	}
 
 	/**
+	 * クライアント向け Markdown ファイルのパスを、INSERT の後に書き込む (1.8.0).
+	 *
+	 * この列は insert() には含めない. マルチサイトでは、スキーマの更新
+	 * ({@see WPMAR_Activator::upgrade_database_if_needed()}) がそのブログへのリクエスト時にしか
+	 * 走らないので、ネットワークの集約でメインサイトのテーブルに列がまだ無いことがある.
+	 * insert() に含めると、そのとき INSERT ごと失敗してレポートが保存されなくなる.
+	 * ここで別に UPDATE すれば、失敗してもレポートの行は残る (update_pdf_file_path() と同じ考え方).
+	 *
+	 * @param int    $id            Report primary key.
+	 * @param string $relative_path `private:` 付きの相対パス ({@see WPMAR_MD_Writer::write_markdown_file()} の戻り値).
+	 * @return bool UPDATE が失敗したとき (列が無いときを含む) は false.
+	 */
+	public function update_client_md_file_path( $id, $relative_path ) {
+		$id = absint( $id );
+		if ( $id <= 0 ) {
+			return false;
+		}
+
+		$ok = $this->db->update(
+			$this->table,
+			array(
+				'client_md_file_path' => sanitize_text_field( (string) $relative_path ),
+			),
+			array(
+				'id' => $id,
+			),
+			array(
+				'%s',
+			),
+			array(
+				'%d',
+			)
+		);
+
+		return false !== $ok;
+	}
+
+	/**
 	 * Deletes a single report row.
 	 *
 	 * @param int $id Report PK.

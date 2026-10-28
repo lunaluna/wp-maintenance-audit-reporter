@@ -229,6 +229,22 @@ class WPMAR_Runner {
 				WPMAR_Logger::step( 'notify:done' );
 			}
 
+			// クライアント向け Markdown のファイル保存 (1.8.0). report_id をファイル名に使うので INSERT の後に置く.
+			// 文字列を書くだけでメモリをほとんど使わないので、メモリを多く使う PDF の生成より前でよい.
+			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['client_md_enabled'] ) ) {
+				$domain_slug_client = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+				if ( '' === $domain_slug_client ) {
+					$domain_slug_client = 'site';
+				}
+				self::persist_client_markdown_file(
+					$report_repo,
+					(int) $row_id,
+					$client_body,
+					sprintf( 'wpmar-report-%s-client-%s-%d', $domain_slug_client, gmdate( 'Ymd' ), (int) $row_id )
+				);
+				WPMAR_Logger::step( 'client-md-write:done' );
+			}
+
 			if ( null !== $row_id && $domain_gate_ok && ! empty( $settings['output']['pdf_enabled'] ) && WPMAR_PDF_Writer::is_available() ) {
 				WPMAR_Logger::step( 'pdf:start' );
 				$domain_slug_pdf = (string) wp_parse_url( home_url(), PHP_URL_HOST );
@@ -362,6 +378,53 @@ class WPMAR_Runner {
 			'baseline'            => $baseline,
 			'snapshots_persisted' => $snapshots_persisted,
 		);
+	}
+
+	/**
+	 * クライアント向け Markdown をファイルに書き出し、そのパスをレポートの行に保存する (1.8.0).
+	 *
+	 * 単一サイトの {@see self::run()} とネットワークの {@see WPMAR_Network_Runner::finalize_rollup()}
+	 * の両方から呼ぶ. どちらもレポートの INSERT の後に呼ぶこと (パスは INSERT ではなく UPDATE で書く.
+	 * 理由は {@see WPMAR_Report_Repository::update_client_md_file_path()} を参照).
+	 *
+	 * 失敗してもレポートの保存やメールには影響させない. ダウンロードは DB の body_client_md から
+	 * 出せるので、ファイルが無くても困らない. 失敗したときはログに残すだけにする.
+	 * UPDATE に失敗したとき (列がまだ無いときなど) は、どの行からも参照されないファイルが
+	 * 残らないように、書き出したファイルを消す.
+	 *
+	 * @param WPMAR_Report_Repository $report_repo     Repository that just inserted the row.
+	 * @param int                     $report_id       Inserted report primary key.
+	 * @param string                  $client_body     Client-facing Markdown body.
+	 * @param string                  $basename_no_ext File name without extension (a random token is appended by the writer).
+	 * @return string 保存したパス (`private:` 付き). 失敗したときは空文字.
+	 */
+	public static function persist_client_markdown_file( WPMAR_Report_Repository $report_repo, $report_id, $client_body, $basename_no_ext ) {
+		$written = WPMAR_MD_Writer::write_markdown_file( (string) $basename_no_ext, (string) $client_body );
+		if ( is_wp_error( $written ) || ! is_string( $written ) || '' === $written ) {
+			WPMAR_Logger::log(
+				WPMAR_Logger::LEVEL_WARN,
+				'client markdown file write failed',
+				array(
+					'report_id' => (int) $report_id,
+					'error'     => is_wp_error( $written ) ? $written->get_error_code() : 'empty_path',
+				)
+			);
+			return '';
+		}
+
+		if ( ! $report_repo->update_client_md_file_path( (int) $report_id, $written ) ) {
+			WPMAR_MD_Writer::delete_if_upload_relative( $written );
+			WPMAR_Logger::log(
+				WPMAR_Logger::LEVEL_WARN,
+				'client markdown path update failed; file removed',
+				array(
+					'report_id' => (int) $report_id,
+				)
+			);
+			return '';
+		}
+
+		return $written;
 	}
 
 	/**
