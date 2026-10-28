@@ -27,6 +27,10 @@ final class DirectoryVersionStatusTest extends TestCase {
 		if ( ! defined( 'ABSPATH' ) ) {
 			define( 'ABSPATH', __DIR__ . '/fixtures/fake-root/' );
 		}
+		// get_site_transient() と sanitize_text_field() のスタブ. テストで更新トランジェントを
+		// 読む処理が使う. テスト全体では他のテストが先に読み込むので気づかれなかったが、
+		// このファイルだけを実行すると未定義で失敗していた.
+		require_once __DIR__ . '/wp-stubs.php';
 		require_once dirname( __DIR__ ) . '/includes/class-wpmar-runner.php';
 		// 更新トランジェントの型差(stdClass と配列)を吸収する正規化関数を使うため読み込む.
 		require_once dirname( __DIR__ ) . '/includes/checks/class-wpmar-check-auto-updates.php';
